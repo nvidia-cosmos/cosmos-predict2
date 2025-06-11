@@ -26,7 +26,10 @@ from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
 from cosmos_predict2.conditioner import DataType, T2VCondition
-from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_2B, Video2WorldPipelineConfig
+from cosmos_predict2.configs.base.config_video2world import (
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
+    Video2WorldPipelineConfig,
+)
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model
@@ -46,7 +49,6 @@ class Predict2ModelManagerConfig:
 
 
 @attrs.define(slots=False)
-# class WanModelConfig:
 class Predict2Video2WorldModelConfig:
     learning_rate: float = 2 ** (-14.5)
     train_architecture: str = "base"
@@ -72,8 +74,6 @@ class Predict2Video2WorldModelConfig:
     # This is used for the original way to load models
     model_manager_config: Predict2ModelManagerConfig = Predict2ModelManagerConfig()
     # This is a new way to load models
-    # pipe_config: WanVideoPipelineConfig = WanVideoPipelineConfig()
-    # pipe_config: Predict2Video2WorldPipelineConfig = Predict2Video2WorldPipelineConfig()
     pipe_config: Video2WorldPipelineConfig = PREDICT2_VIDEO2WORLD_PIPELINE_2B
     # debug flag
     debug_without_randomness: bool = False

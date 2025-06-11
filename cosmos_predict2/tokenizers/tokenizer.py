@@ -28,7 +28,7 @@ from imaginaire.utils.distributed import broadcast, get_rank, sync_model_states
 from imaginaire.utils.easy_io import easy_io
 
 __all__ = [
-    "WanVAE",
+    "VAE",
 ]
 
 CACHE_T = 2
@@ -459,7 +459,7 @@ def count_conv3d(model):
     return count
 
 
-class WanVAE_(nn.Module):
+class VAE_(nn.Module):
     def __init__(
         self,
         dim=128,
@@ -593,7 +593,7 @@ def _video_vae(
 
     # init model
     with torch.device("meta"):
-        model = WanVAE_(**cfg)
+        model = VAE_(**cfg)
 
     if pretrained_path is None:
         model.to_empty(device=device)
@@ -635,7 +635,7 @@ def _video_vae(
     sync_model_states(model)
 
     if load_mean_std:
-        log.info("broadcast mean and std for wan2pt1")
+        log.info("broadcast mean and std")
         broadcast(img_mean, 0)
         broadcast(img_std, 0)
         broadcast(video_mean, 0)
@@ -651,7 +651,7 @@ def _video_vae(
     )
 
 
-class WanVAE:
+class VAE:
     def __init__(
         self,
         z_dim=16,
@@ -781,9 +781,9 @@ class WanVAE:
         return video_recon
 
 
-class Wan2pt1VAEInterface(VideoTokenizerInterface):
+class TokenizerInterface(VideoTokenizerInterface):
     def __init__(self, chunk_duration: int = 81, load_mean_std=False, **kwargs):
-        self.model = WanVAE(
+        self.model = VAE(
             dtype=torch.bfloat16,
             is_amp=False,
             load_mean_std=load_mean_std,
@@ -800,7 +800,7 @@ class Wan2pt1VAEInterface(VideoTokenizerInterface):
     def dtype(self):
         return self.model.dtype
 
-    def to(self, **kwargs) -> WanVAE_:
+    def to(self, **kwargs) -> VAE_:
         return self.model.model.to(**kwargs)
 
     def reset_dtype(self):
@@ -861,4 +861,4 @@ class Wan2pt1VAEInterface(VideoTokenizerInterface):
 
     @property
     def name(self):
-        return "wan2pt1_tokenizer"
+        return "tokenizer"
