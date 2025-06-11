@@ -1,0 +1,1 @@
+Use the left robotic arm to pick up the gray water bottle on the left of the sink.

@@ -1,0 +1,17 @@
+[
+  {
+    "input_video": "assets/video2world/input0.jpg",
+    "prompt": "A nighttime city bus terminal gradually shifts from stillness to subtle movement. At first, multiple double-decker buses are parked under the glow of overhead lights, with a central bus labeled '87D' facing forward and stationary. As the video progresses, the bus in the middle moves ahead slowly, its headlights brightening the surrounding area and casting reflections onto adjacent vehicles. The motion creates space in the lineup, signaling activity within the otherwise quiet station. It then comes to a smooth stop, resuming its position in line. Overhead signage in Chinese characters remains illuminated, enhancing the vibrant, urban night scene.",
+    "output_video": "output/bus-terminal-night-movement.mp4"
+  },
+  {
+    "input_video": "assets/video2world/input1.jpg",
+    "prompt": "As the red light shifts to green, the red bus at the intersection begins to move forward, its headlights cutting through the falling snow. The snowy tire tracks deepen as the vehicle inches ahead, casting fresh lines onto the slushy road. Around it, streetlights glow warmer, illuminating the drifting flakes and wet reflections on the asphalt. Other cars behind start to edge forward, their beams joining the scene. The stillness of the urban street transitions into motion as the quiet snowfall is punctuated by the slow advance of traffic through the frosty city corridor.",
+    "output_video": "output/snowy-intersection-traffic.mp4"
+  },
+  {
+    "input_video": "assets/video2world/input2.jpg",
+    "prompt": "In the later moments of the video, the female worker in the front, dressed in a white coat and hairnet, performs a repetitive yet precise task. She scoops golden granular material from a wide jar and steadily pours it into the next empty glass bottle on the conveyor belt. Her hand moves with practiced control as she aligns the scoop over each container, ensuring an even fill. The sequence highlights her focused attention and consistent motion, capturing the shift from preparation to active material handling as the production line advances bottle by bottle.",
+    "output_video": "output/factory-worker-bottle-filling.mp4"
+  }
+]

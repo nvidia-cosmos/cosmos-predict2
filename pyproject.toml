@@ -1,0 +1,54 @@
+# Build and upload instructions:
+#   pip3 install --upgrade build twine
+#   python3 -m build
+#   python3 -m twine upload dist/*
+
+
+[build-system]
+requires = ["setuptools", "setuptools-scm"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nvidia-cosmos"
+version = "1.0.3"
+authors = [
+    {name = "NVIDIA Corporation"},
+]
+description = "Cosmos World Foundation Model"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "Apache-2.0"}
+dynamic = ["dependencies"]
+
+[project.urls]
+homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"
+issues = "https://github.com/nvidia-cosmos/cosmos-predict2/issues"
+
+[tool.setuptools.dynamic]
+dependencies = {file = ["requirements.txt"]}
+
+[tool.setuptools]
+packages = ["cosmos_predict2"]
+
+[tool.isort]
+profile = "black"
+known_third_party = ["third_party"]
+skip = ["third_party"]
+line_length = 120
+
+[tool.black]
+line-length = 120
+target_version = ['py310']
+exclude = 'third_party'
+
+[tool.coverage.report]
+include_namespace_packages = true
+skip_empty = true
+omit = [
+    "tests/*",
+    "legacy/*",
+    ".venv/*",
+    "**/test_*.py",
+    "config.py",
+    "config-3.10.py"
+]
