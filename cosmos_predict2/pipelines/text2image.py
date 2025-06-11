@@ -28,8 +28,10 @@ from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
 from cosmos_predict2.module.denoise_prediction import DenoisePrediction
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
-from cosmos_predict2.tokenizers.wan2pt1 import Wan2pt1VAEInterface
+from cosmos_predict2.schedulers.rectified_flow_scheduler import (
+    RectifiedFlowAB2Scheduler,
+)
+from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
 
@@ -66,7 +68,7 @@ class Text2ImagePipeline(BasePipeline):
         super().__init__(device=device, torch_dtype=torch_dtype)
         self.text_encoder: CosmosT5TextEncoder = None
         self.dit: MiniTrainDIT = None
-        self.tokenizer: Wan2pt1VAEInterface = None
+        self.tokenizer: TokenizerInterface = None
         self.conditioner = None
         self.text_guardrail_runner = None
         self.model_names = ["text_encoder", "dit", "tokenizer"]  # , "vae", "image_encoder"]
@@ -122,7 +124,9 @@ class Text2ImagePipeline(BasePipeline):
         ), "conditioner should not have learnable parameters"
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+            from cosmos_predict2.auxiliary.guardrail.common import (
+                presets as guardrail_presets,
+            )
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -290,7 +294,9 @@ class Text2ImagePipeline(BasePipeline):
 
         # Run text guardrail on the prompt
         if self.text_guardrail_runner is not None:
-            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+            from cosmos_predict2.auxiliary.guardrail.common import (
+                presets as guardrail_presets,
+            )
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):

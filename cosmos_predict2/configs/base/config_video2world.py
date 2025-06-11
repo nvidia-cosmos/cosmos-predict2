@@ -22,7 +22,8 @@ from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
-from cosmos_predict2.tokenizers.wan2pt1 import Wan2pt1VAEInterface
+from cosmos_predict2.module.edm_sde import EDMSDE
+from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from imaginaire.config import make_freezable
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
@@ -160,11 +161,11 @@ PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     state_ch=16,
     state_t=24,
     text_encoder_class="T5",
-    tokenizer=L(Wan2pt1VAEInterface)(
+    tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         load_mean_std=False,
-        name="wan2pt1_tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth",
     ),
     prompt_refiner_config=CosmosReason1Config(
         checkpoint_dir="checkpoints/nvidia/Cosmos-Reason1-7B",
@@ -249,11 +250,11 @@ PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
     state_ch=16,
     state_t=24,
     text_encoder_class="T5",
-    tokenizer=L(Wan2pt1VAEInterface)(
+    tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         load_mean_std=False,
-        name="wan2pt1_tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth",
     ),
     prompt_refiner_config=CosmosReason1Config(
         checkpoint_dir="checkpoints/nvidia/Cosmos-Reason1-7B",

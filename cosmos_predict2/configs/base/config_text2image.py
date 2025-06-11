@@ -17,7 +17,8 @@ import attrs
 
 from cosmos_predict2.conditioner import ReMapkey, TextAttr, VideoConditioner
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
-from cosmos_predict2.tokenizers.wan2pt1 import Wan2pt1VAEInterface
+from cosmos_predict2.module.edm_sde import EDMSDE
+from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from imaginaire.config import make_freezable
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
@@ -124,11 +125,11 @@ PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
     state_ch=16,
     state_t=24,
     text_encoder_class="T5",
-    tokenizer=L(Wan2pt1VAEInterface)(
+    tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         load_mean_std=False,
-        name="wan2pt1_tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth",
     ),
     guardrail_config=CosmosGuardrailConfig(
         checkpoint_dir="checkpoints/",
@@ -201,11 +202,11 @@ PREDICT2_TEXT2IMAGE_PIPELINE_14B = Text2ImagePipelineConfig(
     state_ch=16,
     state_t=24,
     text_encoder_class="T5",
-    tokenizer=L(Wan2pt1VAEInterface)(
+    tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         load_mean_std=False,
-        name="wan2pt1_tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/Wan2.1-T2V-1.3B/Wan2.1_VAE.pth",
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth",
     ),
     guardrail_config=CosmosGuardrailConfig(
         checkpoint_dir="checkpoints/",

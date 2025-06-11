@@ -20,9 +20,8 @@ from torch import nn
 
 from cosmos_predict2.utils.fused_adam_dtensor import FusedAdam
 from cosmos_predict2.utils.optim_instantiate_dtensor import get_base_optimizer
-from imaginaire.lazy_config import PLACEHOLDER
+from imaginaire.lazy_config import PLACEHOLDER, LazyDict
 from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
 from imaginaire.utils import log
 
 
@@ -72,14 +71,7 @@ def get_base_optimizer_simple(
     return opt_cls(param_group, **kwargs)
 
 
-WanAdamWConfig = L(get_base_optimizer)(
-    model=PLACEHOLDER,
-    lr=1e-4,
-    weight_decay=0.01,
-    optim_type="adamw",
-)
-
-WanFusedAdamWConfig: LazyDict = L(get_base_optimizer)(
+FusedAdamWConfig: LazyDict = L(get_base_optimizer)(
     model=PLACEHOLDER,
     lr=1e-4,
     weight_decay=0.1,
@@ -93,5 +85,4 @@ WanFusedAdamWConfig: LazyDict = L(get_base_optimizer)(
 
 def register_optimizer():
     cs = ConfigStore.instance()
-    cs.store(group="optimizer", package="optimizer", name="fusedadamw", node=WanFusedAdamWConfig)
-    cs.store(group="optimizer", package="optimizer", name="wanadamw", node=WanAdamWConfig)
+    cs.store(group="optimizer", package="optimizer", name="fusedadamw", node=FusedAdamWConfig)
