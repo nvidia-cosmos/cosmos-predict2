@@ -14,40 +14,7 @@
 # limitations under the License.
 
 from hydra.core.config_store import ConfigStore
-from megatron.core import parallel_state
-from torch.utils.data import DataLoader, DistributedSampler
 
-from cosmos_predict2.data.dataset_video import Dataset
-from imaginaire.lazy_config import LazyCall as L
-
-
-def get_sampler(dataset) -> DistributedSampler:
-    return DistributedSampler(
-        dataset,
-        num_replicas=parallel_state.get_data_parallel_world_size(),
-        rank=parallel_state.get_data_parallel_rank(),
-        shuffle=True,
-        seed=0,
-    )
-
-
-cs = ConfigStore.instance()
-
-# Cosmos-NeMo-Assets example
-example_video_dataset_cosmos_nemo_assets = L(Dataset)(
-    dataset_dir="datasets/benchmark_train/cosmos_nemo_assets",
-    num_frames=77,
-    video_size=(720, 1280),
-)
-
-dataloader_train_cosmos_nemo_assets = L(DataLoader)(
-    dataset=example_video_dataset_cosmos_nemo_assets,
-    sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets),
-    batch_size=1,
-    drop_last=True,
-    num_workers=8,
-    pin_memory=True,
-)
 
 # torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_2b_cosmos_nemo_assets
 predict2_video2world_training_2b_cosmos_nemo_assets = dict(
@@ -56,6 +23,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
+        {"override /data_train": "cosmos_nemo_assets"},
         "_self_",
     ],
     job=dict(
@@ -77,7 +45,6 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     model_parallel=dict(
         context_parallel_size=2,
     ),
-    dataloader_train=dataloader_train_cosmos_nemo_assets,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -97,6 +64,7 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
+        {"override /data_train": "cosmos_nemo_assets"},
         "_self_",
     ],
     job=dict(
@@ -118,7 +86,6 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
     model_parallel=dict(
         context_parallel_size=2,
     ),
-    dataloader_train=dataloader_train_cosmos_nemo_assets,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -139,7 +106,8 @@ for _item in [
 ]:
     # Get the experiment name from the global variable.
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]
-
+    
+    cs = ConfigStore.instance()
     cs.store(
         group="experiment",
         package="_global_",
