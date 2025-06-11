@@ -278,7 +278,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
     def draw_training_sigma_and_epsilon(self, x0_size: torch.Size, condition: Any) -> Tuple[torch.Tensor, torch.Tensor]:
         batch_size = x0_size[0]
         epsilon = torch.randn(x0_size, device="cuda")
-        sigma_B = self.pipe.sde.sample_t(batch_size).to(device="cuda")
+        sigma_B = self.pipe.scheduler.sample_sigma(batch_size).to(device="cuda")
         sigma_B_1 = rearrange(sigma_B, "b -> b 1")  # add a dimension for T, all frames share the same sigma
         is_video_batch = condition.data_type == DataType.VIDEO
 
@@ -317,7 +317,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
         Compute loss givee epsilon and sigma
 
         This method is responsible for computing loss give epsilon and sigma. It involves:
-        1. Adding noise to the input data using the SDE process.
+        1. Adding noise to the input data.
         2. Passing the noisy data through the network to generate predictions.
         3. Computing the loss based on the difference between the predictions and the original data, \
             considering any configured loss weighting.
@@ -345,7 +345,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
             - The method also supports Kendall's loss
         """
         # Get the mean and stand deviation of the marginal probability distribution.
-        mean_B_C_T_H_W, std_B_T = self.pipe.sde.marginal_prob(x0_B_C_T_H_W, sigma_B_T)
+        mean_B_C_T_H_W, std_B_T = x0_B_C_T_H_W, sigma_B_T
         # Generate noisy observations
         xt_B_C_T_H_W = mean_B_C_T_H_W + epsilon_B_C_T_H_W * rearrange(std_B_T, "b t -> b 1 t 1 1")
         # make prediction

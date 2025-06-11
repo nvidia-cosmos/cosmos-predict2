@@ -286,7 +286,6 @@ class Video2WorldPipeline(BasePipeline):
         pipe.setup_data_key()
 
         # 2. setup up diffusion processing and scaling~(pre-condition)
-        pipe.sde = instantiate(config.sde)
         pipe.scheduler = RectifiedFlowAB2Scheduler(
             sigma_min=config.timestamps.t_min,
             sigma_max=config.timestamps.t_max,
@@ -672,7 +671,7 @@ class Video2WorldPipeline(BasePipeline):
                 x0_pred_B_C_T_H_W
             ) * condition_video_mask + x0_pred_B_C_T_H_W * (1 - condition_video_mask)
 
-        # get noise prediction based on sde
+        # get noise prediction
         eps_pred_B_C_T_H_W = (xt_B_C_T_H_W - x0_pred_B_C_T_H_W) / sigma_B_1_T_1_1
 
         return DenoisePrediction(x0_pred_B_C_T_H_W, eps_pred_B_C_T_H_W, None)

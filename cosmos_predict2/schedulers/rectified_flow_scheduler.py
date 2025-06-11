@@ -14,11 +14,12 @@
 # limitations under the License.
 
 import torch
+import numpy as np
 from diffusers.configuration_utils import register_to_config
 from diffusers.schedulers import KDPM2DiscreteScheduler
 
 from cosmos_predict2.functional.runge_kutta import reg_x0_euler_step, res_x0_rk2_step
-
+from statistics import NormalDist
 
 class RectifiedFlowAB2Scheduler(KDPM2DiscreteScheduler):
     @register_to_config
@@ -36,7 +37,13 @@ class RectifiedFlowAB2Scheduler(KDPM2DiscreteScheduler):
             num_train_timesteps=1000,  # dummy, not used at inference
             **kpm2_kwargs,
         )
-        # No need to keep instance attributes as everything is accessible via self.config
+        self.gaussian_dist = NormalDist(mu=0.0, sigma=1.0)
+
+    def sample_sigma(self, batch_size: int) -> torch.Tensor:
+        cdf_vals = np.random.uniform(size=(batch_size))
+        samples_interval_gaussian = [self.gaussian_dist.inv_cdf(cdf_val) for cdf_val in cdf_vals]
+        log_sigma = torch.tensor(samples_interval_gaussian, device="cuda")
+        return torch.exp(log_sigma)
 
     def set_timesteps(self, num_inference_steps, device=None, num_train_timesteps: int | None = None):
         """Create Karras-like sigma schedule matching Rectified-Flow's paper."""
