@@ -235,19 +235,24 @@ python -m examples.video2world_bestofn \
 
 ### Long Video Generation
 
-In a single Video2World model forward, we generate .
+In the Video2World single forward pass, we generate .
 
 ```bash
 # Set the input prompt
-PROMPT="A nighttime city bus terminal gradually shifts from stillness to subtle movement. Multiple double-decker buses are parked under overhead lights, with a central bus labeled '87D' facing forward."
-# Run video2world generation with rejection sampling
-python -m examples.video2world_bestofn \
+PROMPT="A humanoid robot stands in the center-right of the frame against a dark, gradient background transitioning from black at the bottom to a lighter gray at the top. The robot is positioned on a reflective surface, mirroring its image below. It has a sleek, white body with black accents on the joints and lower legs. The robot's head features two glowing blue eyes, adding a futuristic touch. Its arms are initially bent at the elbows, with the hands positioned near the waist. The robot then raises its right arm, extending it outward while keeping its left hand in place. The robot's gaze remains fixed forward throughout the sequence. By the final frame, the robot continues to stand with its right arm extended outward, while its left hand remains near its waist. The scene is captured in a medium shot with a slight upward angle, emphasizing the robot's movements and the reflective surface beneath it."
+
+# Set the number of GPUs to use
+export NUM_GPUS=8
+
+# Run video2world long video generation
+PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --model_size 2B \
-    --input_path assets/video2world/input0.jpg \
+    --num_chunks 6 \
+    --input_path assets/video2world_lvg/example_input.jpg \
     --prompt "${PROMPT}" \
-    --num_generations 5 \
-    --num_critic_trials 3 \
-    --save_path output/rejection_sampling_demo
+    --save_path output/video2world_2b_lvg_${NUM_GPUS}gpu.mp4 \
+    --num_gpus ${NUM_GPUS} \
+    --disable_prompt_refiner
 ```
 
 This command:
