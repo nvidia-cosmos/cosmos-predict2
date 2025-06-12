@@ -233,6 +233,39 @@ python -m examples.video2world_bestofn \
     --save_path output/my_existing_videos
 ```
 
+### Long Video Generation
+
+Video quality can be further improved by generating multiple variations and selecting the best one based on automatic quality assessment using [Cosmos-Reason1-7B](https://huggingface.co/nvidia/Cosmos-Reason1-7B) as the critic model. This approach, known as rejection sampling, can significantly enhance the visual quality of the generated videos.
+
+```bash
+# Set the input prompt
+PROMPT="A nighttime city bus terminal gradually shifts from stillness to subtle movement. Multiple double-decker buses are parked under overhead lights, with a central bus labeled '87D' facing forward."
+# Run video2world generation with rejection sampling
+python -m examples.video2world_bestofn \
+    --model_size 2B \
+    --input_path assets/video2world/input0.jpg \
+    --prompt "${PROMPT}" \
+    --num_generations 5 \
+    --num_critic_trials 3 \
+    --save_path output/rejection_sampling_demo
+```
+
+This command:
+1. Generates 5 different videos from the same input and prompt
+2. Evaluates each video 3 times using the Cosmos-Reason1 critic model
+3. Saves all videos with quality scores in their filenames (from 000 to 100)
+4. Creates HTML reports with detailed analysis for each video
+
+The highest-scored video represents the best generation from the batch. For batch processing with existing videos:
+
+```bash
+# Run critic on existing videos without generation
+python -m examples.video2world_bestofn \
+    --skip_generation \
+    --save_path output/my_existing_videos
+```
+
+
 ## API Documentation
 
 The `predict2_video2world.py` script supports the following command-line arguments:
