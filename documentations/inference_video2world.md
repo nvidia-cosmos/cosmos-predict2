@@ -235,7 +235,7 @@ python -m examples.video2world_bestofn \
 
 ### Long Video Generation
 
-In the Video2World single forward pass, we generate .
+In a single forward pass of the Video2World model, we only generate one chunk of video. To generate longer videos of multiple chunks, we support long video generation in an auto-regressive inference manner. The idea is to 
 
 ```bash
 # Set the input prompt
@@ -252,6 +252,7 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --prompt "${PROMPT}" \
     --save_path output/video2world_2b_lvg_${NUM_GPUS}gpu.mp4 \
     --num_gpus ${NUM_GPUS} \
+    --disable_guardrail \
     --disable_prompt_refiner
 ```
 
