@@ -235,7 +235,7 @@ python -m examples.video2world_bestofn \
 
 ### Long Video Generation
 
-Video quality can be further improved by generating multiple variations and selecting the best one based on automatic quality assessment using [Cosmos-Reason1-7B](https://huggingface.co/nvidia/Cosmos-Reason1-7B) as the critic model. This approach, known as rejection sampling, can significantly enhance the visual quality of the generated videos.
+In a single Video2World model forward, we generate .
 
 ```bash
 # Set the input prompt

@@ -215,7 +215,7 @@ def process_single_generation(
                 input_path=current_input_path,
                 num_conditional_frames=num_conditional_frames,
                 guidance=guidance,
-                seed=seed,
+                seed=seed+chunk_id, # change random seed to avoid repeat
             )
             # for the first chunk, we save the whole clip
             if chunk_id == 0:
