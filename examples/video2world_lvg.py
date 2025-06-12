@@ -112,12 +112,6 @@ def parse_args() -> argparse.Namespace:
         help="Number of chunks to be generated for long video generation",
     )
     parser.add_argument(
-        "--num_overlap_frames",
-        type=int,
-        default=1,
-        help="Number of overlapping frames between chunks during auto-regressive generation",
-    )
-    parser.add_argument(
         "--batch_input_json",
         type=str,
         default=None,
@@ -199,8 +193,7 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames,
-    num_chunks, num_overlap_frames, guidance, seed,
+    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, num_chunks, guidance, seed
 ):
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
@@ -228,14 +221,14 @@ def process_single_generation(
             if chunk_id == 0:
                 chunk = video
             else:
-                chunk = video[:, :, num_overlap_frames:, :, :]
+                chunk = video[:, :, num_conditional_frames:, :, :]
             all_chunks.append(chunk.cpu())
             
-            # Prepare for next chunk: use last `num_overlap_frames` frames as new condition
-            last_frames = video[:, :, -num_overlap_frames:, :, :]  # (1, C, num_overlap_frames, H, W)
-            # if num_overlap_frames is 1, save as image temp file
+            # Prepare for next chunk: use last `num_conditional_frames` frames as new condition
+            last_frames = video[:, :, -num_conditional_frames:, :, :]  # (1, C, num_conditional_frames, H, W)
+            # if num_conditional_frames is 1, save as image temp file
             # otherwise, save as video temp file
-            if num_overlap_frames == 1:
+            if num_conditional_frames == 1:
                 last_frames_path = os.path.join(tmpdir, f"chunk{chunk_id}_overlap.png")
             else:
                 last_frames_path = os.path.join(tmpdir, f"chunk{chunk_id}_overlap.mp4")
@@ -281,7 +274,6 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 negative_prompt=args.negative_prompt,
                 num_conditional_frames=args.num_conditional_frames,
                 num_chunks=args.num_chunks,
-                num_overlap_frames=args.num_overlap_frames,
                 guidance=args.guidance,
                 seed=args.seed,
             )
@@ -294,7 +286,6 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             negative_prompt=args.negative_prompt,
             num_conditional_frames=args.num_conditional_frames,
             num_chunks=args.num_chunks,
-            num_overlap_frames=args.num_overlap_frames,
             guidance=args.guidance,
             seed=args.seed,
         )
