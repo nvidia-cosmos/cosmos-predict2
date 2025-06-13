@@ -51,22 +51,20 @@ Below is a configuration snippet defining the experiment setup:
 ```python
 action_conditioned_predict2_video2world_2b_training = dict(
     defaults=[
-        {"override /model": "action_conditional_predict2_v2w_2b_fsdp"},
+        {"override /model": "action_conditioned_predict2_v2w_2b_fsdp"},
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
         {"override /data_train": "bridge_train"},
-        {"override /data_val": "bridge_val"},
         "_self_",
     ],
     model=dict(
         config=dict(
             num_video_frames=13,
             resolution="720",
-            fsdp_shard_size=8,
+            fsdp_shard_size=-1,
         )
     ),
-    job=dict(project="posttraining", group="video2world", name="action_conditioned_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}"),
-    ...
+    job=dict(group="debug", name="action_conditioned_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}"),
 )
 ```
 
