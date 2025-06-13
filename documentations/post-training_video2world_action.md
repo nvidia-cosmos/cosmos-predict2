@@ -24,6 +24,10 @@ datasets/bridge/
 ```
 
 Each JSON file in the `annotations/` folder contains the end-effector pose and gripper width of the robot arm for each frame in the corresponding video.
+Specifically, each file includes:
+- `action`: the end-effector displacement
+- `state`: the end-effector pose of the robot arm
+- `continuous_gripper_state`: the width of the gripper.
 We use this information as conditioning input for video generation.
 
 
