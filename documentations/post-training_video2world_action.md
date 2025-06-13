@@ -25,9 +25,14 @@ datasets/bridge/
 
 Each JSON file in the `annotations/` folder contains the end-effector pose and gripper width of the robot arm for each frame in the corresponding video.
 Specifically, each file includes:
-- `action`: the end-effector displacement
-- `state`: the end-effector pose of the robot arm
-- `continuous_gripper_state`: the width of the gripper.
+- `state`: The end-effector pose of the robot arm at each timestep, represented as [x, y, z, roll, pitch, yaw].
+    - (x, y, z) denotes the gripper's position in world coordinates.
+    - (roll, pitch, yaw) describes its orientation in Euler angles.
+- `continuous_gripper_state`: The width of the gripper at each timestep, indicating whether it is open or closed. A value of 0 means the gripper is open, and 1 means it is closed.
+- `action`: The gripper's displacement at each timestep.
+    - The first six dimensions represent displacement in (x, y, z, roll, pitch, yaw) within the gripper coordinate frame.
+    - The last (seventh) dimension is a binary value indicating whether the gripper should open (1) or close (0).
+
 We use this information as conditioning input for video generation.
 
 
