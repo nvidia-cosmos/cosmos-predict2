@@ -26,10 +26,10 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 from megatron.core import parallel_state
 
-from cosmos_predict2.configs.action_conditional.config_action_conditional import (
-    ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
+from cosmos_predict2.configs.action_conditioned.config_action_conditioned import (
+    ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
 )
-from cosmos_predict2.pipelines.action_video2world import ActionConditionalVideo2WorldPipeline
+from cosmos_predict2.pipelines.action_video2world import ActionConditionedVideo2WorldPipeline
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -38,8 +38,11 @@ def get_action_sequence(annotation_path):
     with open(annotation_path, "r") as file:
         data = json.load(file)
 
+    # rescale the action to the original scale
     action_ee = np.array(data["action"])[:, :6] * 20
     gripper = np.array(data["continuous_gripper_state"])[1:, None]
+    
+    # concatenate the end-effector displacement and gripper width
     action = np.concatenate([action_ee, gripper], axis=1)
     return action
 
@@ -107,7 +110,7 @@ def parse_args() -> argparse.Namespace:
 def setup_pipeline(args: argparse.Namespace):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
-        config = ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_PIPELINE_2B
+        config = ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pth"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
@@ -144,7 +147,7 @@ def setup_pipeline(args: argparse.Namespace):
 
     # Load models
     log.info(f"Initializing Video2WorldPipeline with model size: {args.model_size}")
-    pipe = ActionConditionalVideo2WorldPipeline.from_config(
+    pipe = ActionConditionedVideo2WorldPipeline.from_config(
         config=config,
         dit_path=dit_path,
         text_encoder_path=text_encoder_path,
@@ -208,7 +211,7 @@ def process_single_generation(
 
 
 
-def generate_video(args: argparse.Namespace, pipe: ActionConditionalVideo2WorldPipeline) -> None:
+def generate_video(args: argparse.Namespace, pipe: ActionConditionedVideo2WorldPipeline) -> None:
     process_single_generation(
         pipe=pipe,
         input_path=args.input_video,

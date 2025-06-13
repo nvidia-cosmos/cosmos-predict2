@@ -18,14 +18,14 @@ import math
 import torch
 from megatron.core import parallel_state
 from torch.distributed.device_mesh import init_device_mesh
-from cosmos_predict2.pipelines.action_video2world import ActionConditionalVideo2WorldPipeline
+from cosmos_predict2.pipelines.action_video2world import ActionConditionedVideo2WorldPipeline
 from cosmos_predict2.models.video2world_model import Predict2Video2WorldModel, Predict2Video2WorldModelConfig
 from imaginaire.model import ImaginaireModel
 from imaginaire.utils import log
 
 
 
-class ActionConditionalPredict2Video2WorldModel(Predict2Video2WorldModel):
+class ActionConditionedPredict2Video2WorldModel(Predict2Video2WorldModel):
     def __init__(self, config: Predict2Video2WorldModelConfig):
         super(ImaginaireModel, self).__init__()
         # New code, added for i4 adaption
@@ -62,8 +62,8 @@ class ActionConditionalPredict2Video2WorldModel(Predict2Video2WorldModel):
         else:
             self.data_parallel_size = 1
 
-        # NOTE:replace the pipeline with action-conditioning
-        self.pipe = ActionConditionalVideo2WorldPipeline.from_config(
+        # NOTE: replace the pipeline with action-conditioned setup
+        self.pipe = ActionConditionedVideo2WorldPipeline.from_config(
             config.pipe_config,
             dit_path=config.model_manager_config.dit_path,
         )

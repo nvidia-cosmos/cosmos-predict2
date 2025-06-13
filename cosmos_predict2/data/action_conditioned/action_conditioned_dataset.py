@@ -34,7 +34,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms as T
 from tqdm import tqdm
 
-from cosmos_predict2.data.action_conditional.dataset_utils import (
+from cosmos_predict2.data.action_conditioned.dataset_utils import (
     Resize_Preprocess,
     ToTensorVideo,
     euler2rotm,
@@ -42,7 +42,7 @@ from cosmos_predict2.data.action_conditional.dataset_utils import (
 )
 
 
-class ActionConditionalDataset(Dataset):
+class ActionConditionedDataset(Dataset):
     def __init__(
         self,
         train_annotation_path,
@@ -63,7 +63,7 @@ class ActionConditionalDataset(Dataset):
         load_action=True,
         mode="train",
     ):
-        """Dataset class for loading 3D robot action-conditional data.
+        """Dataset class for loading 3D robot action-conditioned data.
 
         This dataset loads robot trajectories consisting of RGB video frames, robot states (arm positions and gripper states),
         and computes relative actions between consecutive frames.

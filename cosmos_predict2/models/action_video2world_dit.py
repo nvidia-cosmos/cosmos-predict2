@@ -42,7 +42,7 @@ class Mlp(nn.Module):
         return x
 
 
-class ActionConditionalMinimalV1LVGDiT(MinimalV1LVGDiT):
+class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
     def __init__(self, *args, **kwargs):
         assert 'action_dim' in kwargs, "action_dim must be provided"
         action_dim = kwargs['action_dim']

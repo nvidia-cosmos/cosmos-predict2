@@ -17,9 +17,9 @@ import attrs
 
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
-from cosmos_predict2.configs.action_conditional.defaults.conditioner import ActionConditionalConditioner
+from cosmos_predict2.configs.action_conditioned.defaults.conditioner import ActionConditionedConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
-from cosmos_predict2.models.action_video2world_dit import ActionConditionalMinimalV1LVGDiT
+from cosmos_predict2.models.action_video2world_dit import ActionConditionedMinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
 from imaginaire.config import make_freezable
@@ -30,7 +30,7 @@ from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy
 
 
 # Cosmos Predict2 Video2World 2B
-ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionalMinimalV1LVGDiT)(
+ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVGDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,
@@ -63,9 +63,9 @@ ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionalMinimalV1LVG
     action_dim=7*12,
 )
 
-ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
+ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(ActionConditionalConditioner)(
+    conditioner=L(ActionConditionedConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -98,7 +98,7 @@ ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     conditioning_strategy=str(ConditioningStrategy.FRAME_REPLACE),
     min_num_conditional_frames=1,
     max_num_conditional_frames=1,
-    net=ACTION_CONDITIONAL_PREDICT2_VIDEO2WORLD_NET_2B,
+    net=ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
     resize_online=True,

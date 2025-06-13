@@ -19,17 +19,16 @@ from hydra.core.config_store import ConfigStore
 from megatron.core import parallel_state
 from torch.utils.data import DataLoader, DistributedSampler
 
-from cosmos_predict2.data.action_conditional.action_conditional_dataset import ActionConditionalDataset
+from cosmos_predict2.data.action_conditioned.action_conditioned_dataset import ActionConditionedDataset
 from imaginaire.lazy_config import LazyCall as L
 
 base_path = "./datasets/bridge/"
 train_annotation_path = os.path.join(base_path, "annotation/train")
-# train_annotation_path = os.path.join(base_path, "annotation/train_subset")
 val_annotation_path = os.path.join(base_path, "annotation/val")
 test_annotation_path = os.path.join(base_path, "annotation/test")
 
 
-bridge_train_dataset = L(ActionConditionalDataset)(
+bridge_train_dataset = L(ActionConditionedDataset)(
     train_annotation_path=train_annotation_path,
     val_annotation_path=val_annotation_path,
     test_annotation_path=test_annotation_path,
@@ -43,7 +42,7 @@ bridge_train_dataset = L(ActionConditionalDataset)(
     mode="train",
 )
 
-bridge_val_dataset = L(ActionConditionalDataset)(
+bridge_val_dataset = L(ActionConditionedDataset)(
     train_annotation_path=train_annotation_path,
     val_annotation_path=val_annotation_path,
     test_annotation_path=test_annotation_path,
@@ -83,7 +82,7 @@ bridge_val_dataloader = L(DataLoader)(
 )
 
 
-def register_training_and_val_data_action_conditional():
+def register_training_and_val_data_action_conditioned():
     cs = ConfigStore.instance()
 
     # for local dataset

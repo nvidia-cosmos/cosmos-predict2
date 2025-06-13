@@ -26,18 +26,18 @@ from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidConditio
 
 # NOTE: extend the condition class to include action
 @dataclass(frozen=True)
-class ActionConditionalCondition(Vid2VidCondition):
+class ActionConditionedCondition(Vid2VidCondition):
     action: Optional[torch.Tensor] = None
 
 
 # NOTE: extend the conditioner class to include action
-class ActionConditionalConditioner(Vid2VidConditioner):
+class ActionConditionedConditioner(Vid2VidConditioner):
     def forward(
         self,
         batch: Dict,
         override_dropout_rate: Optional[Dict[str, float]] = None,
-    ) -> ActionConditionalCondition:
+    ) -> ActionConditionedCondition:
         output = super()._forward(batch, override_dropout_rate)
         assert "action" in batch, "ActionConditionalConditioner requires 'action' in batch"
         output["action"] = batch["action"]
-        return ActionConditionalCondition(**output)
+        return ActionConditionedCondition(**output)
