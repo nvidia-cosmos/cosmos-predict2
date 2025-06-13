@@ -4,9 +4,8 @@ We provide an example post-training instruction from a pre-trained video2world c
 
 ## 1. Preparing Data
 ### 1.1 Download Bridge training dataset
-We leverage the train/val splits of Bridge from IRASim as the dataset for action-conditional post-training.
-Please use the following link to download the Bridge training dataset.
-under `cosmos-predict2/` folder, run:
+We use the train/validation splits of the Bridge dataset from IRASim for action-conditional post-training.
+To download and prepare the dataset, run the following commands under the `cosmos-predict2/` directory:
 ```
 wget https://lf-robot-opensource.bytetos.com/obj/lab-robot-public/opensource_IRASim_v1/bridge_train_data.tar.gz
 mv bridge_train_data.tar.gz datasets/
@@ -15,7 +14,7 @@ tar -xvzf bridge_train_data.tar.gz -C .
 mv opensource_robotdata/bridge ./
 ```
 
-Dataset folder format:
+Your dataset directory structure should look like this:
 ```
 datasets/bridge/
 ├── annotations/
@@ -24,21 +23,31 @@ datasets/bridge/
     ├── *.mp4
 ```
 
+Each JSON file in the `annotations/` folder contains the end-effector pose and gripper width of the robot arm for each frame in the corresponding video.
+
 
 ## 2. Post-training
 
 ##### Cosmos-Predict2-2B-Video2World
-Run the following command to execute an example post-training job with Bridge data.
+Run the following command to launch an example post-training job using the Bridge dataset:
 ```bash
 torchrun --nproc_per_node=2 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment="action_conditional_predict2_video2world_2b_training"
 ```
 See `cosmos_predict2/configs/action_conditional/defaults/data.py` to understand how the dataloader is defined.
-To add action as additional condition, we create new `conditioner` to support action in `cosmos_predict2/confi
-gs/action_conditional/defaults/conditioner.py`.
+To add action as additional condition, we create new `conditioner` to support action in `cosmos_predict2/configs/action_conditional/defaults/conditioner.py`.
 
-The checkpoints will be saved to checkpoints/PROJECT/GROUP/NAME. In the above example, PROJECT is `posttraining`, GROUP is `video2world`, NAME is `action_conditional_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}`.
+##### Checkpoint Output Structure
+Checkpoints are saved to the following path:
+```
+checkpoints/PROJECT/GROUP/NAME
+```
+For the example command above:
+- PROJECT: `posttraining`
+- GROUP: `video2world`
+- NAME: `action_conditional_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}`
 
-See the job config to understand how they are determined.
+##### Configuration Snippet
+Below is a configuration snippet defining the experiment setup:
 ```python
 action_conditional_predict2_video2world_2b_training = dict(
     defaults=[
@@ -64,8 +73,8 @@ action_conditional_predict2_video2world_2b_training = dict(
 
 ## 3. Inference for Bridge
 ##### Cosmos-Predict2-2B-Video2World
-For example, if a posttrained checkpoint with 1000 iterations is to be used, run the following command.
-Use `--dit_path` argument to specify the path to the post-trained checkpoint.
+To run inference using a post-trained checkpoint (e.g., at 1000 iterations), use the command below.
+Specify the path to the checkpoint using the `--dit_path` argument:
 ```
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/action_video2world.py \
   --model_size 2B \

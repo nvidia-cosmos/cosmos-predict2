@@ -79,6 +79,8 @@ For inference examples and usage
 For post-training customization
 * **[Post-training guide](documentations/post-training_video2world.md)**: General guide to the training system in the codebase
 * **[Post-training on Cosmos-NeMo-Assets](documentations/post-training_video2world_cosmos_nemo_assets.md)**: Case study for post-training on Cosmos-NeMo-Assets data
+* **[Post-training on Bridge](documentations/post-training_video2world_action.md)**: Case study for action-conditional post-training on manipulation dataset
+
 
 Our [performance guide](documentations/performance.md) includes
 * [Hardware requirements](documentations/performance.md#hardware-requirements): Recommended GPU configurations and memory requirements
