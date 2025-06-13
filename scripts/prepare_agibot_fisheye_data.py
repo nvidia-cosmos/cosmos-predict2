@@ -284,30 +284,11 @@ def split_video_into_windows(video_path, output_dir, task_id, episode_id, window
             str(output_file),
         ]
 
-        # cmd = (
-        #     f"ffmpeg -ss {start_time} -i {video_path} -t {end_time - start_time} "
-        #     f"-c:v libx264 -pix_fmt yuv420p -avoid_negative_ts make_zero -y {output_file}"
-        # )
-
-        # import ipdb
-
-        # ipdb.set_trace()
-
         try:
             subprocess.run(cmd, capture_output=True, check=True)
             extracted_files.append(output_file)
         except subprocess.CalledProcessError as e:
             print(f"Error extracting window {window_id}: {e}")
-            # import ipdb
-
-            # ipdb.set_trace()
-            # # Try with re-encoding if copy fails
-            # cmd[cmd.index("copy")] = "libx264"
-            # try:
-            #     subprocess.run(cmd, capture_output=True, check=True)
-            #     extracted_files.append(output_file)
-            # except subprocess.CalledProcessError as e:
-            #     print(f"Error extracting window {window_id} with re-encoding: {e}")
 
     return extracted_files
 
