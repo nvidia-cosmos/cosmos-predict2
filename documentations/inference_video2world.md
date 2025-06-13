@@ -235,42 +235,30 @@ python -m examples.video2world_bestofn \
 
 ### Long Video Generation
 
-In a single forward pass of the Video2World model, we only generate one chunk of video. To generate longer videos of multiple chunks, we support long video generation in an auto-regressive inference manner. The idea is to 
+In a single forward pass of the Video2World model, we only generate one chunk of video. To generate longer videos of multiple chunks, we support long video generation in an auto-regressive inference manner. The idea is to generate the first chunk, then iteratively taking the last `num_conditional_frames` frames of the previous chunk as input condition of next chunk.
+
+Since long video generation calls the whole denoising process of Video2World model for `num_chunks` times, it's much slower than single-chunk video generation. We hence highly recommend using multi-GPU inference to boost the speed.
 
 ```bash
 # Set the input prompt
-PROMPT="A humanoid robot stands in the center-right of the frame against a dark, gradient background transitioning from black at the bottom to a lighter gray at the top. The robot is positioned on a reflective surface, mirroring its image below. It has a sleek, white body with black accents on the joints and lower legs. The robot's head features two glowing blue eyes, adding a futuristic touch. Its arms are initially bent at the elbows, with the hands positioned near the waist. The robot then raises its right arm, extending it outward while keeping its left hand in place. The robot's gaze remains fixed forward throughout the sequence. By the final frame, the robot continues to stand with its right arm extended outward, while its left hand remains near its waist. The scene is captured in a medium shot with a slight upward angle, emphasizing the robot's movements and the reflective surface beneath it."
+PROMPT="A serene winter landscape unfolds, with a campfire burning brightly on a snowy hillside. The fire, constructed from logs arranged in a pyramid shape, casts a warm, orange glow against the cold surroundings. The ground is blanketed in thick snow, with patches of exposed earth around the base of the fire. Sparse evergreen trees dot the snowy landscape, adding a touch of green to the white terrain. In the distance, a majestic mountain range stretches across the horizon, its peaks partially covered in snow. The sky above is a beautiful gradient, transitioning from the warm oranges and yellows of the setting sun to the cooler blues and purples of the evening sky. The camera remains stationary, allowing viewers to fully appreciate the tranquil beauty of the scene, with the gentle flickering of the fire providing a soothing soundtrack. As the video progresses, the fire continues to burn steadily, maintaining its bright orange flames and glowing embers, while the surrounding snow and trees remain undisturbed. The mountain range and sky retain their serene hues, contributing to the overall peaceful ambiance."
 
 # Set the number of GPUs to use
 export NUM_GPUS=8
 
-# Run video2world long video generation
+# Run video2world long video generation of 6 chunks
 PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --model_size 2B \
     --num_chunks 6 \
-    --input_path assets/video2world_lvg/example_input.jpg \
+    --input_path assets/video2world_lvg/example_input1.jpg \
     --prompt "${PROMPT}" \
-    --save_path output/video2world_2b_lvg_${NUM_GPUS}gpu.mp4 \
+    --save_path output/video2world_2b_lvg_example1.mp4 \
     --num_gpus ${NUM_GPUS} \
     --disable_guardrail \
     --disable_prompt_refiner
 ```
 
-This command:
-1. Generates 5 different videos from the same input and prompt
-2. Evaluates each video 3 times using the Cosmos-Reason1 critic model
-3. Saves all videos with quality scores in their filenames (from 000 to 100)
-4. Creates HTML reports with detailed analysis for each video
-
-The highest-scored video represents the best generation from the batch. For batch processing with existing videos:
-
-```bash
-# Run critic on existing videos without generation
-python -m examples.video2world_bestofn \
-    --skip_generation \
-    --save_path output/my_existing_videos
-```
-
+The 14B model can be run similarly by changing the model size parameter. You can also refer to `assets/video2world_lvg/` for example input image conditions and text prompts.
 
 ## API Documentation
 
