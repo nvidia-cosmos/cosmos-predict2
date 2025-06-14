@@ -15,8 +15,13 @@
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.datasets.cached_replay_dataloader import get_cached_replay_dataloader
-from cosmos_predict2.datasets.data_sources.mock_data import get_image_dataset, get_video_dataset
+from cosmos_predict2.datasets.cached_replay_dataloader import (
+    get_cached_replay_dataloader,
+)
+from cosmos_predict2.datasets.data_sources.mock_data import (
+    get_image_dataset,
+    get_video_dataset,
+)
 from cosmos_predict2.datasets.joint_dataloader import IterativeJointDataLoader
 from imaginaire.lazy_config import LazyCall as L
 
@@ -26,7 +31,7 @@ _IMAGE_LOADER = L(get_cached_replay_dataloader)(
     ),
     batch_size=2,
     shuffle=False,
-    num_workers=8,
+    num_workers=0,
     pin_memory=True,
     webdataset=False,
     cache_replay_name="image_dataloader",
@@ -35,11 +40,11 @@ _IMAGE_LOADER = L(get_cached_replay_dataloader)(
 _VIDEO_LOADER = L(get_cached_replay_dataloader)(
     dataset=L(get_video_dataset)(
         resolution="512",
-        num_video_frames=136,  # number of pixel frames, the number needs to agree with tokenizer encoder since tokenizer can not handle arbitrary length
+        num_video_frames=93,  # number of pixel frames, the number needs to agree with tokenizer encoder since tokenizer can not handle arbitrary length
     ),
     batch_size=1,
     shuffle=False,
-    num_workers=8,
+    num_workers=0,
     pin_memory=True,
     webdataset=False,
     cache_replay_name="video_dataloader",
