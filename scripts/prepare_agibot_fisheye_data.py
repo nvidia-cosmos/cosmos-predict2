@@ -77,6 +77,13 @@ def parse_args() -> argparse.Namespace:
         help="Only split videos into windows, skip downloading and cleaning",
     )
     parser.add_argument(
+        "--val_episode_ids",
+        type=str,
+        nargs="+",
+        default=[],
+        help="List of episode IDs to use for validation (only used if --split-only is true)",
+    )
+    parser.add_argument(
         "--window-size",
         type=float,
         default=5.0,
@@ -293,7 +300,9 @@ def split_video_into_windows(video_path, output_dir, task_id, episode_id, window
     return extracted_files
 
 
-def split_videos(data_dir, camera_name, task_ids=None, window_size=5.0, min_last_window=7.5) -> None:
+def split_videos(
+    data_dir, camera_name, task_ids=None, window_size=5.0, min_last_window=7.5, val_episode_ids=[]
+) -> None:
     """Split all videos for specified camera into windows."""
     # Check ffmpeg availability
     if not check_ffmpeg():
@@ -307,11 +316,14 @@ def split_videos(data_dir, camera_name, task_ids=None, window_size=5.0, min_last
 
     # Create output directory
     output_base = Path(data_dir).parent / f"agibot_{camera_name}"
-    output_dir = output_base / "videos"
-    output_dir.mkdir(parents=True, exist_ok=True)
+    output_dir_train = output_base / "train" / "videos"
+    output_dir_train.mkdir(parents=True, exist_ok=True)
+
+    output_dir_val = output_base / "val" / "videos"
+    output_dir_val.mkdir(parents=True, exist_ok=True)
 
     print(f"\nSplitting videos into {window_size}s windows")
-    print(f"Output directory: {output_dir}")
+    print(f"Output directory: {output_dir_train}, {output_dir_val}")
     print(f"Camera: {camera_name}.mp4")
     print(f"Minimum last window size: {min_last_window}s")
     print("-" * 50)
@@ -327,6 +339,7 @@ def split_videos(data_dir, camera_name, task_ids=None, window_size=5.0, min_last
     total_videos = 0
     total_windows = 0
 
+    print("val_episode_ids:", val_episode_ids)
     for task_dir in sorted(task_dirs):
         task_id = task_dir.name
         print(f"\nProcessing task {task_id}:")
@@ -337,10 +350,18 @@ def split_videos(data_dir, camera_name, task_ids=None, window_size=5.0, min_last
         for video_path in sorted(video_files):
             # Extract episode_id from path
             episode_id = video_path.parent.parent.name
-
-            print(f"  Splitting episode {episode_id}...", end="", flush=True)
+            # print(episode_id)
 
             # Split video into windows
+            if episode_id in val_episode_ids:
+                mode = "val"
+                output_dir = output_dir_val
+            else:
+                mode = "train"
+                output_dir = output_dir_train
+
+            print(f"  Splitting episode {episode_id} and saving as {mode} data...", end="", flush=True)
+            # Use training output directory
             windows = split_video_into_windows(
                 video_path, output_dir, task_id, episode_id, window_size, min_last_window
             )
@@ -359,7 +380,8 @@ def split_videos(data_dir, camera_name, task_ids=None, window_size=5.0, min_last
     print(f"  - Total videos processed: {total_videos}")
     print(f"  - Total windows created: {total_windows}")
     print(f"  - Average windows per video: {total_windows/total_videos:.1f}" if total_videos > 0 else "N/A")
-    print(f"  - Output directory: {output_dir}")
+    print(f"  - Output directory for training: {output_dir_train}")
+    print(f"  - Output directory for validation: {output_dir_val}")
     print("-" * 50)
 
 
@@ -436,7 +458,7 @@ def clean_observations(data_dir, camera_name, task_ids=None) -> None:
     print("-" * 50)
 
 
-def extract_captions_from_jsonl(data_dir, camera_name) -> bool:
+def extract_captions_from_jsonl(data_dir, camera_name, val_episode_ids) -> bool:
     """Extract captions from JSONL file and save as individual text files."""
     # Look for the JSONL file
     jsonl_path = Path(data_dir).parent / f"agibot_{camera_name}.jsonl"
@@ -449,10 +471,13 @@ def extract_captions_from_jsonl(data_dir, camera_name) -> bool:
 
     # Create metas directory
     output_base = Path(data_dir).parent / f"agibot_{camera_name}"
-    metas_dir = output_base / "metas"
-    metas_dir.mkdir(parents=True, exist_ok=True)
+    metas_dir_train = output_base / "train" / "metas"
+    metas_dir_train.mkdir(parents=True, exist_ok=True)
+    metas_dir_val = output_base / "val" / "metas"
+    metas_dir_val.mkdir(parents=True, exist_ok=True)
 
-    caption_count = 0
+    caption_count_train = 0
+    caption_count_val = 0
 
     # Read JSONL file and extract captions
     try:
@@ -462,15 +487,29 @@ def extract_captions_from_jsonl(data_dir, camera_name) -> bool:
                     data = json.loads(line)
                     video_clip = data.get("video_clip", "")
                     caption = data.get("caption", "")
+                    episode_id = data.get("episode_id", "")
+
+                    if episode_id in val_episode_ids:
+                        # Save to validation metas directory
+                        mode = "val"
+                        metas_dir = metas_dir_val
+                    else:
+                        # Save to training metas directory
+                        mode = "train"
+                        metas_dir = metas_dir_train
 
                     if video_clip and caption:
                         # Create text file with video_clip name
                         txt_path = metas_dir / f"{video_clip}.txt"
                         with open(txt_path, "w") as txt_file:
                             txt_file.write(caption)
-                        caption_count += 1
+                        if mode == "train":
+                            caption_count_train += 1
+                        else:
+                            caption_count_val += 1
 
-        print(f"  ✓ Extracted {caption_count} captions to {metas_dir}")
+        print(f"  ✓ Extracted {caption_count_train} captions to {metas_dir_train}")
+        print(f"  ✓ Extracted {caption_count_val} captions to {metas_dir_val}")
         return True
 
     except Exception as e:
@@ -480,54 +519,68 @@ def extract_captions_from_jsonl(data_dir, camera_name) -> bool:
 
 def validate_video_caption_correspondence(data_dir, camera_name) -> None:
     """Check if all videos have captions and vice versa."""
-    output_base = Path(data_dir).parent / f"agibot_{camera_name}"
-    videos_dir = output_base / "videos"
-    metas_dir = output_base / "metas"
 
-    if not videos_dir.exists() or not metas_dir.exists():
+    def _validate_video_caption_correspondence(videos_dir, metas_dir) -> None:
+        if not videos_dir.exists() or not metas_dir.exists():
+            return
+
+        print("\nValidating video-caption correspondence...")
+        print("  - Videos directory:", videos_dir)
+        print("  - Captions directory:", metas_dir)
+
+        # Get all video files (without extension)
+        video_files = set()
+        for video_path in videos_dir.glob("*.mp4"):
+            video_files.add(video_path.stem)  # filename without .mp4
+
+        # Get all caption files (without extension)
+        caption_files = set()
+        for caption_path in metas_dir.glob("*.txt"):
+            caption_files.add(caption_path.stem)  # filename without .txt
+
+        # Check for videos without captions
+        videos_without_captions = video_files - caption_files
+        captions_without_videos = caption_files - video_files
+
+        print(f"  - Total videos: {len(video_files)}")
+        print(f"  - Total captions: {len(caption_files)}")
+
+        if videos_without_captions:
+            print(f"  ⚠ Videos without captions: {len(videos_without_captions)}")
+            for video in sorted(list(videos_without_captions))[:5]:  # Show first 5
+                print(f"    • {video}")
+            if len(videos_without_captions) > 5:
+                print(f"    ... and {len(videos_without_captions) - 5} more")
+        else:
+            print("  ✓ All videos have corresponding captions")
+
+        if captions_without_videos:
+            print(f"  ⚠ Captions without videos: {len(captions_without_videos)}")
+            for caption in sorted(list(captions_without_videos))[:5]:  # Show first 5
+                print(f"    • {caption}")
+            if len(captions_without_videos) > 5:
+                print(f"    ... and {len(captions_without_videos) - 5} more")
+        else:
+            print("  ✓ All captions have corresponding videos")
+
+        if not videos_without_captions and not captions_without_videos:
+            print("  ✓ Perfect correspondence: all videos have captions and all captions have videos")
+
+        print("-" * 50)
+
         return
 
-    print("\nValidating video-caption correspondence...")
+    output_base = Path(data_dir).parent / f"agibot_{camera_name}"
 
-    # Get all video files (without extension)
-    video_files = set()
-    for video_path in videos_dir.glob("*.mp4"):
-        video_files.add(video_path.stem)  # filename without .mp4
+    videos_dir_train = output_base / "train" / "videos"
+    metas_dir_train = output_base / "train" / "metas"
+    videos_dir_val = output_base / "val" / "videos"
+    metas_dir_val = output_base / "val" / "metas"
 
-    # Get all caption files (without extension)
-    caption_files = set()
-    for caption_path in metas_dir.glob("*.txt"):
-        caption_files.add(caption_path.stem)  # filename without .txt
+    _validate_video_caption_correspondence(videos_dir_train, metas_dir_train)
+    _validate_video_caption_correspondence(videos_dir_val, metas_dir_val)
 
-    # Check for videos without captions
-    videos_without_captions = video_files - caption_files
-    captions_without_videos = caption_files - video_files
-
-    print(f"  - Total videos: {len(video_files)}")
-    print(f"  - Total captions: {len(caption_files)}")
-
-    if videos_without_captions:
-        print(f"  ⚠ Videos without captions: {len(videos_without_captions)}")
-        for video in sorted(list(videos_without_captions))[:5]:  # Show first 5
-            print(f"    • {video}")
-        if len(videos_without_captions) > 5:
-            print(f"    ... and {len(videos_without_captions) - 5} more")
-    else:
-        print("  ✓ All videos have corresponding captions")
-
-    if captions_without_videos:
-        print(f"  ⚠ Captions without videos: {len(captions_without_videos)}")
-        for caption in sorted(list(captions_without_videos))[:5]:  # Show first 5
-            print(f"    • {caption}")
-        if len(captions_without_videos) > 5:
-            print(f"    ... and {len(captions_without_videos) - 5} more")
-    else:
-        print("  ✓ All captions have corresponding videos")
-
-    if not videos_without_captions and not captions_without_videos:
-        print("  ✓ Perfect correspondence: all videos have captions and all captions have videos")
-
-    print("-" * 50)
+    return
 
 
 def main() -> None:
@@ -543,10 +596,12 @@ def main() -> None:
         print(f"Task IDs: {args.task_ids if args.task_ids else 'all'}")
         print("-" * 50)
 
-        split_videos(args.data_dir, args.camera, args.task_ids, args.window_size, args.min_last_window)
+        split_videos(
+            args.data_dir, args.camera, args.task_ids, args.window_size, args.min_last_window, args.val_episode_ids
+        )
 
         # Extract captions from JSONL if available
-        if extract_captions_from_jsonl(args.data_dir, args.camera):
+        if extract_captions_from_jsonl(args.data_dir, args.camera, args.val_episode_ids):
             # Validate correspondence
             validate_video_caption_correspondence(args.data_dir, args.camera)
 

@@ -34,15 +34,30 @@ def get_sampler(dataset) -> DistributedSampler:
 cs = ConfigStore.instance()
 
 # agibot_head_center_fisheye_color example
-example_video_dataset_agibot_head_center_fisheye_color = L(Dataset)(
-    dataset_dir="datasets/agibot_head_center_fisheye_color",
-    num_frames=77,
+example_video_dataset_agibot_head_center_fisheye_color_train = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/train",
+    num_frames=93,
+    video_size=(720, 1280),
+)
+
+example_video_dataset_agibot_head_center_fisheye_color_val = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/val",
+    num_frames=93,
     video_size=(720, 1280),
 )
 
 dataloader_train_agibot_head_center_fisheye_color = L(DataLoader)(
-    dataset=example_video_dataset_agibot_head_center_fisheye_color,
-    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color),
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_train,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_train),
+    batch_size=1,
+    drop_last=True,
+    num_workers=4,
+    pin_memory=True,
+)
+
+dataloader_val_agibot_head_center_fisheye_color = L(DataLoader)(
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_val,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_val),
     batch_size=1,
     drop_last=True,
     num_workers=4,
@@ -65,7 +80,7 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
     ),
     model=dict(
         config=dict(
-            num_video_frames=77,
+            num_video_frames=93,
             resolution="720",
             fsdp_shard_size=8,
             pipe_config=dict(
@@ -78,6 +93,7 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
         context_parallel_size=2,
     ),
     dataloader_train=dataloader_train_agibot_head_center_fisheye_color,
+    # dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -106,7 +122,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
     ),
     model=dict(
         config=dict(
-            num_video_frames=77,
+            num_video_frames=93,
             resolution="720",
             fsdp_shard_size=8,
             pipe_config=dict(
@@ -119,6 +135,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
         context_parallel_size=8,
     ),
     dataloader_train=dataloader_train_agibot_head_center_fisheye_color,
+    # dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(

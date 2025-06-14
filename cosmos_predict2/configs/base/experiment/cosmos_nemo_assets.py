@@ -112,7 +112,7 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
         )
     ),
     model_parallel=dict(
-        context_parallel_size=2,
+        context_parallel_size=8,
     ),
     dataloader_train=dataloader_train_cosmos_nemo_assets,
     trainer=dict(

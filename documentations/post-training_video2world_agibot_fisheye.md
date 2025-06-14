@@ -33,9 +33,10 @@ python scripts/prepare_agibot_fisheye_data.py
 python scripts/prepare_agibot_fisheye_data.py --delete-only
 
 # Split videos into (5-second) windows
-python scripts/prepare_agibot_fisheye_data.py --split-only
+# In this example, we use task_id 327, episode_id 685393 as validation data
+python scripts/prepare_agibot_fisheye_data.py --split-only --val_episode_ids 685393
 
-# (Optional) Remove unnecessary data
+# (Optional) Remove the source data
 rm -rf datasets/agibot
 ```
 
@@ -45,10 +46,16 @@ After the processing is done, there will be ~2 GB data remaining in `datasets/ag
 Dataset folder format:
 ```
 datasets/agibot_head_center_fisheye_color/
-├── metas/
-│   ├── *.txt
-├── videos/
-│   ├── *.mp4
+├── train/
+│   ├── metas/
+│   │   ├── *.txt
+│   ├── videos/
+│   │   ├── *.mp4
+├── val/
+│   ├── metas/
+│   │   ├── *.txt
+│   ├── videos/
+│   │   ├── *.mp4
 ```
 
 
@@ -56,19 +63,28 @@ datasets/agibot_head_center_fisheye_color/
 
 Run the following command to pre-compute T5-XXL embeddings for the video caption used for post-training:
 ```bash
-# The script will use the provided prompt, save the T5-XXL embeddings in pickle format.
-PYTHONPATH=$(pwd) python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color
+# The script will use the provided prompt from the dataset, save the T5-XXL embeddings in pickle format.
+PYTHONPATH=$(pwd) python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/train
+PYTHONPATH=$(pwd) python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/val
 ```
 
 Dataset folder format:
 ```
 datasets/agibot_head_center_fisheye_color/
-├── metas/
-│   ├── *.txt
-├── videos/
-│   ├── *.mp4
-├── t5_xxl/
-│   ├── *.pickle
+├── train/
+│   ├── metas/
+│   │   ├── *.txt
+│   ├── videos/
+│   │   ├── *.mp4
+│   ├── t5_xxl/
+│   │   ├── *.pickle
+├── val/
+│   ├── metas/
+│   │   ├── *.txt
+│   ├── videos/
+│   │   ├── *.mp4
+│   ├── t5_xxl/
+│   │   ├── *.pickle
 ```
 
 ## 2. Post-training
@@ -87,7 +103,7 @@ See the config `predict2_video2world_training_2b_agibot_head_center_fisheye_colo
 # Cosmos-NeMo-Assets example
 example_video_dataset_agibot_head_center_fisheye_color = L(Dataset)(
     dataset_dir="datasets/benchmark_train/agibot_head_center_fisheye_color",
-    num_frames=77,
+    num_frames=93,
     video_size=(720, 1280),
 )
 
@@ -161,12 +177,15 @@ For example, if a posttrained checkpoint with 1000 iterations is to be used, run
 Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 
 ```bash
+PROMPT="The video captures a humanoid robot positioned in front of a fruit stand in a supermarket environment. The robot's right arm extends downward, reaching for a shiitake mushroom on the shelf. The arm carefully grasps the mushroom, lifting it towards the robot's body. The surrounding environment includes a shopping cart with a clear plastic bag and a red handle, as well as various fruits and vegetables displayed on the shelves. The robot's task is to retrieve items from the supermarket shelves, and this frame shows the initial step of picking up a shiitake mushroom."
+
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/video2world/predict2_video2world_training_2b_agibot_head_center_fisheye_color/checkpoints/model/iter_000001000.pt" \
-  --prompt "A video of sks teal robot." \
-  --input_path "assets/video2world_agibot_head_center_fisheye_color/output_Digit_Lift_movie.jpg" \
-  --save_path results/agibot_head_center_fisheye_color/generated_video_teal_robot.mp4
+  --prompt "${PROMPT}" \
+  --input_path "datasets/agibot_head_center_fisheye_color/val/task_327_episode_685393_window_0_frame_0-149.mp4" \
+  --num_conditional_frmaes 1 \
+  --save_path results/agibot_head_center_fisheye_color/generated_video_2b.mp4
 ```
 
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
