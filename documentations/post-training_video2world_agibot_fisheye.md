@@ -1,4 +1,4 @@
-# Video2World Post-training for Cosmos-NeMo-Assets
+# Video2World Post-training for AgiBotWorld-Alpha
 
 This guide provides instructions on running post-training with Cosmos-Predict2 Video2World models.
 
@@ -88,7 +88,7 @@ datasets/agibot_head_center_fisheye_color/
 ```
 
 ## 2. Post-training
-### 2.1. Post-training on Cosmos-NeMo-Assets dataset
+### 2.1. Post-training on AgiBotWorld-Alpha dataset
 #### Cosmos-Predict2-2B-Video2World
 
 Run the following command to execute an example post-training job with `agibot_head_center_fisheye_color` data.
@@ -100,7 +100,7 @@ torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos
 The model will be post-trained using the agibot_head_center_fisheye_color dataset.
 See the config `predict2_video2world_training_2b_agibot_head_center_fisheye_color` defined in `cosmos_predict2/configs/base/experiment/agibot_head_center_fisheye_color.py` to understand how the dataloader is defined.
 ```python
-# Cosmos-NeMo-Assets example
+# agibot_head_center_fisheye_color example
 example_video_dataset_agibot_head_center_fisheye_color = L(Dataset)(
     dataset_dir="datasets/benchmark_train/agibot_head_center_fisheye_color",
     num_frames=93,
