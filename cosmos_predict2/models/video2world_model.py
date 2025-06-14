@@ -15,7 +15,7 @@
 
 import collections
 import math
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 import attrs
 import torch
@@ -34,6 +34,7 @@ from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model
 from cosmos_predict2.utils.optim_instantiate import get_base_scheduler
+from cosmos_predict2.utils.torch_future import clip_grad_norm_
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.model import ImaginaireModel
 from imaginaire.utils import log
@@ -50,7 +51,6 @@ class Predict2ModelManagerConfig:
 
 @attrs.define(slots=False)
 class Predict2Video2WorldModelConfig:
-    learning_rate: float = 2 ** (-14.5)
     train_architecture: str = "base"
     lora_rank: int = 16
     lora_alpha: int = 16
@@ -79,8 +79,6 @@ class Predict2Video2WorldModelConfig:
 class Predict2Video2WorldModel(ImaginaireModel):
     def __init__(self, config: Predict2Video2WorldModelConfig):
         super().__init__()
-        # New code, added for i4 adaption
-        learning_rate = config.learning_rate
 
         self.config = config
 
@@ -158,8 +156,6 @@ class Predict2Video2WorldModel(ImaginaireModel):
             self.pipe.apply_fsdp(dp_mesh)
         else:
             log.info("FSDP (Fully Sharded Data Parallel) is disabled.")
-
-        self.learning_rate = learning_rate
 
     # New function, added for i4 adaption
     @property
@@ -476,3 +472,18 @@ class Predict2Video2WorldModel(ImaginaireModel):
         if iteration < 1:
             return 0.0
         return (1 - 1 / (iteration + 1)) ** (self.pipe.ema_exp_coefficient + 1)
+
+    def clip_grad_norm_(
+        self,
+        max_norm: float,
+        norm_type: float = 2.0,
+        error_if_nonfinite: bool = False,
+        foreach: Optional[bool] = None,
+    ) -> torch.Tensor:
+        return clip_grad_norm_(
+            self.net.parameters(),
+            max_norm,
+            norm_type=norm_type,
+            error_if_nonfinite=error_if_nonfinite,
+            foreach=foreach,
+        )

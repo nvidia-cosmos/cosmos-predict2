@@ -129,11 +129,9 @@ def _get_total_norm(
     if len(tensors) == 0:
         return torch.tensor(0.0)
     first_device = tensors[0].device
-    grouped_tensors: Dict[
-        Tuple[torch.device, torch.dtype], Tuple[List[List[Tensor]], List[int]]
-    ] = _group_tensors_by_device_and_dtype(
-        [tensors]  # type: ignore[list-item]
-    )  # type: ignore[assignment]
+    grouped_tensors: Dict[Tuple[torch.device, torch.dtype], Tuple[List[List[Tensor]], List[int]]] = (
+        _group_tensors_by_device_and_dtype([tensors])
+    )
 
     norms: List[Tensor] = []
     for (device, _), ([device_tensors], _) in grouped_tensors.items():
@@ -200,11 +198,9 @@ def _clip_grads_with_norm_(
     max_norm = float(max_norm)
     if len(grads) == 0:
         return
-    grouped_grads: Dict[
-        Tuple[torch.device, torch.dtype], Tuple[List[List[Tensor]], List[int]]
-    ] = _group_tensors_by_device_and_dtype(
-        [grads]
-    )  # type: ignore[assignment]
+    grouped_grads: Dict[Tuple[torch.device, torch.dtype], Tuple[List[List[Tensor]], List[int]]] = (
+        _group_tensors_by_device_and_dtype([grads])
+    )
 
     clip_coef = max_norm / (total_norm + 1e-6)
     # Note: multiplying by the clamped coef is redundant when the coef is clamped to 1, but doing so

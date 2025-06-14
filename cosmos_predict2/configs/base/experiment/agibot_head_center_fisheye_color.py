@@ -69,6 +69,7 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
         "_self_",
@@ -81,9 +82,17 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
     model=dict(
         config=dict(
             fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
+                max_num_conditional_frames=1,
+                min_num_conditional_frames=1,
+                net=dict(
+                    rope_h_extrapolation_ratio=2.0,
+                    rope_t_extrapolation_ratio=1.0,
+                    rope_w_extrapolation_ratio=2.0,
+                ),
             ),
         )
     ),
@@ -97,10 +106,19 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=1000,
+        max_iter=100000,
     ),
     checkpoint=dict(
-        save_iter=200,
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-15.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.99],
+        f_min=[0.4],
     ),
 )
 
@@ -109,6 +127,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_14b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
         "_self_",
@@ -120,10 +139,13 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=8,
+            fsdp_shard_size=32,
+            high_sigma_ratio=0.05,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
+                max_num_conditional_frames=1,
+                min_num_conditional_frames=1,
             ),
         )
     ),
@@ -137,10 +159,20 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=1000,
+        max_iter=100000,
     ),
     checkpoint=dict(
-        save_iter=200,
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-15.5),
+        weight_decay=0.2,
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[50_000],
+        f_max=[0.2],
+        f_min=[0.1],
     ),
 )
 
