@@ -33,8 +33,8 @@ def parse_args():
     parser.add_argument(
         "--model_types",
         nargs="*",
-        default=["text2image", "video2world", "sample_action_conditioned"],
-        choices=["text2image", "video2world", "sample_action_conditioned"],
+        default=["text2image", "video2world", "sample_action_conditioned","sample_gr00t_dreams_gr1", "sample_gr00t_dreams_droid"],
+        choices=["text2image", "video2world", "sample_action_conditioned","sample_gr00t_dreams_gr1", "sample_gr00t_dreams_droid"],
         help="Which model types to download. Possible values: text2image, video2world, sample_action_conditioned",
     )
     parser.add_argument(
@@ -86,6 +86,11 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Reason1-7B/model-00004-of-00004.safetensors": "232e93dfc82361ea8b0678fffc8660ef",
     # Cosmos-Predict2-2B-Sample-Action-Conditioned
     "nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pt": "b4db0f266cc487f1242dc09a082c6dd5",
+    # Cosmos-Predict2 Post-training models
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-720p-16fps.pt": "af799ec678f6f18e3b3cfe3c1d9c591b",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/model-720p-16fps.pt": "b7f92ff4d0943ab7477ad873fb17015558ee597897782032bdfeb1db2aee0796",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     # T5 text encoder
     "google-t5/t5-11b/pytorch_model.bin": "f890878d8a162e0045a25196e27089a3",
     # Cosmos-Guardrail1
@@ -152,7 +157,7 @@ def main(args):
 
     # Download the Cosmos-Predict2 models
     model_size_mapping = {"2B": "Cosmos-Predict2-2B", "14B": "Cosmos-Predict2-14B"}
-    model_type_mapping = {"text2image": "Text2Image", "video2world": "Video2World"}
+    model_type_mapping = {"text2image": "Text2Image", "video2world": "Video2World", "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1", "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID"
     if "text2image" in args.model_types:
         for size in args.model_sizes:
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['text2image']}"
