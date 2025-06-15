@@ -42,9 +42,10 @@ under `cosmos-predict2/` folder, run:
 ```
 # This command will download the videos for physical AI
 
-huggingface-cli download nvidia/GR1-100 --repo-type dataset --local-dir datasets/benchmark_train/hf_gr1/ --include "*.mp4*"
-mkdir -p datasets/benchmark_train/gr1/videos
-mv datasets/benchmark_train/hf_gr1/gr1/*mp4 datasets/benchmark_train/gr1/videos
+huggingface-cli download nvidia/GR1-100 --repo-type dataset --local-dir datasets/benchmark_train/hf_gr1/ && \
+mkdir -p datasets/benchmark_train/gr1/videos && \
+mv datasets/benchmark_train/hf_gr1/gr1/*mp4 datasets/benchmark_train/gr1/videos && \
+mv datasets/benchmark_train/hf_gr1/metadata.csv datasets/benchmark_train/gr1/
 ```
 
 ### 1.2 Preprocessing the Data
@@ -139,22 +140,27 @@ checkout [inference_video2world.md](inference_video2world.md) for more examples 
 
 * Inference with GR1 checkpoint
 ```bash
-python -m examples.video2world_gr00t \
+torchrun --nproc_per_node=8 --master_port=12341 \
+  -m examples.video2world_gr00t \
   --model_size 14B \
   --gr00t_variant gr1 \
-  --prompt " Use the right hand to pick up rubik's cube from from the bottom of the three-tiered wooden shelf to to the top of the three-tiered wooden shelf." \
-  --input_path 8_Use_the_right_hand_to_pick_up_rubik\'s_cube_from_from_the_bottom_of_the_three-tiered_wooden_shelf_to_to_the_top_of_the_three-tiered_wooden_shelf..png \
-  --save_path output/generated_video_gr1.mp4
+  --prompt "Use the right hand to pick up rubik\'s cube from from the bottom of the three-tiered wooden shelf to to the top of the three-tiered wooden shelf." \
+  --input_path assets/sample_gr00t_dreams_gr1/8_Use_the_right_hand_to_pick_up_rubik\'s_cube_from_from_the_bottom_of_the_three-tiered_wooden_shelf_to_to_the_top_of_the_three-tiered_wooden_shelf..png \
+  --num_gpus 8 \
+  --prompt_prefix "" \
+  --save_path output/generated_video_gr1.mp4 \
 ```
 
 * Inference with DROID checkpoint
 ```bash
-python -m examples.video2world_gr00t \
+torchrun --nproc_per_node=8 --master_port=12341 \
+  -m examples.video2world_gr00t \
   --model_size 14B \
   --gr00t_variant droid \
   --prompt "A multi-view video shows that a robot pick the lid and put it on the pot The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot pick the lid and put it on the pot" \
-  --input_path assets/video2world_sample_gr00t_dreams_droid/episode_000408.png \
-  --propmt_prefix "" \
+  --input_path assets/sample_gr00t_dreams_droid/episode_000408.png \
+  --prompt_prefix "" \
+  --num_gpus 8 \
   --save_path output/generated_video_droid.mp4
 ```
 
@@ -185,7 +191,8 @@ python -m scripts.prepare_batch_input_json \
 python -m examples.video2world_gr00t \
   --model_size 14B \
   --gr00t_variant gr1 \
-  --batch_input_json dream_gen_benchmark/gr1_object/batch_input.json
+  --batch_input_json dream_gen_benchmark/gr1_object/batch_input.json \
+  --disable_guardrail
 ```
-* Note: For full evaluation, it's better to turn off the guardrail checks (add `--disable_guardrail` to the command) to make sure all the videos are generated.
+* Note: For full evaluation without missing videos, it's better to turn off the guardrail checks (add `--disable_guardrail` to the command) to make sure all the videos are generated.
 * See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
