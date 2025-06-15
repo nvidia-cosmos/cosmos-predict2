@@ -62,8 +62,6 @@ predict2_video2world_training_2b_groot_gr1_480 = dict(
     ],
     model=dict(
         config=dict(
-            num_video_frames=93,
-            resolution="480",
             fsdp_shard_size=8,
             pipe_config=dict(guardrail_config=dict(enabled=False)),
         )
@@ -109,8 +107,6 @@ predict2_video2world_training_14b_groot_gr1_480 = dict(
     ],
     model=dict(
         config=dict(
-            num_video_frames=93,
-            resolution="480",
             fsdp_shard_size=32,
             pipe_config=dict(guardrail_config=dict(enabled=False)),
         )
