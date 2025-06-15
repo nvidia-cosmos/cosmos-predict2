@@ -157,7 +157,7 @@ def main(args):
 
     # Download the Cosmos-Predict2 models
     model_size_mapping = {"2B": "Cosmos-Predict2-2B", "14B": "Cosmos-Predict2-14B"}
-    model_type_mapping = {"text2image": "Text2Image", "video2world": "Video2World", "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1", "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID"
+    model_type_mapping = {"text2image": "Text2Image", "video2world": "Video2World", "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1", "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID"}
     if "text2image" in args.model_types:
         for size in args.model_sizes:
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['text2image']}"
