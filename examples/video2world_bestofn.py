@@ -19,8 +19,10 @@ import glob
 import json
 import os
 import re
+import functools
 import xml.etree.ElementTree as ET
-from typing import Any, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional
+import torch
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -29,12 +31,14 @@ from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import (
     _DEFAULT_NEGATIVE_PROMPT,
-    process_single_generation,
-    setup_pipeline,
+    process_single_generation as process_single_generation_default,
+    setup_pipeline as setup_pipeline_default,
     validate_input_file,
+    cleanup_distributed,
 )
+from examples.video2world_gr00t import process_single_generation as process_single_generation_gr00t, setup_pipeline as setup_pipeline_gr00t
 from imaginaire.utils import log
-
+from imaginaire.utils.distributed import get_rank
 
 def parse_response(response: str) -> Optional[Dict[str, Any]]:
     try:
@@ -234,16 +238,39 @@ def parse_args():
     parser.add_argument(
         "--save_path", type=str, default="output/best-of-n", help="Directory to save the generated videos and reports"
     )
+    parser.add_argument(
+        "--num_gpus",
+        type=int,
+        default=1,
+        help="Number of GPUs to use for context parallel inference (should be a divisor of the total frames)",
+    )
+    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
+    parser.add_argument(
+        "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
+    )
+    parser.add_argument(
+        "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
+    )
+    # GR00T-specific settings. Specify --gr00t_variant to enable
+    parser.add_argument(
+        "--dit_path",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--gr00t_variant", type=str, default="", help="GR00T variant to use", choices=["gr1", "droid"]
+    )
+    parser.add_argument(
+        "--prompt_prefix", type=str, default="The robot arm is performing a task. ", help="Prefix to add to all prompts"
+    )
     # Rejection sampling settings
     parser.add_argument("--num_generations", type=int, default=2, help="Number of generations for the input")
     parser.add_argument(
         "--skip_generation", action="store_true", help="Skip video generation and only run the critic model"
     )
     parser.add_argument("--num_critic_trials", type=int, default=5, help="Number of critic trials for each generation")
-    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
-    parser.add_argument(
-        "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
-    )
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
@@ -253,7 +280,7 @@ def parse_args():
     return parser.parse_args()
 
 
-def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> List[str]:
+def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline, process_single_generation: Callable) -> List[str]:
     if not validate_input_file(args.input_path, args.num_conditional_frames):
         log.error(f"Input file validation failed: {args.input_path}")
         return []
@@ -346,11 +373,20 @@ def run_critic(args, video_paths):
 if __name__ == "__main__":
     args = parse_args()
 
+    # Handle GR00T-specific settings if gr00t_variant is provided
+    if args.gr00t_variant:
+        setup_pipeline = setup_pipeline_gr00t
+        process_single_generation = functools.partial(process_single_generation_gr00t, prompt_prefix=args.prompt_prefix)
+    else:
+        setup_pipeline = setup_pipeline_default
+        process_single_generation = process_single_generation_default
+
     # Create output directory if it doesn't exist
     if not os.path.exists(args.save_path):
         os.makedirs(args.save_path, exist_ok=True)
         log.info(f"Created output directory: {args.save_path}")
 
+    rank = 0
     # Generate videos if not provided
     video_paths = []
     if args.skip_generation:
@@ -361,37 +397,42 @@ if __name__ == "__main__":
     else:
         try:
             pipe = setup_pipeline(args)
-            video_paths = generate_video(args, pipe)
+            rank = get_rank()  # Get rank before destroying the process group
+            video_paths = generate_video(args, pipe, process_single_generation)
             if not video_paths:
                 log.error("Failed to generate any videos, exiting")
                 exit(1)
+            del pipe  # Free up memory
         except Exception as e:
             log.error(f"Error during video generation: {e}")
             exit(1)
+        finally:
+            cleanup_distributed()
 
-    # Run the critic model
-    try:
-        scores = run_critic(args, video_paths)
+    # Run the critic model on rank 0 only
+    if rank == 0:
+        try:
+            scores = run_critic(args, video_paths)
 
-        # Print the final results
-        if scores:
-            log.info("\nFinal Results (highest score first):")
-            log.info("-" * 80)
+            # Print the final results
+            if scores:
+                log.info("\nFinal Results (highest score first):")
+                log.info("-" * 80)
 
-            # Sort videos by score (highest first)
-            sorted_results = sorted(zip(scores, video_paths), key=lambda x: x[0], reverse=True)
+                # Sort videos by score (highest first)
+                sorted_results = sorted(zip(scores, video_paths), key=lambda x: x[0], reverse=True)
 
-            for i, (score, video_path) in enumerate(sorted_results, 1):
-                video_name = os.path.basename(video_path)
-                log.info(f"#{i}: Score: {score:.2%} - {video_name}")
+                for i, (score, video_path) in enumerate(sorted_results, 1):
+                    video_name = os.path.basename(video_path)
+                    log.info(f"#{i}: Score: {score:.2%} - {video_name}")
 
-            # Print the best video path
-            best_score, best_video = sorted_results[0]
-            log.info("-" * 80)
-            log.success(f"Best video: {os.path.basename(best_video)} with score {best_score:.2%}")
-            log.success(f"Full path: {best_video}")
-        else:
-            log.warning("No scores available")
-    except Exception as e:
-        log.error(f"Error during critic evaluation: {e}")
-        exit(1)
+                # Print the best video path
+                best_score, best_video = sorted_results[0]
+                log.info("-" * 80)
+                log.success(f"Best video: {os.path.basename(best_video)} with score {best_score:.2%}")
+                log.success(f"Full path: {best_video}")
+            else:
+                log.warning("No scores available")
+        except Exception as e:
+            log.error(f"Error during critic evaluation: {e}")
+            exit(1)
