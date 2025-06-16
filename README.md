@@ -20,6 +20,7 @@ We visualize the architecture of Cosmos-Predict2 in the following figure.
 * [Cosmos-Predict2-14B-Video2World](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Video2World): Video + Text based future visual world generation
 * [Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1): Video + Text based future visual world generation, post-trained on GR00T Dreams GR1 dataset
 * [Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID): Video + Text based future visual world generation, post-trained on GR00T Dreams DROID dataset
+* [Cosmos-Predict2-2B-Sample-Action-Conditioned](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned): Video + Text + Action based future visual world generation, post-trained on Bridge dataset
 ---
 
 ## Quick Start
@@ -81,8 +82,9 @@ For inference examples and usage
 For post-training customization
 * **[Post-training guide](documentations/post-training_video2world.md)**: General guide to the training system in the codebase
 * **[Post-training on Cosmos-NeMo-Assets](documentations/post-training_video2world_cosmos_nemo_assets.md)**: Case study for post-training on Cosmos-NeMo-Assets data
-* **[Post-training on AgiBotWorld-Alpha](documentations/post-training_video2world_agibot_fisheye.md)**: Case study for post-training on [AgiBotWorld-Alpha](https://huggingface.co/datasets/agibot-world/AgiBotWorld-Alpha) data, fisheye dataset
-* **[Post-training on Bridge](documentations/post-training_video2world_action.md)**: Case study for action-conditioned post-training on [Bridge](https://sites.google.com/view/bridgedata), manipulation dataset
+* **[Post-training on fisheye-view AgiBotWorld-Alpha dataset](documentations/post-training_video2world_agibot_fisheye.md)**: Case study for post-training on fisheye-view robot videos from [AgiBotWorld-Alpha](https://huggingface.co/datasets/agibot-world/AgiBotWorld-Alpha)
+* **[Post-training on GR00T Dreams GR1 and DROID datasets](documentations/post-training_video2world_gr00t.md)**: Case study for post-training on GR00T Dreams GR1 and DROID datasets.
+* **[Action-conditioned Post-training on Bridge dataset](documentations/post-training_video2world_action.md)**: Case study for action-conditioned post-training on [Bridge](https://sites.google.com/view/bridgedata) dataset. 
 
 
 Our [performance guide](documentations/performance.md) includes
