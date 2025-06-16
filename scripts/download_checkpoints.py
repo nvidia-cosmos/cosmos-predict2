@@ -181,12 +181,12 @@ def main(args):
         download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5)
 
     # Download T5 model
-    download_model(args.checkpoint_dir, "google-t5/t5-11b", verify_md5=args.verify_md5, ignore_patterns="tf_model.h5")
+    download_model(args.checkpoint_dir, "google-t5/t5-11b", verify_md5=args.verify_md5, ignore_patterns=["tf_model.h5"])
 
     # Download the guardrail models
     download_model(args.checkpoint_dir, "nvidia/Cosmos-Guardrail1", verify_md5=args.verify_md5)
     download_model(
-        args.checkpoint_dir, "meta-llama/Llama-Guard-3-8B", verify_md5=args.verify_md5, ignore_patterns="original/*"
+        args.checkpoint_dir, "meta-llama/Llama-Guard-3-8B", verify_md5=args.verify_md5, ignore_patterns=["original/*"]
     )
 
     print("Checkpoint downloading done.")
