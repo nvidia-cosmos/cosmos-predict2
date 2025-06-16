@@ -138,14 +138,7 @@ def build_html_report(video_path: str, responses: List[str]) -> str:
 """
 
     for i, (response, parsed) in enumerate(zip(responses, parsed_responses), 1):
-        if parsed is None:
-            html += f"""
-    <div class="trial">
-        <h3>Trial {i} - Failed to Parse</h3>
-        <pre>{response}</pre>
-    </div>
-"""
-        else:
+        if parsed is not None:
             answer = parsed.get("answer", "").lower()
             answer_class = "red" if answer == "yes" else "green"
 
@@ -209,6 +202,26 @@ def parse_args():
         help="Size of the model to use for video-to-world generation",
     )
     parser.add_argument(
+        "--resolution",
+        choices=["480", "720"],
+        default="720",
+        type=str,
+        help="Resolution of the model to use for video-to-world generation",
+    )
+    parser.add_argument(
+        "--fps",
+        choices=[10, 16],
+        default=16,
+        type=int,
+        help="FPS of the model to use for video-to-world generation",
+    )
+    parser.add_argument(
+        "--dit_path",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
         "--prompt",
         type=str,
         default="",
@@ -253,12 +266,6 @@ def parse_args():
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
     # GR00T-specific settings. Specify --gr00t_variant to enable
-    parser.add_argument(
-        "--dit_path",
-        type=str,
-        default="",
-        help="Custom path to the DiT model checkpoint for post-trained models.",
-    )
     parser.add_argument(
         "--gr00t_variant", type=str, default="", help="GR00T variant to use", choices=["gr1", "droid"]
     )
