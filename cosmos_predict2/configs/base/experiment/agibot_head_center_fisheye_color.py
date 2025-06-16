@@ -37,13 +37,13 @@ cs = ConfigStore.instance()
 example_video_dataset_agibot_head_center_fisheye_color_train = L(Dataset)(
     dataset_dir="datasets/agibot_head_center_fisheye_color/train",
     num_frames=93,
-    video_size=(720, 1280),
+    video_size=(704, 1280),
 )
 
 example_video_dataset_agibot_head_center_fisheye_color_val = L(Dataset)(
     dataset_dir="datasets/agibot_head_center_fisheye_color/val",
     num_frames=93,
-    video_size=(720, 1280),
+    video_size=(704, 1280),
 )
 
 dataloader_train_agibot_head_center_fisheye_color = L(DataLoader)(
