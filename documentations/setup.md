@@ -96,8 +96,8 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 | Cosmos-Predict2-2B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World) | `python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
 | Cosmos-Predict2-14B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Video2World) | `python -m scripts.download_checkpoints --model_types video2world --model_sizes 14B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
 | Cosmos-Predict2-2B-Sample-Action-Conditioned | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned) | `python -m scripts.download_checkpoints --model_types sample_action_conditioned` | Supports 480P and 4FPS. |
-| Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1 | [🤗 Huggingface](https://huggingface.co/nvidia/Sample-GR00T-Dreams-GR1 models) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_gr1` | Supports 480P and 16FPS. |
-| Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID | [🤗 Huggingface](https://huggingface.co/nvidia/Sample-GR00T-Dreams-DROID models) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_droid` | Supports 480P and 16FPS. |
+| Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1 | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_gr1` | Supports 480P and 16FPS. |
+| Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_droid` | Supports 480P and 16FPS. |
 
 
 For Video2World model with different resolution and FPS, you can pass `resolution` and `fps` flag to control which model checkpoint to download. For example, if you want a 2B model with 480P and 10FPS, you can do
