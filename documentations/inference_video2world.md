@@ -241,16 +241,16 @@ Since long video generation calls the whole denoising process of Video2World mod
 
 ```bash
 # Set the input prompt
-PROMPT="A serene winter landscape unfolds, with a campfire burning brightly on a snowy hillside. The fire, constructed from logs arranged in a pyramid shape, casts a warm, orange glow against the cold surroundings. The ground is blanketed in thick snow, with patches of exposed earth around the base of the fire. Sparse evergreen trees dot the snowy landscape, adding a touch of green to the white terrain. In the distance, a majestic mountain range stretches across the horizon, its peaks partially covered in snow. The sky above is a beautiful gradient, transitioning from the warm oranges and yellows of the setting sun to the cooler blues and purples of the evening sky. The camera remains stationary, allowing viewers to fully appreciate the tranquil beauty of the scene, with the gentle flickering of the fire providing a soothing soundtrack. As the video progresses, the fire continues to burn steadily, maintaining its bright orange flames and glowing embers, while the surrounding snow and trees remain undisturbed. The mountain range and sky retain their serene hues, contributing to the overall peaceful ambiance."
+PROMPT="The video opens with a view inside a well-lit warehouse or retail store aisle, characterized by high ceilings and industrial shelving units stocked with various products. The shelves are neatly organized with items such as canned goods, packaged foods, and cleaning supplies, all displayed in bright packaging that catches the eye. The surrounding environment includes additional shelving units filled with similar products. The scene concludes with the forklift still in motion, ensuring the pallet is securely placed on the shelf."
 
 # Set the number of GPUs to use
 export NUM_GPUS=8
 
 # Run video2world long video generation of 6 chunks
 PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
-    --model_size 2B \
+    --model_size 14B \
     --num_chunks 6 \
-    --input_path assets/video2world_lvg/example_input1.jpg \
+    --input_path assets/video2world_lvg/example_input.jpg \
     --prompt "${PROMPT}" \
     --save_path output/video2world_2b_lvg_example1.mp4 \
     --num_gpus ${NUM_GPUS} \
@@ -258,7 +258,7 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --disable_prompt_refiner
 ```
 
-The 14B model can be run similarly by changing the model size parameter. You can also refer to `assets/video2world_lvg/` for example input image conditions and text prompts.
+Example output is included at `assets/video2world_lvg/example_output.mp4`.
 
 ## API Documentation
 
