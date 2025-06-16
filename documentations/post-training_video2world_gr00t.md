@@ -31,8 +31,8 @@ Example of the training data for the GR1 and DROID models:
 
 | Dataset | Text prompt | Training video |
 |-------------|--------------|--------------|
-| GR1 | Use the left hand to pick up red milk carton from teal bowl to pink plate. |<video width="512" src="https://github.com/user-attachments/assets/b8ee46fa-8b65-4018-a968-ed6895e9063c"></video> |
-| DROID | A multi-view video shows that a robot put the marker on the table The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot put the marker on the table | <video width="512" src="https://github.com/user-attachments/assets/18867f08-d5cc-43e6-a507-0dd01dd190a9"></video> |
+| GR1 | Use the left hand to pick up red milk carton from teal bowl to pink plate. |<video width="512" src="https://github.com/user-attachments/assets/2e204518-1d1c-448a-b8c5-b7d6b64b0b3d"></video> |
+| DROID | A multi-view video shows that a robot put the marker on the table The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot put the marker on the table | <video width="512" src="https://github.com/user-attachments/assets/c9d612f2-e69a-44f2-8935-2c47c9395a49"></video> |
 
 ## 1. Preparing Data
 ### 1.1 Download DreamGen Bench Training Dataset
@@ -168,8 +168,8 @@ Example of the inference output:
 
 | Checkpoint | Text prompt | Input Image | Training video |
 |-------------|--------------|--------------|--------------|
-| GR1 | Use the right hand to pick up rubik's cube from from the bottom of the three-tiered wooden shelf to to the top of the three-tiered wooden shelf. | ![Input Image](../assets/sample_gr00t_dreams_gr1/8_Use_the_right_hand_to_pick_up_rubik\'s_cube_from_from_the_bottom_of_the_three-tiered_wooden_shelf_to_to_the_top_of_the_three-tiered_wooden_shelf..png) |  <video width="512" src="https://github.com/user-attachments/assets/ddec3534-540f-457f-b9ac-5a22dd6e40e7"></video> |
-| DROID | A multi-view video shows that a robot pick the lid and put it on the pot The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot pick the lid and put it on the pot | ![Input Image](../assets/sample_gr00t_dreams_droid/episode_000408.png) | <video width="512" src="https://github.com/user-attachments/assets/bde1e547-a257-4c48-b1f5-5c15c9f5c3d0"></video> |
+| GR1 | Use the right hand to pick up rubik's cube from from the bottom of the three-tiered wooden shelf to to the top of the three-tiered wooden shelf. | ![Input Image](../assets/sample_gr00t_dreams_gr1/8_Use_the_right_hand_to_pick_up_rubik\'s_cube_from_from_the_bottom_of_the_three-tiered_wooden_shelf_to_to_the_top_of_the_three-tiered_wooden_shelf..png) |  <video width="512" src="https://github.com/user-attachments/assets/b5faec63-8954-46dd-9251-7ff1c0de389a"></video> |
+| DROID | A multi-view video shows that a robot pick the lid and put it on the pot The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot pick the lid and put it on the pot | ![Input Image](../assets/sample_gr00t_dreams_droid/episode_000408.png) | <video width="512" src="https://github.com/user-attachments/assets/129399bc-7c35-4549-9f28-7823543b5db9"></video> |
 
 ## 4. Inference for DreamGen Benchmark
 ### 4.1 Download the DreamGen Benchmark dataset
