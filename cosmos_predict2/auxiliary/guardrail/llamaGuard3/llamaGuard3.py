@@ -14,7 +14,7 @@
 # limitations under the License.
 
 import argparse
-import os
+from pathlib import Path
 
 import torch
 from transformers import AutoModelForCausalLM, AutoTokenizer
@@ -44,9 +44,9 @@ class LlamaGuard3(ContentSafetyGuardrail):
         self.dtype = torch.bfloat16
 
         model_id = "meta-llama/Llama-Guard-3-8B"
-        model_dir = os.path.join(self.checkpoint_dir, model_id)
+        model_dir = (Path(self.checkpoint_dir) / model_id).as_posix()
 
-        self.model = AutoModelForCausalLM.from_pretrained(model_dir)
+        self.model = AutoModelForCausalLM.from_pretrained(model_dir, local_files_only=True)
         self.tokenizer = AutoTokenizer.from_pretrained(model_dir)
 
         # Move model to GPU unless offload_model_to_cpu is True
