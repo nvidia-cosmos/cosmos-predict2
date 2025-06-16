@@ -29,10 +29,10 @@ Before running training:
 
 Example of the training data for the GR1 and DROID models:
 
-| Dataset | Text prompt | Training video |
-|-------------|--------------|--------------|
-| GR1 | Use the left hand to pick up red milk carton from teal bowl to pink plate. |<video width="512" src="https://github.com/user-attachments/assets/2e204518-1d1c-448a-b8c5-b7d6b64b0b3d"></video> |
-| DROID | A multi-view video shows that a robot put the marker on the table The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot put the marker on the table | <video width="512" src="https://github.com/user-attachments/assets/c9d612f2-e69a-44f2-8935-2c47c9395a49"></video> |
+| Dataset | HF Model link | Text prompt | Training video |
+|-------------|--------------|--------------|-------------|
+| GR1 | [🤗 Huggingface](https://huggingface.co/nvidia/Sample-GR00T-Dreams-GR1 models) | Use the left hand to pick up red milk carton from teal bowl to pink plate. |<video width="512" src="https://github.com/user-attachments/assets/2e204518-1d1c-448a-b8c5-b7d6b64b0b3d"></video> |
+| DROID |  [🤗 Huggingface](https://huggingface.co/nvidia/Sample-GR00T-Dreams-DROID models) | A multi-view video shows that a robot put the marker on the table The video is split into four views: The top-left view shows the robotic arm from the left side, the top-right view shows it from the right side, the bottom-left view shows a first-person perspective from the robot's end-effector (gripper), and the bottom-right view is a black screen (inactive view). The robot put the marker on the table | <video width="512" src="https://github.com/user-attachments/assets/c9d612f2-e69a-44f2-8935-2c47c9395a49"></video> |
 
 ## 1. Preparing Data
 ### 1.1 Download DreamGen Bench Training Dataset
