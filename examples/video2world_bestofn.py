@@ -402,12 +402,14 @@ if __name__ == "__main__":
             if not video_paths:
                 log.error("Failed to generate any videos, exiting")
                 exit(1)
-            del pipe  # Free up memory
         except Exception as e:
             log.error(f"Error during video generation: {e}")
             exit(1)
         finally:
             cleanup_distributed()
+
+    del pipe  # Free up memory
+    torch.cuda.empty_cache()
 
     # Run the critic model on rank 0 only
     if rank == 0:

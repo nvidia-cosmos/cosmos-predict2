@@ -211,5 +211,6 @@ torchrun --nproc_per_node=8 --master_port=12341 \
   --num_gpus 8 \
   --num_generations 4 \
   --prompt_prefix "" \
+  --disable_guardrail \
   --save_path output/best-of-n-gr00t-gr1
-  ```
+```
