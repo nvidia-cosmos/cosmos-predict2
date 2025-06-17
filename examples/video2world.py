@@ -20,6 +20,7 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import time
 import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
@@ -146,6 +147,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+    )
     return parser.parse_args()
 
 
@@ -217,7 +223,7 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed
+    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed, benchmark
 ):
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
@@ -226,14 +232,25 @@ def process_single_generation(
 
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {prompt}")
 
-    video = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        input_path=input_path,
-        num_conditional_frames=num_conditional_frames,
-        guidance=guidance,
-        seed=seed,
-    )
+    num_repeats = 4 if benchmark else 1
+    time_sum = 0
+    for i in range(num_repeats):
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            start_time = time.time()
+        video = pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            input_path=input_path,
+            num_conditional_frames=num_conditional_frames,
+            guidance=guidance,
+            seed=seed,
+        )
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            time_sum += time.time() - start_time
+    if benchmark:
+        log.critical(f"The benchmarked generation time for Video2WorldPipeline is {time_sum / 3} seconds.")
 
     if video is not None:
         # save the generated video

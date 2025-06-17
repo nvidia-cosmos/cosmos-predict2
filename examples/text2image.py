@@ -20,6 +20,7 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import time
 import torch
 from tqdm import tqdm
 
@@ -59,6 +60,11 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the inference.")
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+    )
     return parser.parse_args()
 
 
@@ -98,16 +104,28 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
     return pipe
 
 
-def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, use_cuda_graphs):
+def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, use_cuda_graphs, benchmark):
     log.info(f"Running Text2ImagePipeline\nprompt: {prompt}")
 
-    # Generate image
-    image = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        seed=seed,
-        use_cuda_graphs=use_cuda_graphs,
-    )
+    # When benchmarking, run inference 4 times, exclude the 1st due to warmup and average time.
+    num_repeats = 4 if benchmark else 1
+    time_sum = 0
+    for i in range(num_repeats):
+        # Generate image
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            start_time = time.time()
+        image = pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            seed=seed,
+            use_cuda_graphs=use_cuda_graphs,
+        )
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            time_sum += time.time() - start_time
+    if benchmark:
+        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_sum / 3} seconds.")
 
     if image is not None:
         # save the generated image
@@ -144,6 +162,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
                 negative_prompt=args.negative_prompt,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
+                benchmark=args.benchmark,
             )
     else:
         if args.use_cuda_graphs:
@@ -157,6 +176,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
             negative_prompt=args.negative_prompt,
             seed=args.seed,
             use_cuda_graphs=args.use_cuda_graphs,
+            benchmark=args.benchmark,
         )
 
     return

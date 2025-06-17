@@ -85,6 +85,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+    )
     return parser.parse_args()
 
 
@@ -205,6 +210,7 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
                 negative_prompt=args.negative_prompt,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
+                benchmark=args.benchmark,
             ):
                 # Save the item for the second stage
                 batch_items.append({"prompt": prompt, "output_video": output_video, "temp_image_path": temp_image_name})
@@ -222,6 +228,7 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
             negative_prompt=args.negative_prompt,
             seed=args.seed,
             use_cuda_graphs=args.use_cuda_graphs,
+            benchmark=args.benchmark,
         ):
             # Add single item to batch_items for consistent processing
             batch_items.append(
@@ -244,6 +251,7 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
             num_conditional_frames=1,  # Always use 1 frame for text2world
             guidance=args.guidance,
             seed=args.seed,
+            benchmark=args.benchmark,
         )
 
         # Clean up the temporary image file
