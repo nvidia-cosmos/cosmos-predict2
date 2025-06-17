@@ -59,6 +59,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the inference.")
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     return parser.parse_args()
 
 
@@ -77,6 +78,7 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
     if args.disable_guardrail:
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
+    config.guardrail_config.offload_model_to_cpu = args.offload_guardrail
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
