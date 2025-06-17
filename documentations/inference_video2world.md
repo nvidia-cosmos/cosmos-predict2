@@ -229,8 +229,9 @@ python -m examples.video2world_bestofn \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
     --prompt "${PROMPT}" \
-    --num_generations 5 \
-    --num_critic_trials 3 \
+    --num_generations 4 \
+    --num_critic_trials 5 \
+    --disable_guardrail \
     --save_path output/rejection_sampling_demo
 ```
 
