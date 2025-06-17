@@ -171,6 +171,8 @@ def setup_pipeline(args: argparse.Namespace) -> Tuple[Text2ImagePipeline, Video2
 
 
 def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline, Video2WorldPipeline]) -> None:
+    if args.benchmark:
+        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
     text2image_pipe, video2world_pipe = pipelines
 
     # Get the base path for temporary image (without file extension)

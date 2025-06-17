@@ -269,6 +269,8 @@ def process_single_generation(
 
 
 def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
+    if args.benchmark:
+        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
     # Video-to-World
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file
@@ -294,6 +296,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 num_conditional_frames=args.num_conditional_frames,
                 guidance=args.guidance,
                 seed=args.seed,
+                benchmark=args.benchmark,
             )
     else:
         process_single_generation(
@@ -305,6 +308,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             num_conditional_frames=args.num_conditional_frames,
             guidance=args.guidance,
             seed=args.seed,
+            benchmark=args.benchmark,
         )
 
     return

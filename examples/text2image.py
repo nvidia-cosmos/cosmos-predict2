@@ -140,6 +140,8 @@ def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, 
 
 
 def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
+    if args.benchmark:
+        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
     # Text-to-image
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file
