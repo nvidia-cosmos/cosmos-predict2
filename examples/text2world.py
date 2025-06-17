@@ -37,11 +37,11 @@ from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 
 # Import functionality from other example scripts
-from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.text2image import process_single_generation as process_single_image_generation
-from examples.video2world import setup_pipeline as setup_video2world_pipeline
-from examples.video2world import process_single_generation as process_single_video_generation
+from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
+from examples.video2world import process_single_generation as process_single_video_generation
+from examples.video2world import setup_pipeline as setup_video2world_pipeline
 from imaginaire.utils import distributed, log, misc
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
@@ -80,7 +80,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
 
     # Text2image specific arguments
@@ -221,7 +221,9 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         if args.benchmark:
-            log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
+            log.warning(
+                "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
+            )
 
         # Step 1: Initialize text2image pipeline and generate all first frames
         log.info("Step 1: Initializing text2image pipeline...")
