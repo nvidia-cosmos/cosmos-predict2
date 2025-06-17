@@ -17,10 +17,10 @@ from typing import List, Optional, Tuple
 
 import torch
 import torch.nn as nn
-
 from einops import rearrange
-from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
+
 from cosmos_predict2.conditioner import DataType
+from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 
 
 class Mlp(nn.Module):
@@ -44,11 +44,10 @@ class Mlp(nn.Module):
 
 class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
     def __init__(self, *args, **kwargs):
-        assert 'action_dim' in kwargs, "action_dim must be provided"
-        action_dim = kwargs['action_dim']
-        del kwargs['action_dim']
+        assert "action_dim" in kwargs, "action_dim must be provided"
+        action_dim = kwargs["action_dim"]
+        del kwargs["action_dim"]
         super().__init__(*args, **kwargs)
-
 
         self.action_embedder_B_D = Mlp(
             in_features=action_dim,
@@ -64,7 +63,6 @@ class ActionConditionedMinimalV1LVGDiT(MinimalV1LVGDiT):
             act_layer=lambda: nn.GELU(approximate="tanh"),
             drop=0,
         )
-
 
     def forward(
         self,

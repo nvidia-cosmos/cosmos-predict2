@@ -29,29 +29,16 @@ from torch.distributed.fsdp import fully_shard
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.conditioner import DataType, T2VCondition
-from cosmos_predict2.configs.base.config_video2world import (
-    ConditioningStrategy,
-    Video2WorldPipelineConfig,
-)
+from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
 from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
 from cosmos_predict2.module.denoise_prediction import DenoisePrediction
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import (
-    RectifiedFlowAB2Scheduler,
-)
+from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.utils.context_parallel import (
-    broadcast,
-    broadcast_split_tensor,
-    cat_outputs_cp,
-    split_inputs_cp,
-)
-from cosmos_predict2.utils.dtensor_helper import (
-    DTensorFastEmaModelUpdater,
-    broadcast_dtensor_model_states,
-)
+from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
+from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -337,9 +324,7 @@ class Video2WorldPipeline(BasePipeline):
             )
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -785,9 +770,7 @@ class Video2WorldPipeline(BasePipeline):
 
         # Run text guardrail on the prompt
         if self.text_guardrail_runner is not None:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):

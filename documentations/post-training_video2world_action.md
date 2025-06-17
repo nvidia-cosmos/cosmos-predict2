@@ -92,5 +92,5 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/action_video2world.py 
   --guidance 0 \
   --seed 0 \
   --disable_guardrail \
-  --disable_prompt_refiner 
+  --disable_prompt_refiner
 ```

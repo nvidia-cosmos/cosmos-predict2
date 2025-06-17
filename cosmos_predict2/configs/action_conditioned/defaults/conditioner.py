@@ -19,9 +19,9 @@ from typing import Dict, Optional
 import torch
 from hydra.core.config_store import ConfigStore
 
+from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidCondition, Vid2VidConditioner
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
-from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidCondition, Vid2VidConditioner
 
 
 # NOTE: extend the condition class to include action

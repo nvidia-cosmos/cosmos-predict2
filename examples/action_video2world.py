@@ -16,9 +16,10 @@
 import argparse
 import json
 import os
-import numpy as np
 import pdb
+
 import mediapy as mp
+import numpy as np
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -41,10 +42,11 @@ def get_action_sequence(annotation_path):
     # rescale the action to the original scale
     action_ee = np.array(data["action"])[:, :6] * 20
     gripper = np.array(data["continuous_gripper_state"])[1:, None]
-    
+
     # concatenate the end-effector displacement and gripper width
     action = np.concatenate([action_ee, gripper], axis=1)
     return action
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Video-to-World Generation with Cosmos Predict2")
@@ -85,7 +87,7 @@ def parse_args() -> argparse.Namespace:
         default=12,
         help="Chunk size",
     )
-    parser.add_argument('--autoregressive', action='store_true', help='Use autoregressive mode')
+    parser.add_argument("--autoregressive", action="store_true", help="Use autoregressive mode")
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value")
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
@@ -114,7 +116,7 @@ def setup_pipeline(args: argparse.Namespace):
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pth"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
-    if hasattr(args, 'dit_path') and args.dit_path:
+    if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
     # text_encoder_path = "checkpoints/google-t5/t5-11b"
@@ -129,7 +131,7 @@ def setup_pipeline(args: argparse.Namespace):
     torch.backends.cuda.matmul.allow_tf32 = True
 
     # Initialize distributed environment for multi-GPU inference
-    if hasattr(args, 'num_gpus') and args.num_gpus > 1:
+    if hasattr(args, "num_gpus") and args.num_gpus > 1:
         log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -158,15 +160,15 @@ def setup_pipeline(args: argparse.Namespace):
 
     return pipe
 
+
 def read_first_frame(video_path):
     video = mp.read_video(video_path)  # Returns (T, H, W, C) numpy array
-    return video[0] # Return first frame as numpy array
+    return video[0]  # Return first frame as numpy array
 
 
 def process_single_generation(
     pipe, input_path, input_annotation, output_path, guidance, seed, chunk_size, autoregressive
 ):
-
     actions = get_action_sequence(input_annotation)
     first_frame = read_first_frame(input_path)
 
@@ -176,19 +178,19 @@ def process_single_generation(
         log.info("Using autoregressive mode")
         video_chunks = []
         for i in range(0, len(actions), chunk_size):
-            if actions[i:i+chunk_size].shape[0] < chunk_size:
+            if actions[i : i + chunk_size].shape[0] < chunk_size:
                 log.info(f"Reached end of actions")
                 break
             video = pipe(
                 first_frame,
-                actions[i:i+chunk_size],
+                actions[i : i + chunk_size],
                 num_conditional_frames=1,
                 guidance=guidance,
                 seed=i,
             )
-            first_frame = ((video[0, :, -1].permute(1, 2, 0).cpu().numpy() / 2 + 0.5).clip(0, 1)*255).astype(np.uint8)
+            first_frame = ((video[0, :, -1].permute(1, 2, 0).cpu().numpy() / 2 + 0.5).clip(0, 1) * 255).astype(np.uint8)
             video_chunks.append(video)
-        video = torch.cat([video_chunks[0]]+[chunk[:,:,:-1] for chunk in video_chunks[1:]], dim=2)
+        video = torch.cat([video_chunks[0]] + [chunk[:, :, :-1] for chunk in video_chunks[1:]], dim=2)
     else:
         video = pipe(
             first_frame,
@@ -210,7 +212,6 @@ def process_single_generation(
     return False
 
 
-
 def generate_video(args: argparse.Namespace, pipe: ActionConditionedVideo2WorldPipeline) -> None:
     process_single_generation(
         pipe=pipe,
@@ -223,7 +224,6 @@ def generate_video(args: argparse.Namespace, pipe: ActionConditionedVideo2WorldP
         autoregressive=args.autoregressive,
     )
     return
-
 
 
 def cleanup_distributed():

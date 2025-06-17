@@ -42,7 +42,7 @@ Note: (OOM) indicates "Out of Memory" - the model is too large to run on that GP
 
 ### Post-training performance
 
-Review the [AgiBot-Fisheye](post-training_video2world_agibot_fisheye.md) post-training example, which contains performance numbers on different GPUs. 
+Review the [AgiBot-Fisheye](post-training_video2world_agibot_fisheye.md) post-training example, which contains performance numbers on different GPUs.
 
 ## Model Selection Guide
 

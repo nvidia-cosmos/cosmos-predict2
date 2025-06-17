@@ -20,10 +20,11 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import tempfile
+
 import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
-import tempfile
 
 from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
@@ -204,7 +205,7 @@ def process_single_generation(
 
     all_chunks = []
     current_input_path = input_path
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         for chunk_id in tqdm(range(num_chunks)):
             log.info(f"Generating chunk {chunk_id + 1}/{num_chunks}...")
@@ -215,7 +216,7 @@ def process_single_generation(
                 input_path=current_input_path,
                 num_conditional_frames=num_conditional_frames,
                 guidance=guidance,
-                seed=seed+chunk_id, # change random seed to avoid repeat
+                seed=seed + chunk_id,  # change random seed to avoid repeat
             )
             # for the first chunk, we save the whole clip
             if chunk_id == 0:
@@ -223,7 +224,7 @@ def process_single_generation(
             else:
                 chunk = video[:, :, num_conditional_frames:, :, :]
             all_chunks.append(chunk.cpu())
-            
+
             # Prepare for next chunk: use last `num_conditional_frames` frames as new condition
             last_frames = video[:, :, -num_conditional_frames:, :, :]  # (1, C, num_conditional_frames, H, W)
             # if num_conditional_frames is 1, save as image temp file

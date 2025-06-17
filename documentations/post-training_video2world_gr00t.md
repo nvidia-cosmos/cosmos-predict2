@@ -13,7 +13,7 @@ This guide provides instructions on running post-training with Cosmos-Predict2 V
 
 Before running training:
 
-1. **Environment setup**: 
+1. **Environment setup**:
   - Follow the [Setup guide](setup.md) for installation instructions.
   - For user who want to run the command in https://github.com/nvidia/GR00T-dreams, after setup the environment, run the following command to install extra dependencies:
   ```bash
