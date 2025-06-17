@@ -20,6 +20,8 @@ For optimal performance, we recommend:
 
 ## Performance Benchmarks
 
+### Inference performance
+
 The following table shows generation times across different NVIDIA GPU hardware:
 
 | GPU Hardware | 2B-Text2Image | 14B-Text2Image | 2B-Video2World | 14B-Video2World |
@@ -37,6 +39,10 @@ The following table shows generation times across different NVIDIA GPU hardware:
 | NVIDIA RTX 6000 Ada | 11.94 sec | 167.86 sec | 180.99 sec | 876.68 sec |
 
 Note: (OOM) indicates "Out of Memory" - the model is too large to run on that GPU.
+
+### Post-training performance
+
+Review the [AgiBot-Fisheye](post-training_video2world_agibot_fisheye.md) post-training example, which contains performance numbers on different GPUs. 
 
 ## Model Selection Guide
 

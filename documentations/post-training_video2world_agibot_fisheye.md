@@ -168,6 +168,16 @@ checkpoints/posttraining/video2world/14b_agibot_head_center_fisheye_color/checkp
 ├── latest_checkpoint.txt
 ```
 
+### 2.2 Post-training performance
+
+The following table shows the expected iteration speed for 2B and 14B Video2World model training on different GPUs.
+Note that 2B model uses 8 GPUs, while 14B model uses 32 GPUs. 14B model also has 4x lower global batch size, as it uses Context-Parallelism of size 8, while 2B model uses Context-Parallelism of size 2.
+
+| GPU Hardware    | 2B-Video2World | 14B-Video2World |
+|-----------------|----------------|-----------------|
+| NVIDIA B200     | 6.05 sec       | 6.27 sec        |
+| NVIDIA H100 NVL | 10.07 sec      | 8.72 sec        |
+| NVIDIA A100     | 22.5 sec       | 22.14 sec       |
 
 ## 3. Inference with the Post-trained checkpoint
 ### 3.1 Inference
