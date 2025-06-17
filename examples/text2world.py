@@ -16,23 +16,13 @@
 import argparse
 import json
 import os
-from typing import Tuple
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
-from megatron.core import parallel_state
 from tqdm import tqdm
 
-from cosmos_predict2.configs.base.config_text2image import (
-    PREDICT2_TEXT2IMAGE_PIPELINE_2B,
-    PREDICT2_TEXT2IMAGE_PIPELINE_14B,
-)
-from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
-)
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 
@@ -42,7 +32,7 @@ from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
 from examples.video2world import process_single_generation as process_single_video_generation
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
-from imaginaire.utils import distributed, log, misc
+from imaginaire.utils import log
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
 
