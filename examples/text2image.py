@@ -77,6 +77,12 @@ def parse_args() -> argparse.Namespace:
         default="output/generated_image.jpg",
         help="Path to save the generated image (include file extension)",
     )
+    parser.add_argument(
+        "--save_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to save the actual DiT input dictionary to a .pt file. The script will save the input and continue with generation.",
+    )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the inference.")
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
@@ -301,6 +307,8 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
+        if args.save_dit_input_path:
+            pipe.dit.set_save_input_path(args.save_dit_input_path)
         generate_image(args, pipe)
     finally:
         # Make sure to clean up the distributed environment
