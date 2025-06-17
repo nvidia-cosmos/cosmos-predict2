@@ -156,7 +156,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace):
+def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
@@ -179,8 +179,13 @@ def setup_pipeline(args: argparse.Namespace):
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
-    text_encoder_path = "checkpoints/google-t5/t5-11b"
+    # Only set up text encoder path if no encoder is provided
+    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
     log.info(f"Using dit_path: {dit_path}")
+    if text_encoder is not None:
+        log.info("Using provided text encoder")
+    else:
+        log.info(f"Using text encoder from: {text_encoder_path}")
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
@@ -219,6 +224,10 @@ def setup_pipeline(args: argparse.Namespace):
         torch_dtype=torch.bfloat16,
         load_prompt_refiner=True,
     )
+
+    # Set the provided text encoder if one was passed
+    if text_encoder is not None:
+        pipe.text_encoder = text_encoder
 
     return pipe
 

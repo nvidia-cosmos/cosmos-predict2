@@ -37,9 +37,11 @@ from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 
 # Import functionality from other example scripts
+from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.text2image import process_single_generation as process_single_image_generation
-from examples.video2world import _DEFAULT_NEGATIVE_PROMPT
+from examples.video2world import setup_pipeline as setup_video2world_pipeline
 from examples.video2world import process_single_generation as process_single_video_generation
+from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
 from imaginaire.utils import distributed, log, misc
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
@@ -47,6 +49,7 @@ _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a m
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Text to World Generation with Cosmos Predict2")
+    # Common arguments between text2image and video2world
     parser.add_argument(
         "--model_size",
         choices=["2B", "14B"],
@@ -73,7 +76,37 @@ def parse_args() -> argparse.Namespace:
         default="output/generated_video.mp4",
         help="Path to save the generated video (include file extension)",
     )
+    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+    )
+
+    # Text2image specific arguments
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the text2image inference.")
+
+    # Video2world specific arguments
+    parser.add_argument(
+        "--resolution",
+        choices=["480", "720"],
+        default="720",
+        type=str,
+        help="Resolution of the model to use for video-to-world generation",
+    )
+    parser.add_argument(
+        "--fps",
+        choices=[10, 16],
+        default=16,
+        type=int,
+        help="FPS of the model to use for video-to-world generation",
+    )
+    parser.add_argument(
+        "--dit_path",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value for video generation")
     parser.add_argument(
         "--num_gpus",
@@ -81,7 +114,6 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Number of GPUs to use for context parallel inference in the video2world part",
     )
-    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     parser.add_argument(
         "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
@@ -89,110 +121,14 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
-    parser.add_argument(
-        "--benchmark",
-        action="store_true",
-        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
-    )
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace) -> Tuple[Text2ImagePipeline, Video2WorldPipeline]:
-    log.info(f"Using model size: {args.model_size}")
-    if args.model_size == "2B":
-        # Config for image model
-        config_text2image = PREDICT2_TEXT2IMAGE_PIPELINE_2B
-        dit_path_text2image = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model.pt"
-
-        # Config for world model
-        config_video2world = PREDICT2_VIDEO2WORLD_PIPELINE_2B
-        dit_path_video2world = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
-
-    elif args.model_size == "14B":
-        # Config for image model
-        config_text2image = PREDICT2_TEXT2IMAGE_PIPELINE_14B
-        dit_path_text2image = "checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt"
-
-        # Config for world model
-        config_video2world = PREDICT2_VIDEO2WORLD_PIPELINE_14B
-        dit_path_video2world = "checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps.pt"
-
-    else:
-        raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
-
-    # Disable guardrail if requested
-    if args.disable_guardrail:
-        log.warning("Guardrail checks are disabled")
-        config_text2image.guardrail_config.enabled = False
-        config_video2world.guardrail_config.enabled = False
-    config_text2image.guardrail_config.offload_model_to_cpu = args.offload_guardrail
-    config_video2world.guardrail_config.offload_model_to_cpu = args.offload_guardrail
-
-    # Disable prompt refiner if requested
-    if args.disable_prompt_refiner:
-        log.warning("Prompt refiner is disabled")
-        config_video2world.prompt_refiner_config.enabled = False
-    config_video2world.prompt_refiner_config.offload_model_to_cpu = args.offload_prompt_refiner
-
-    misc.set_random_seed(seed=args.seed, by_rank=True)
-    # Initialize cuDNN.
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = True
-    # Floating-point precision settings.
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cuda.matmul.allow_tf32 = True
-
-    # First generate images from text
-    log.info(f"Initializing Text2ImagePipeline with model size: {args.model_size}")
-    text2image_pipe = Text2ImagePipeline.from_config(
-        config=config_text2image,
-        dit_path=dit_path_text2image,
-        device="cuda",
-        torch_dtype=torch.bfloat16,
-    )
-
-    # Initialize distributed environment for multi-GPU inference (for video2world part)
-    if hasattr(args, "num_gpus") and args.num_gpus > 1:
-        log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
-        distributed.init()
-        parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
-        log.info(f"Context parallel group initialized with {args.num_gpus} GPUs")
-
-    # We'll initialize the video2world pipeline with the text_encoder from text2image
-    text_encoder = text2image_pipe.text_encoder
-
-    # Now, initialize video2world pipeline
-    log.info(f"Initializing Video2WorldPipeline with model size: {args.model_size}")
-    video2world_pipe = Video2WorldPipeline.from_config(
-        config=config_video2world,
-        dit_path=dit_path_video2world,
-        text_encoder_path=None,  # We'll use the existing text_encoder
-        device="cuda",
-        torch_dtype=torch.bfloat16,
-        load_prompt_refiner=True,
-    )
-    # This will ensure that text encoder is not re-initialized
-    video2world_pipe.text_encoder = text_encoder
-
-    return text2image_pipe, video2world_pipe
-
-
-def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline, Video2WorldPipeline]) -> None:
-    if args.benchmark:
-        log.warning(
-            "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
-        )
-    text2image_pipe, video2world_pipe = pipelines
-
-    # Get the base path for temporary image (without file extension)
-    if args.batch_input_json is None:
-        # In single mode, derive temp image path from save_path
-        temp_image_path = os.path.splitext(args.save_path)[0] + "_temp.jpg"
-    else:
-        # For batch mode, we'll generate temp paths per item
-        temp_image_path = None
-
-    # Text-to-image
+def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Namespace) -> list:
+    """
+    Generate first frames using the text2image pipeline.
+    Returns a list of batch items containing prompt, output video path, and temp image path.
+    """
     batch_items = []
 
     if args.batch_input_json is not None:
@@ -226,6 +162,9 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
                 # Save the item for the second stage
                 batch_items.append({"prompt": prompt, "output_video": output_video, "temp_image_path": temp_image_name})
     else:
+        # Single item processing
+        temp_image_path = os.path.splitext(args.save_path)[0] + "_temp.jpg"
+
         if args.use_cuda_graphs:
             log.warning(
                 "Using CUDA Graphs for a single inference call may not be beneficial because of overhead of Graphs creation."
@@ -246,7 +185,14 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
                 {"prompt": args.prompt, "output_video": args.save_path, "temp_image_path": temp_image_path}
             )
 
-    # Process all items (batch or single) in a consistent way
+    return batch_items
+
+
+def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, args: argparse.Namespace) -> None:
+    """
+    Generate videos from first frames using the video2world pipeline.
+    """
+    # Process all items for video generation
     for item in tqdm(batch_items, desc="Generating videos from first frames"):
         prompt = item["prompt"]
         output_video = item["output_video"]
@@ -270,22 +216,43 @@ def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline
             os.remove(temp_image_path)
             log.success(f"Cleaned up temporary image: {temp_image_path}")
 
-    return
-
-
-def cleanup_distributed():
-    """Clean up the distributed environment if initialized."""
-    if parallel_state.is_initialized():
-        parallel_state.destroy_model_parallel()
-        if torch.distributed.is_initialized():
-            torch.distributed.destroy_process_group()
-
 
 if __name__ == "__main__":
     args = parse_args()
     try:
-        pipelines = setup_pipeline(args)
-        generate_video(args, pipelines)
+        if args.benchmark:
+            log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
+
+        # Step 1: Initialize text2image pipeline and generate all first frames
+        log.info("Step 1: Initializing text2image pipeline...")
+        text2image_pipe = setup_text2image_pipeline(args)
+
+        # Store text encoder for later use
+        text_encoder = text2image_pipe.text_encoder
+
+        # Generate first frames
+        log.info("Step 1: Generating first frames...")
+        batch_items = generate_first_frames(text2image_pipe, args)
+
+        # Clean up text2image pipeline
+        log.info("Step 1 complete. Cleaning up text2image pipeline to free memory...")
+        del text2image_pipe
+        torch.cuda.empty_cache()
+
+        # Step 2: Initialize video2world pipeline and generate videos
+        log.info("Step 2: Initializing video2world pipeline...")
+        # Pass all video2world relevant arguments and the text encoder
+        video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
+
+        # Generate videos
+        log.info("Step 2: Generating videos from first frames...")
+        generate_videos(video2world_pipe, batch_items, args)
+
+        # Clean up video2world pipeline
+        log.info("All done. Cleaning up video2world pipeline...")
+        del video2world_pipe
+        torch.cuda.empty_cache()
+
     finally:
         # Make sure to clean up the distributed environment
         cleanup_distributed()
