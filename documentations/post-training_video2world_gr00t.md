@@ -198,7 +198,7 @@ python -m examples.video2world_gr00t \
 * See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
 
 ## 5. Inference with Cosmos-Reason1 Rejection Sampling
-checkout [inference_video2world.md](inference_video2world.md) and [Cosmos-Reason1 video critic instruction](https://github.com/nvidia-cosmos/cosmos-reason1/blob/main/examples/video_critic.md) for more examples on how to improve video quality using Cosmos-Reason1's video critic capability.
+checkout [inference_video2world.md](inference_video2world.md) and [Cosmos-Reason1 video critic instruction](https://github.com/nvidia-cosmos/cosmos-reason1/blob/main/examples/video_critic.md) for more examples on how to improve video quality using Cosmos-Reason1's video critic capability. Refer to [API Documentation](inference_video2world.md#rejection-sampling-video2world_bestofnpy) for detailed usage of `video2world_bestofn.py`.
 
 * Inference with GR1 checkpoint and rejection sampling
 ```bash
