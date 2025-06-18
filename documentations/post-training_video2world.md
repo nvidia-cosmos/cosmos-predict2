@@ -87,6 +87,7 @@ predict2_video2world_training_2b_custom_data = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
         "_self_",
@@ -98,7 +99,6 @@ predict2_video2world_training_2b_custom_data = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=8,              # FSDP size
             pipe_config=dict(
                 ema=dict(enabled=True),     # enable EMA during training
                 guardrail_config=dict(enabled=False),   # disable guardrail during training
@@ -117,7 +117,16 @@ predict2_video2world_training_2b_custom_data = dict(
         max_iter=1000,                      # maximum number of iterations
     ),
     checkpoint=dict(
-        save_iter=200,                      # checkpoints will be saved every 200 iterations.
+        save_iter=500,                      # checkpoints will be saved every 500 iterations.
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.6],
+        f_min=[0.3],
     ),
 )
 ```
@@ -145,6 +154,7 @@ In the above config example, it starts by overriding from the registered configs
 ```python
     {"override /model": "predict2_video2world_fsdp_2b"},
     {"override /optimizer": "fusedadamw"},
+    {"override /scheduler": "lambdalinear"},
     {"override /ckpt_type": "standard"},
     {"override /data_val": "mock"},
 ```
@@ -180,6 +190,7 @@ The system provides several pre-defined configuration groups that can be mixed a
 
 #### Scheduler Configurations (`defaults/scheduler.py`)
 - `constant`: Constant learning rate
+- `lambdalinear`: Linearly warming-up learning rate
 - Various learning rate scheduling strategies
 
 #### Data Configurations (`defaults/data.py`)
