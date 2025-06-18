@@ -179,7 +179,7 @@ def process_single_generation(
         video_chunks = []
         for i in range(0, len(actions), chunk_size):
             if actions[i : i + chunk_size].shape[0] < chunk_size:
-                log.info(f"Reached end of actions")
+                log.info("Reached end of actions")
                 break
             video = pipe(
                 first_frame,
