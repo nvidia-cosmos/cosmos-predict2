@@ -82,12 +82,12 @@ This will generate three separate images according to the prompts specified in t
 
 ## API Documentation
 
-The `predict2_text2image.py` script supports the following command-line arguments:
+The `text2image.py` script supports the following command-line arguments:
 
 Input and output parameters:
 - `--prompt`: Text prompt describing the image to generate (default: predefined example prompt)
 - `--negative_prompt`: Text describing what to avoid in the generated image (default: empty)
-- `--save_path`: Path to save the generated image (default: "generated_image.jpg")
+- `--save_path`: Path to save the generated image (default: "output/generated_image.jpg")
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_image' fields
 
 Model selection:
@@ -96,9 +96,12 @@ Model selection:
 Performance optimization:
 - `--seed`: Random seed for reproducible results (default: 0)
 - `--use_cuda_graphs`: Use CUDA Graphs for inference acceleration
+- `--benchmark`: Run in benchmark mode to measure average generation time
 
 Content safety:
 - `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
+
+> **Note**: Text2Image runs on a single GPU and does not support multi-GPU inference. For multi-GPU video generation, use [Text2World](inference_text2world.md) or [Video2World](inference_video2world.md) pipelines.
 
 ## Prompt Engineering Tips
 
