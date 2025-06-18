@@ -27,14 +27,14 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
+from megatron.core import parallel_state
 from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_14B
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, validate_input_file
-from imaginaire.utils.io import save_image_or_video
-from megatron.core import parallel_state
 from imaginaire.utils import distributed, log, misc
+from imaginaire.utils.io import save_image_or_video
 
 
 def parse_args() -> argparse.Namespace:
@@ -123,9 +123,7 @@ def setup_pipeline(args: argparse.Namespace):
         if args.gr00t_variant == "gr1":
             dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/model-480p-16fps.pt"
         elif args.gr00t_variant == "droid":
-            dit_path = (
-                "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-480p-16fps.pt"
-            )
+            dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-480p-16fps.pt"
     else:
         raise ValueError("Only 14B model size is supported for GR00T variants")
 
@@ -153,8 +151,6 @@ def setup_pipeline(args: argparse.Namespace):
     if args.disable_guardrail:
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
-
-
 
     # Load models
     log.info(f"Initializing Video2WorldPipeline with GR00T variant: {args.gr00t_variant}")

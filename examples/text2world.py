@@ -92,7 +92,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
     return parser.parse_args()
 
@@ -152,7 +152,7 @@ def setup_pipeline(args: argparse.Namespace) -> Tuple[Text2ImagePipeline, Video2
     )
 
     # Initialize distributed environment for multi-GPU inference (for video2world part)
-    if hasattr(args, 'num_gpus') and args.num_gpus > 1:
+    if hasattr(args, "num_gpus") and args.num_gpus > 1:
         log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -179,7 +179,9 @@ def setup_pipeline(args: argparse.Namespace) -> Tuple[Text2ImagePipeline, Video2
 
 def generate_video(args: argparse.Namespace, pipelines: Tuple[Text2ImagePipeline, Video2WorldPipeline]) -> None:
     if args.benchmark:
-        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
+        log.warning(
+            "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
+        )
     text2image_pipe, video2world_pipe = pipelines
 
     # Get the base path for temporary image (without file extension)

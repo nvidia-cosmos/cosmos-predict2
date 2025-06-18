@@ -14,9 +14,9 @@
 # limitations under the License.
 
 import argparse
+import fnmatch
 import hashlib
 import os
-import fnmatch
 
 from huggingface_hub import snapshot_download
 
@@ -33,8 +33,20 @@ def parse_args():
     parser.add_argument(
         "--model_types",
         nargs="*",
-        default=["text2image", "video2world", "sample_action_conditioned","sample_gr00t_dreams_gr1", "sample_gr00t_dreams_droid"],
-        choices=["text2image", "video2world", "sample_action_conditioned","sample_gr00t_dreams_gr1", "sample_gr00t_dreams_droid"],
+        default=[
+            "text2image",
+            "video2world",
+            "sample_action_conditioned",
+            "sample_gr00t_dreams_gr1",
+            "sample_gr00t_dreams_droid",
+        ],
+        choices=[
+            "text2image",
+            "video2world",
+            "sample_action_conditioned",
+            "sample_gr00t_dreams_gr1",
+            "sample_gr00t_dreams_droid",
+        ],
         help="Which model types to download. Possible values: text2image, video2world, sample_action_conditioned",
     )
     parser.add_argument(
@@ -74,7 +86,6 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt": "34730e3d5e65c4c590f3a88ca3fd4e74",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt": "b1dcd8adbe82e69496532d1e237c7022",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt": "53a04f51880272d9f4a5c4460b82966d",
-
     "nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
@@ -110,12 +121,12 @@ def validate_files(checkpoints_dir, model_name, verify_md5=False, **download_kwa
         if key.startswith(model_name + "/"):
             if "allow_patterns" in download_kwargs:
                 # only check if the key matches the allow_patterns
-                relative_path = key[len(model_name + "/"):]
+                relative_path = key[len(model_name + "/") :]
                 if not fnmatch.fnmatch(relative_path, download_kwargs["allow_patterns"]):
                     continue
             if "ignore_patterns" in download_kwargs:
                 # only check if the key does not match the ignore_patterns
-                relative_path = key[len(model_name + "/"):]
+                relative_path = key[len(model_name + "/") :]
                 if any(fnmatch.fnmatch(relative_path, pattern) for pattern in download_kwargs["ignore_patterns"]):
                     continue
             file_path = os.path.join(checkpoints_dir, key)
@@ -157,7 +168,12 @@ def main(args):
 
     # Download the Cosmos-Predict2 models
     model_size_mapping = {"2B": "Cosmos-Predict2-2B", "14B": "Cosmos-Predict2-14B"}
-    model_type_mapping = {"text2image": "Text2Image", "video2world": "Video2World", "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1", "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID"}
+    model_type_mapping = {
+        "text2image": "Text2Image",
+        "video2world": "Video2World",
+        "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1",
+        "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID",
+    }
     if "text2image" in args.model_types:
         for size in args.model_sizes:
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['text2image']}"
@@ -169,12 +185,14 @@ def main(args):
                 for res in args.resolution:
                     repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['video2world']}"
                     allow_patterns = f"model-{res}p-{fps}fps.pt"
-                    download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns=allow_patterns)
+                    download_model(
+                        args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns=allow_patterns
+                    )
             # donwload the remaining
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['video2world']}"
             download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="tokenizer/*")
         download_model(args.checkpoint_dir, "nvidia/Cosmos-Reason1-7B", verify_md5=args.verify_md5)
-    
+
     if "sample_action_conditioned" in args.model_types:
         print("NOTE: Sample Action Conditioned model is only available for 2B model size, 480P and 4FPS")
         repo_id = "nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned"

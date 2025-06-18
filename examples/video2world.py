@@ -21,6 +21,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import time
+
 import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
@@ -150,7 +151,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
     return parser.parse_args()
 
@@ -159,9 +160,9 @@ def setup_pipeline(args: argparse.Namespace):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
-        
+
         config.resolution = args.resolution
-        if args.fps == 10: # default is 16 so no need to change config
+        if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
@@ -169,13 +170,13 @@ def setup_pipeline(args: argparse.Namespace):
         config = PREDICT2_VIDEO2WORLD_PIPELINE_14B
 
         config.resolution = args.resolution
-        if args.fps == 10: # default is 16 so no need to change config
+        if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
-    if hasattr(args, 'dit_path') and args.dit_path:
+    if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
     text_encoder_path = "checkpoints/google-t5/t5-11b"
@@ -190,7 +191,7 @@ def setup_pipeline(args: argparse.Namespace):
     torch.backends.cuda.matmul.allow_tf32 = True
 
     # Initialize distributed environment for multi-GPU inference
-    if hasattr(args, 'num_gpus') and args.num_gpus > 1:
+    if hasattr(args, "num_gpus") and args.num_gpus > 1:
         log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
         distributed.init()
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
@@ -270,7 +271,9 @@ def process_single_generation(
 
 def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
     if args.benchmark:
-        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
+        log.warning(
+            "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
+        )
     # Video-to-World
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file

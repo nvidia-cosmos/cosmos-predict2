@@ -21,6 +21,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import time
+
 import torch
 from tqdm import tqdm
 
@@ -64,7 +65,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--benchmark",
         action="store_true",
-        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown."
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
     return parser.parse_args()
 
@@ -143,7 +144,9 @@ def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, 
 
 def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
     if args.benchmark:
-        log.warning("Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown.")
+        log.warning(
+            "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
+        )
     # Text-to-image
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file

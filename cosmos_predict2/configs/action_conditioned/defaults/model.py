@@ -1,25 +1,24 @@
-# -----------------------------------------------------------------------------
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
-# All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-# This codebase constitutes NVIDIA proprietary technology and is strictly
-# confidential. Any unauthorized reproduction, distribution, or disclosure
-# of this code, in whole or in part, outside NVIDIA is strictly prohibited
-# without prior written consent.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# For inquiries regarding the use of this code in other NVIDIA proprietary
-# projects, please contact the Deep Imagination Research Team at
-# dir@exchange.nvidia.com.
-# -----------------------------------------------------------------------------
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 from hydra.core.config_store import ConfigStore
 
 from cosmos_predict2.configs.action_conditioned.config_action_conditioned import (
     ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
 )
-from cosmos_predict2.models.action_video2world_model import (
-    ActionConditionedPredict2Video2WorldModel,
-)
+from cosmos_predict2.models.action_video2world_model import ActionConditionedPredict2Video2WorldModel
 from cosmos_predict2.models.video2world_model import Predict2ModelManagerConfig, Predict2Video2WorldModelConfig
 from imaginaire.lazy_config import LazyCall as L
 
@@ -39,7 +38,6 @@ ACTION_CONDITIONED_PREDICT2_V2W_2B_FSDP_CONFIG = dict(
         _recursive_=False,
     ),
 )
-
 
 
 def register_model_action_conditioned() -> None:

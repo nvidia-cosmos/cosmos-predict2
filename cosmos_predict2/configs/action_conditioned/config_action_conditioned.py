@@ -16,18 +16,21 @@
 import attrs
 
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
-from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.configs.action_conditioned.defaults.conditioner import ActionConditionedConditioner
-from cosmos_predict2.models.text2image_dit import SACConfig
+from cosmos_predict2.configs.base.config_video2world import (
+    ConditioningStrategy,
+    CosmosGuardrailConfig,
+    CosmosReason1Config,
+    SolverTimestampConfig,
+    Video2WorldPipelineConfig,
+)
+from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.action_video2world_dit import ActionConditionedMinimalV1LVGDiT
+from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
 from imaginaire.config import make_freezable
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
-from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, CosmosReason1Config, CosmosGuardrailConfig, SolverTimestampConfig
-
-
 
 # Cosmos Predict2 Video2World 2B
 ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVGDiT)(
@@ -60,7 +63,7 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVG
         mode="predict2_2b_720",
     ),
     # NOTE: add action dimension
-    action_dim=7*12,
+    action_dim=7 * 12,
 )
 
 ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(

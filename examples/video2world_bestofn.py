@@ -15,13 +15,14 @@
 
 import argparse
 import base64
+import functools
 import glob
 import json
 import os
 import re
-import functools
 import xml.etree.ElementTree as ET
 from typing import Any, Callable, Dict, List, Optional
+
 import torch
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
@@ -29,16 +30,15 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
-from examples.video2world import (
-    _DEFAULT_NEGATIVE_PROMPT,
-    process_single_generation as process_single_generation_default,
-    setup_pipeline as setup_pipeline_default,
-    validate_input_file,
-    cleanup_distributed,
-)
-from examples.video2world_gr00t import process_single_generation as process_single_generation_gr00t, setup_pipeline as setup_pipeline_gr00t
+from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
+from examples.video2world import process_single_generation as process_single_generation_default
+from examples.video2world import setup_pipeline as setup_pipeline_default
+from examples.video2world import validate_input_file
+from examples.video2world_gr00t import process_single_generation as process_single_generation_gr00t
+from examples.video2world_gr00t import setup_pipeline as setup_pipeline_gr00t
 from imaginaire.utils import log
 from imaginaire.utils.distributed import get_rank
+
 
 def parse_response(response: str) -> Optional[Dict[str, Any]]:
     try:
@@ -266,9 +266,7 @@ def parse_args():
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
     # GR00T-specific settings. Specify --gr00t_variant to enable
-    parser.add_argument(
-        "--gr00t_variant", type=str, default="", help="GR00T variant to use", choices=["gr1", "droid"]
-    )
+    parser.add_argument("--gr00t_variant", type=str, default="", help="GR00T variant to use", choices=["gr1", "droid"])
     parser.add_argument(
         "--prompt_prefix", type=str, default="The robot arm is performing a task. ", help="Prefix to add to all prompts"
     )
@@ -287,7 +285,9 @@ def parse_args():
     return parser.parse_args()
 
 
-def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline, process_single_generation: Callable) -> List[str]:
+def generate_video(
+    args: argparse.Namespace, pipe: Video2WorldPipeline, process_single_generation: Callable
+) -> List[str]:
     if not validate_input_file(args.input_path, args.num_conditional_frames):
         log.error(f"Input file validation failed: {args.input_path}")
         return []

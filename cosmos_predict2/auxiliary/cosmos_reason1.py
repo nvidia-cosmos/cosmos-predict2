@@ -79,12 +79,14 @@ USER_PROMPT_CRITIC = "Does the video contain any anomalies or artifacts?"
 
 class AllowedTokensLogitsProcessor(LogitsProcessor):
     def __init__(self, allowed_token_ids: list[int]):
-        self.allowed_mask = torch.zeros(max(allowed_token_ids)+1, dtype=torch.bool)
+        self.allowed_mask = torch.zeros(max(allowed_token_ids) + 1, dtype=torch.bool)
         self.allowed_mask[allowed_token_ids] = True
 
     def __call__(self, input_ids: torch.LongTensor, scores: torch.FloatTensor) -> torch.FloatTensor:
         if scores.shape[-1] > self.allowed_mask.shape[0]:
-            self.allowed_mask = torch.nn.functional.pad(self.allowed_mask, (0, scores.shape[-1] - self.allowed_mask.shape[0]), value=False)
+            self.allowed_mask = torch.nn.functional.pad(
+                self.allowed_mask, (0, scores.shape[-1] - self.allowed_mask.shape[0]), value=False
+            )
 
         # Vectorized operation: set all disallowed tokens to -inf at once
         device = scores.device
@@ -94,7 +96,7 @@ class AllowedTokensLogitsProcessor(LogitsProcessor):
             self.allowed_mask = self.allowed_mask.to(device)
 
         # Create mask for disallowed tokens and apply it vectorized
-        disallowed_mask = ~self.allowed_mask[:scores.shape[-1]]
+        disallowed_mask = ~self.allowed_mask[: scores.shape[-1]]
         scores[:, disallowed_mask] = float("-inf")
         return scores
 
@@ -142,15 +144,15 @@ class CosmosReason1(torch.nn.Module):
             )
             # Filter for ASCII-only tokens
             self.allowed_token_ids = [
-                token_id for token_id, decoded in zip(all_token_ids, decoded_tokens)
+                token_id
+                for token_id, decoded in zip(all_token_ids, decoded_tokens)
                 if all(ord(c) < 128 for c in decoded)
             ]
         except Exception:
             # Fallback to individual decoding if batch decode fails
             log.warning("Batch decode failed, falling back to individual token decoding...")
             self.allowed_token_ids = [
-                i for i in all_token_ids
-                if all(ord(c) < 128 for c in self.processor.tokenizer.decode([i]))
+                i for i in all_token_ids if all(ord(c) < 128 for c in self.processor.tokenizer.decode([i]))
             ]
         # Add special tokens
         self.allowed_token_ids.extend(self.processor.tokenizer.all_special_ids)

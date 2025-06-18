@@ -26,10 +26,7 @@ from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
 from cosmos_predict2.conditioner import DataType, T2VCondition
-from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    Video2WorldPipelineConfig,
-)
+from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_2B, Video2WorldPipelineConfig
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model

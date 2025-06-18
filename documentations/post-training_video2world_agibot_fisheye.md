@@ -40,7 +40,7 @@ python scripts/prepare_agibot_fisheye_data.py --split-only --val_episode_ids 685
 rm -rf datasets/agibot
 ```
 
-Expect to use ~100 GB storage in the data preparation steps. 
+Expect to use ~100 GB storage in the data preparation steps.
 After the processing is done, there will be ~2 GB data remaining in `datasets/agibot_head_center_fisheye_color` folder.
 
 Dataset folder format:

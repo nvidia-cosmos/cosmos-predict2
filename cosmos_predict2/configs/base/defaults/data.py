@@ -15,13 +15,8 @@
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.datasets.cached_replay_dataloader import (
-    get_cached_replay_dataloader,
-)
-from cosmos_predict2.datasets.data_sources.mock_data import (
-    get_image_dataset,
-    get_video_dataset,
-)
+from cosmos_predict2.datasets.cached_replay_dataloader import get_cached_replay_dataloader
+from cosmos_predict2.datasets.data_sources.mock_data import get_image_dataset, get_video_dataset
 from cosmos_predict2.datasets.joint_dataloader import IterativeJointDataLoader
 from imaginaire.lazy_config import LazyCall as L
 
