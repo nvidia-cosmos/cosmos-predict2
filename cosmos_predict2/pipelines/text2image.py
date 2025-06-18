@@ -30,7 +30,6 @@ from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
 
@@ -209,31 +208,10 @@ class Text2ImagePipeline(BasePipeline):
     ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         """
         Broadcast and split the input data and condition for model parallelism.
-        Currently, we only support context parallelism.
+        Currently, we only support context parallelism, but it's disabled for text2image.
         """
-        cp_group = self.get_context_parallel_group()
-        cp_size = 1 if cp_group is None else cp_group.size()
-
-        # For text2image, we enable context parallelism when we have multiple GPUs
-        # Since text2image works on single frame images (T=1), we can still use context parallelism
-        # by splitting across the spatial dimensions or treating the single frame as a sequence
-        if cp_size > 1:
-            # For images, we can split along the height dimension (H) which acts as the sequence dimension
-            x0_B_C_T_H_W = broadcast_split_tensor(
-                x0_B_C_T_H_W, seq_dim=3, process_group=cp_group
-            )  # Split along H dimension
-            if epsilon_B_C_T_H_W is not None:
-                epsilon_B_C_T_H_W = broadcast_split_tensor(epsilon_B_C_T_H_W, seq_dim=3, process_group=cp_group)
-            if sigma_B_T is not None:
-                assert sigma_B_T.ndim == 2, "sigma_B_T should be 2D tensor"
-                # For images, sigma is typically shared across all spatial locations
-                sigma_B_T = broadcast(sigma_B_T, cp_group)
-            if condition is not None:
-                condition = condition.broadcast(cp_group)
-            self.dit.enable_context_parallel(cp_group)
-        else:
-            self.dit.disable_context_parallel()
-
+        # Always disable context parallelism for text2image
+        self.dit.disable_context_parallel()
         return x0_B_C_T_H_W, condition, epsilon_B_C_T_H_W, sigma_B_T
 
     def get_data_and_condition(
@@ -364,11 +342,6 @@ class Text2ImagePipeline(BasePipeline):
             * self.scheduler.config.sigma_max
         )
 
-        # Apply context parallelism splitting for initial noise
-        cp_group = self.get_context_parallel_group()
-        if cp_group is not None and cp_group.size() > 1:
-            x_sigma_max = split_inputs_cp(x=x_sigma_max, seq_dim=3, cp_group=cp_group)  # Split along H dimension
-
         # ------------------------------------------------------------------ #
         # Sampling loop driven by `RectifiedFlowAB2Scheduler`
         # ------------------------------------------------------------------ #
@@ -410,10 +383,6 @@ class Text2ImagePipeline(BasePipeline):
         cond_x0 = self.denoise(sample, sigma_in, condition, use_cuda_graphs=use_cuda_graphs).x0
         uncond_x0 = self.denoise(sample, sigma_in, uncondition, use_cuda_graphs=use_cuda_graphs).x0
         samples = cond_x0 + guidance * (cond_x0 - uncond_x0)
-
-        # Apply context parallelism gathering for final samples
-        if cp_group is not None and cp_group.size() > 1:
-            samples = cat_outputs_cp(samples, seq_dim=3, cp_group=cp_group)  # Gather along H dimension
 
         # decode
         image = self.decode(samples)

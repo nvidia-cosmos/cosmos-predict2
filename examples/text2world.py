@@ -21,6 +21,7 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
+import torch.distributed
 from tqdm import tqdm
 
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
@@ -119,61 +120,91 @@ def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Na
     Generate first frames using the text2image pipeline.
     Returns a list of batch items containing prompt, output video path, and temp image path.
     """
+    from megatron.core import parallel_state
+
+    from imaginaire.utils.distributed import barrier, get_rank
+
     batch_items = []
 
-    if args.batch_input_json is not None:
-        # Process batch inputs from JSON file
-        log.info(f"Loading batch inputs from JSON file: {args.batch_input_json}")
-        with open(args.batch_input_json, "r") as f:
-            batch_inputs = json.load(f)
+    # Check if we're in a multi-GPU distributed environment
+    is_distributed = parallel_state.is_initialized() and torch.distributed.is_initialized()
+    rank = get_rank() if is_distributed else 0
 
-        # Generate all the first frames first
-        for idx, item in enumerate(tqdm(batch_inputs, desc="Generating first frames")):
-            prompt = item.get("prompt", "")
-            output_video = item.get("output_video", f"output_{idx}.mp4")
+    # Only rank 0 should run text2image generation to avoid OOM when CP is disabled
+    if rank == 0:
+        if args.batch_input_json is not None:
+            # Process batch inputs from JSON file
+            log.info(f"Loading batch inputs from JSON file: {args.batch_input_json}")
+            with open(args.batch_input_json, "r") as f:
+                batch_inputs = json.load(f)
 
-            if not prompt:
-                log.warning(f"Skipping item {idx}: Missing prompt")
-                continue
+            # Generate all the first frames first
+            for idx, item in enumerate(tqdm(batch_inputs, desc="Generating first frames")):
+                prompt = item.get("prompt", "")
+                output_video = item.get("output_video", f"output_{idx}.mp4")
 
-            # Save the generated first frame with a temporary name based on the output video path
-            temp_image_name = os.path.splitext(output_video)[0] + "_temp.jpg"
+                if not prompt:
+                    log.warning(f"Skipping item {idx}: Missing prompt")
+                    continue
+
+                # Save the generated first frame with a temporary name based on the output video path
+                temp_image_name = os.path.splitext(output_video)[0] + "_temp.jpg"
+
+                # Use the imported process_single_image_generation function
+                if process_single_image_generation(
+                    pipe=text2image_pipe,
+                    prompt=prompt,
+                    output_path=temp_image_name,
+                    negative_prompt=args.negative_prompt,
+                    seed=args.seed,
+                    use_cuda_graphs=args.use_cuda_graphs,
+                    benchmark=args.benchmark,
+                ):
+                    # Save the item for the second stage
+                    batch_items.append(
+                        {"prompt": prompt, "output_video": output_video, "temp_image_path": temp_image_name}
+                    )
+        else:
+            # Single item processing
+            temp_image_path = os.path.splitext(args.save_path)[0] + "_temp.jpg"
+
+            if args.use_cuda_graphs:
+                log.warning(
+                    "Using CUDA Graphs for a single inference call may not be beneficial because of overhead of Graphs creation."
+                )
 
             # Use the imported process_single_image_generation function
             if process_single_image_generation(
                 pipe=text2image_pipe,
-                prompt=prompt,
-                output_path=temp_image_name,
+                prompt=args.prompt,
+                output_path=temp_image_path,
                 negative_prompt=args.negative_prompt,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
                 benchmark=args.benchmark,
             ):
-                # Save the item for the second stage
-                batch_items.append({"prompt": prompt, "output_video": output_video, "temp_image_path": temp_image_name})
+                # Add single item to batch_items for consistent processing
+                batch_items.append(
+                    {"prompt": args.prompt, "output_video": args.save_path, "temp_image_path": temp_image_path}
+                )
+
+        log.info(f"Rank 0: Generated {len(batch_items)} first frames")
     else:
-        # Single item processing
-        temp_image_path = os.path.splitext(args.save_path)[0] + "_temp.jpg"
+        # Non-rank-0 processes: just wait for broadcast
+        log.info(f"Rank {rank}: Waiting for batch_items from rank 0")
+        batch_items = []  # Initialize empty list for non-rank-0 processes
 
-        if args.use_cuda_graphs:
-            log.warning(
-                "Using CUDA Graphs for a single inference call may not be beneficial because of overhead of Graphs creation."
-            )
+    # Broadcast batch_items from rank 0 to all other ranks using PyTorch's broadcast_object_list
+    if is_distributed:
+        batch_items_list = [batch_items]  # Wrap in list for broadcast_object_list
+        torch.distributed.broadcast_object_list(batch_items_list, src=0)
+        batch_items = batch_items_list[0]  # Extract the broadcasted list
 
-        # Use the imported process_single_image_generation function
-        if process_single_image_generation(
-            pipe=text2image_pipe,
-            prompt=args.prompt,
-            output_path=temp_image_path,
-            negative_prompt=args.negative_prompt,
-            seed=args.seed,
-            use_cuda_graphs=args.use_cuda_graphs,
-            benchmark=args.benchmark,
-        ):
-            # Add single item to batch_items for consistent processing
-            batch_items.append(
-                {"prompt": args.prompt, "output_video": args.save_path, "temp_image_path": temp_image_path}
-            )
+        if rank != 0:
+            log.info(f"Rank {rank}: Received {len(batch_items)} batch items from rank 0")
+
+        barrier()
+        log.info(f"Rank {rank}: Synchronized after batch_items broadcast")
 
     return batch_items
 
@@ -210,26 +241,41 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
 if __name__ == "__main__":
     args = parse_args()
     try:
+        from megatron.core import parallel_state
+
+        from imaginaire.utils.distributed import get_rank
+
         if args.benchmark:
             log.warning(
                 "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
             )
 
+        # Check if we're in a multi-GPU distributed environment
+        is_distributed = parallel_state.is_initialized() and torch.distributed.is_initialized()
+        rank = get_rank() if is_distributed else 0
+
         # Step 1: Initialize text2image pipeline and generate all first frames
-        log.info("Step 1: Initializing text2image pipeline...")
-        text2image_pipe = setup_text2image_pipeline(args)
+        # Only rank 0 initializes the text2image pipeline to avoid OOM
+        text2image_pipe = None
+        text_encoder = None
 
-        # Store text encoder for later use
-        text_encoder = text2image_pipe.text_encoder
+        if rank == 0:
+            log.info("Step 1: Initializing text2image pipeline on rank 0...")
+            text2image_pipe = setup_text2image_pipeline(args)
+            # Store text encoder for later use
+            text_encoder = text2image_pipe.text_encoder
+        else:
+            log.info(f"Rank {rank}: Skipping text2image pipeline initialization")
 
-        # Generate first frames
+        # Generate first frames (only rank 0 does actual generation)
         log.info("Step 1: Generating first frames...")
         batch_items = generate_first_frames(text2image_pipe, args)
 
-        # Clean up text2image pipeline
-        log.info("Step 1 complete. Cleaning up text2image pipeline to free memory...")
-        del text2image_pipe
-        torch.cuda.empty_cache()
+        # Clean up text2image pipeline on rank 0
+        if rank == 0:
+            log.info("Step 1 complete. Cleaning up text2image pipeline to free memory...")
+            del text2image_pipe
+            torch.cuda.empty_cache()
 
         # Step 2: Initialize video2world pipeline and generate videos
         log.info("Step 2: Initializing video2world pipeline...")
