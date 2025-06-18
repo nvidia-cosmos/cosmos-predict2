@@ -104,7 +104,7 @@ See the config `predict2_video2world_training_2b_agibot_head_center_fisheye_colo
 example_video_dataset_agibot_head_center_fisheye_color = L(Dataset)(
     dataset_dir="datasets/benchmark_train/agibot_head_center_fisheye_color",
     num_frames=93,
-    video_size=(720, 1280),
+    video_size=(704, 1280),
 )
 
 dataloader_train_agibot_head_center_fisheye_color = L(DataLoader)(
