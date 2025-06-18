@@ -68,6 +68,12 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
     parser.add_argument(
+        "--num_gpus",
+        type=int,
+        default=1,
+        help="Number of GPUs to use for context parallel inference for both text2image and video2world parts",
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
@@ -98,12 +104,6 @@ def parse_args() -> argparse.Namespace:
         help="Custom path to the DiT model checkpoint for post-trained models.",
     )
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value for video generation")
-    parser.add_argument(
-        "--num_gpus",
-        type=int,
-        default=1,
-        help="Number of GPUs to use for context parallel inference in the video2world part",
-    )
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     parser.add_argument(
         "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"

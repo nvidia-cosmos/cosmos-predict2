@@ -23,6 +23,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import time
 
 import torch
+from megatron.core import parallel_state
 from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_text2image import (
@@ -30,7 +31,7 @@ from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
 )
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
-from imaginaire.utils import log, misc
+from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
@@ -63,6 +64,12 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     parser.add_argument(
+        "--num_gpus",
+        type=int,
+        default=1,
+        help="Number of GPUs to use for context parallel inference",
+    )
+    parser.add_argument(
         "--benchmark",
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
@@ -94,6 +101,25 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
     # Floating-point precision settings.
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cuda.matmul.allow_tf32 = True
+
+    # Initialize distributed environment for multi-GPU inference
+    if hasattr(args, "num_gpus") and args.num_gpus > 1:
+        log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
+
+        # Check if distributed environment is already initialized
+        if not parallel_state.is_initialized():
+            distributed.init()
+            parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
+            log.info(f"Context parallel group initialized with {args.num_gpus} GPUs")
+        else:
+            log.info("Distributed environment already initialized, skipping initialization")
+            # Check if we need to reinitialize with different context parallel size
+            current_cp_size = parallel_state.get_context_parallel_world_size()
+            if current_cp_size != args.num_gpus:
+                log.warning(f"Context parallel size mismatch: current={current_cp_size}, requested={args.num_gpus}")
+                log.warning("Using existing context parallel configuration")
+            else:
+                log.info(f"Using existing context parallel group with {current_cp_size} GPUs")
 
     # Load models
     log.info(f"Initializing Text2ImagePipeline with model size: {args.model_size}")
@@ -189,7 +215,19 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
     return
 
 
+def cleanup_distributed():
+    """Clean up the distributed environment if initialized."""
+    if parallel_state.is_initialized():
+        parallel_state.destroy_model_parallel()
+        if torch.distributed.is_initialized():
+            torch.distributed.destroy_process_group()
+
+
 if __name__ == "__main__":
     args = parse_args()
-    pipe = setup_pipeline(args)
-    generate_image(args, pipe)
+    try:
+        pipe = setup_pipeline(args)
+        generate_image(args, pipe)
+    finally:
+        # Make sure to clean up the distributed environment
+        cleanup_distributed()
