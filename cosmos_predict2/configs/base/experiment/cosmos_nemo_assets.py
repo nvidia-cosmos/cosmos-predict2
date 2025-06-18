@@ -54,6 +54,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
         "_self_",
@@ -65,7 +66,6 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=8,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
@@ -84,7 +84,16 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
         max_iter=1000,
     ),
     checkpoint=dict(
-        save_iter=200,
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.6],
+        f_min=[0.3],
     ),
 )
 
@@ -93,6 +102,7 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_14b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
         {"override /data_val": "mock"},
         "_self_",
@@ -104,7 +114,6 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=8,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
@@ -123,7 +132,17 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
         max_iter=1000,
     ),
     checkpoint=dict(
-        save_iter=200,
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+        weight_decay=0.2,
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[40_000],
+        f_max=[0.25],
+        f_min=[0.1],
     ),
 )
 

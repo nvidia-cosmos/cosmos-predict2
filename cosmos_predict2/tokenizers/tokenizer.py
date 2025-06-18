@@ -499,7 +499,6 @@ class VAE_(nn.Module):
         # cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // self.temporal_window
-        # 对encode输入的x，按时间拆分为1、self.temporal_stride、self.temporal_stride、self.temporal_window....
         for i in range(iter_):
             self._enc_conv_idx = [0]
             if i == 0:

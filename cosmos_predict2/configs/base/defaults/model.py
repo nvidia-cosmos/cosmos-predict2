@@ -38,6 +38,7 @@ PREDICT2_VIDEO2WORLD_FSDP_2B = dict(
                 text_encoder_path="",  # Do not load text encoder for training.
             ),
             fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
         ),
         _recursive_=False,
     ),
@@ -54,7 +55,8 @@ PREDICT2_VIDEO2WORLD_FSDP_14B = dict(
                 dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps.pt",
                 text_encoder_path="",  # Do not load text encoder for training.
             ),
-            fsdp_shard_size=8,
+            fsdp_shard_size=32,
+            high_sigma_ratio=0.05,
         ),
         _recursive_=False,
     ),

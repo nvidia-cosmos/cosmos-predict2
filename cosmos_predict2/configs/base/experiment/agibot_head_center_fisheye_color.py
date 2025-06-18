@@ -81,8 +81,6 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=8,
-            high_sigma_ratio=0.05,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
@@ -139,8 +137,6 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
     ),
     model=dict(
         config=dict(
-            fsdp_shard_size=32,
-            high_sigma_ratio=0.05,
             pipe_config=dict(
                 ema=dict(enabled=True),
                 guardrail_config=dict(enabled=False),
