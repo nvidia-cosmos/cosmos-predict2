@@ -131,7 +131,7 @@ def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Na
     rank = get_rank() if is_distributed else 0
 
     # Only rank 0 should run text2image generation to avoid OOM when CP is disabled
-    if rank == 0:
+    if rank == 0 and text2image_pipe is not None:
         if args.batch_input_json is not None:
             # Process batch inputs from JSON file
             log.info(f"Loading batch inputs from JSON file: {args.batch_input_json}")
@@ -259,26 +259,38 @@ if __name__ == "__main__":
         text2image_pipe = None
         text_encoder = None
 
-        if rank == 0:
-            log.info("Step 1: Initializing text2image pipeline on rank 0...")
-            text2image_pipe = setup_text2image_pipeline(args)
-            # Store text encoder for later use
+        log.info("Step 1: Initializing text2image pipeline...")
+        text2image_pipe = setup_text2image_pipeline(args)
+
+        # Handle the case where setup_text2image_pipeline returns None for non-rank-0 processes
+        if text2image_pipe is not None:
+            # Store text encoder for later use (only on rank 0)
             text_encoder = text2image_pipe.text_encoder
+            log.info("Rank 0: Text2image pipeline initialized successfully")
         else:
-            log.info(f"Rank {rank}: Skipping text2image pipeline initialization")
+            # Non-rank-0 processes get None
+            text_encoder = None
+            log.info(f"Rank {rank}: Text2image pipeline setup returned None (expected for non-rank-0)")
 
         # Generate first frames (only rank 0 does actual generation)
         log.info("Step 1: Generating first frames...")
         batch_items = generate_first_frames(text2image_pipe, args)
 
         # Clean up text2image pipeline on rank 0
-        if rank == 0:
+        if text2image_pipe is not None:
             log.info("Step 1 complete. Cleaning up text2image pipeline to free memory...")
             del text2image_pipe
             torch.cuda.empty_cache()
 
         # Step 2: Initialize video2world pipeline and generate videos
         log.info("Step 2: Initializing video2world pipeline...")
+
+        # For non-rank-0 processes, let video2world create its own text encoder
+        # This avoids the complexity of broadcasting the text encoder object across ranks
+        if is_distributed and rank != 0:
+            text_encoder = None
+            log.info(f"Rank {rank}: Will create new text encoder for video2world pipeline")
+
         # Pass all video2world relevant arguments and the text encoder
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
 
