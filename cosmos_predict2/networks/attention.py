@@ -14,6 +14,7 @@
 # limitations under the License.
 
 import torch
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 try:
     from flash_attn_3.flash_attn_interface import flash_attn_varlen_func
@@ -22,19 +23,19 @@ try:
 except ModuleNotFoundError:
     FLASH_ATTN_3_AVAILABLE = False
 
-try:
-    import flash_attn
-
-    FLASH_ATTN_2_AVAILABLE = True
-except ModuleNotFoundError:
-    FLASH_ATTN_2_AVAILABLE = False
-
 import warnings
 
 __all__ = [
-    "flash_attention",
     "attention",
 ]
+
+
+def get_device_cc(device) -> int:
+    if torch.cuda.is_available() and torch.version.cuda and device.type == "cuda":
+        major, minor = torch.cuda.get_device_capability(device)
+        return major * 10 + minor
+
+    return 0
 
 
 def flash_attention(
@@ -47,10 +48,8 @@ def flash_attention(
     softmax_scale=None,
     q_scale=None,
     causal=False,
-    window_size=(-1, -1),
     deterministic=False,
     dtype=torch.bfloat16,
-    version=None,
 ):
     """
     q:              [B, Lq, Nq, C1].
@@ -61,10 +60,10 @@ def flash_attention(
     dropout_p:      float. Dropout probability.
     softmax_scale:  float. The scaling of QK^T before applying softmax.
     causal:         bool. Whether to apply causal attention mask.
-    window_size:    (left right). If not (-1, -1), apply sliding window local attention.
     deterministic:  bool. If True, slightly slower and uses more memory.
     dtype:          torch.dtype. Apply when dtype of q/k/v is not float16/bfloat16.
     """
+    compute_cap = get_device_cc(q.device)
     half_dtypes = (torch.float16, torch.bfloat16)
     assert dtype in half_dtypes
     assert q.device.type == "cuda" and q.size(-1) <= 256
@@ -94,53 +93,27 @@ def flash_attention(
     q = q.to(v.dtype)
     k = k.to(v.dtype)
 
-    if q_scale is not None:
-        q = q * q_scale
+    assert FLASH_ATTN_3_AVAILABLE and compute_cap == 90
 
-    if version is not None and version == 3 and not FLASH_ATTN_3_AVAILABLE:
-        warnings.warn("Flash attention 3 is not available, use flash attention 2 instead.")
-
-    # apply attention
-    if (version is None or version == 3) and FLASH_ATTN_3_AVAILABLE:
-        # Note: dropout_p, window_size are not supported in FA3 now.
-        x = flash_attn_varlen_func(
-            q=q,
-            k=k,
-            v=v,
-            cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens])
-            .cumsum(0, dtype=torch.int32)
-            .to(q.device, non_blocking=True),
-            cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens])
-            .cumsum(0, dtype=torch.int32)
-            .to(q.device, non_blocking=True),
-            seqused_q=None,
-            seqused_k=None,
-            max_seqlen_q=lq,
-            max_seqlen_k=lk,
-            softmax_scale=softmax_scale,
-            causal=causal,
-            deterministic=deterministic,
-        )[0].unflatten(0, (b, lq))
-    else:
-        assert FLASH_ATTN_2_AVAILABLE
-        x = flash_attn.flash_attn_varlen_func(
-            q=q,
-            k=k,
-            v=v,
-            cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens])
-            .cumsum(0, dtype=torch.int32)
-            .to(q.device, non_blocking=True),
-            cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens])
-            .cumsum(0, dtype=torch.int32)
-            .to(q.device, non_blocking=True),
-            max_seqlen_q=lq,
-            max_seqlen_k=lk,
-            dropout_p=dropout_p,
-            softmax_scale=softmax_scale,
-            causal=causal,
-            window_size=window_size,
-            deterministic=deterministic,
-        ).unflatten(0, (b, lq))
+    # Note: dropout_p, window_size are not supported in FA3 now.
+    x = flash_attn_varlen_func(
+        q=q,
+        k=k,
+        v=v,
+        cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens])
+        .cumsum(0, dtype=torch.int32)
+        .to(q.device, non_blocking=True),
+        cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens])
+        .cumsum(0, dtype=torch.int32)
+        .to(q.device, non_blocking=True),
+        seqused_q=None,
+        seqused_k=None,
+        max_seqlen_q=lq,
+        max_seqlen_k=lk,
+        softmax_scale=softmax_scale,
+        causal=causal,
+        deterministic=deterministic,
+    )[0].unflatten(0, (b, lq))
 
     # output
     return x.type(out_dtype)
@@ -156,12 +129,15 @@ def attention(
     softmax_scale=None,
     q_scale=None,
     causal=False,
-    window_size=(-1, -1),
     deterministic=False,
     dtype=torch.bfloat16,
-    fa_version=None,
 ):
-    if FLASH_ATTN_2_AVAILABLE or FLASH_ATTN_3_AVAILABLE:
+    compute_cap = get_device_cc(q.device)
+
+    if q_scale is not None:
+        q = q * q_scale
+
+    if compute_cap == 90 and FLASH_ATTN_3_AVAILABLE:
         return flash_attention(
             q=q,
             k=k,
@@ -172,25 +148,54 @@ def attention(
             softmax_scale=softmax_scale,
             q_scale=q_scale,
             causal=causal,
-            window_size=window_size,
             deterministic=deterministic,
             dtype=dtype,
-            version=fa_version,
         )
     else:
+        SDPA_BACKENDS = (
+            [
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+            ]
+            if compute_cap in [90, 100]
+            else [
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+            ]
+        )
+
         if q_lens is not None or k_lens is not None:
             warnings.warn(
                 "Padding mask is disabled when using scaled_dot_product_attention. It can have a significant impact on performance."
             )
-        attn_mask = None
+
+        if deterministic:
+            raise NotImplementedError(
+                "Deterministic mode in attention is only supported when Flash Attention 3 is available."
+            )
 
         q = q.transpose(1, 2).to(dtype)
         k = k.transpose(1, 2).to(dtype)
         v = v.transpose(1, 2).to(dtype)
 
-        out = torch.nn.functional.scaled_dot_product_attention(
-            q, k, v, attn_mask=attn_mask, is_causal=causal, dropout_p=dropout_p
-        )
+        # Handle behavior change starting torch 2.6 with `set_priority_order`.
+        try:
+            sdpa_kernel(backends=SDPA_BACKENDS, set_priority_order=True)
+            sdpa_kernel_ = partial(sdpa_kernel, set_priority_order=True)
+        except TypeError:
+            sdpa_kernel_ = sdpa_kernel
+
+        with sdpa_kernel_(backends=SDPA_BACKENDS):
+            out = torch.nn.functional.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+                is_causal=causal,
+                dropout_p=dropout_p,
+                scale=softmax_scale,
+            )
 
         out = out.transpose(1, 2).contiguous()
         return out
