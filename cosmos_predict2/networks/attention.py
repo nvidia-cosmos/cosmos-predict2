@@ -152,19 +152,20 @@ def attention(
             dtype=dtype,
         )
     else:
-        SDPA_BACKENDS = (
-            [
-                SDPBackend.CUDNN_ATTENTION,
+        if compute_cap in [90, 100]:
+            SDPA_BACKENDS = [
+                    SDPBackend.CUDNN_ATTENTION,
+                    SDPBackend.FLASH_ATTENTION,
+                    SDPBackend.EFFICIENT_ATTENTION,
+                ]
+            BEST_SDPA_BACKEND = SDPBackend.CUDNN_ATTENTION
+        else:
+            SDPA_BACKENDS = [
                 SDPBackend.FLASH_ATTENTION,
+                SDPBackend.CUDNN_ATTENTION,
                 SDPBackend.EFFICIENT_ATTENTION,
             ]
-            if compute_cap in [90, 100]
-            else [
-                SDPBackend.FLASH_ATTENTION,
-                SDPBackend.CUDNN_ATTENTION,
-                SDPBackend.EFFICIENT_ATTENTION,
-            ]
-        )
+            BEST_SDPA_BACKEND = SDPBackend.FLASH_ATTENTION if compute_cap >= 80 else SDPBackend.EFFICIENT_ATTENTION
 
         if q_lens is not None or k_lens is not None:
             warnings.warn(
@@ -180,12 +181,15 @@ def attention(
         k = k.transpose(1, 2).to(dtype)
         v = v.transpose(1, 2).to(dtype)
 
-        # Handle behavior change starting torch 2.6 with `set_priority_order`.
+        # Torch 2.6 and later allows priorities for backends, but for older versions
+        # we can only run with a specific backend. As long as we pick ones we're certain
+        # will work on that device, it should be fine.
         try:
             sdpa_kernel(backends=SDPA_BACKENDS, set_priority_order=True)
             sdpa_kernel_ = partial(sdpa_kernel, set_priority_order=True)
         except TypeError:
             sdpa_kernel_ = sdpa_kernel
+            SDPA_BACKENDS = [BEST_SDPA_BACKEND]
 
         with sdpa_kernel_(backends=SDPA_BACKENDS):
             out = torch.nn.functional.scaled_dot_product_attention(
