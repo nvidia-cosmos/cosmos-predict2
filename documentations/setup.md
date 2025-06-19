@@ -29,8 +29,9 @@ conda activate cosmos-predict2
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
 # Patch Transformer engine linking issues
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
+export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$CPLUS_INCLUDE_PATH
+export C_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$C_INCLUDE_PATH
+export CPPFLAGS="-I$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include $CPPFLAGS"
 pip install transformer-engine[pytorch]==1.13.0
 
 # Apex library for training (optional if inference only)
