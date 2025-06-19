@@ -22,7 +22,7 @@ from torch import Tensor
 from torch.distributed import ProcessGroup
 from torch.nn import Module
 
-from cosmos_predict2.networks.flash_attention import flash_attention
+from cosmos_predict2.networks.attention import attention
 from cosmos_predict2.networks.neighborhood_attn import NeighborhoodAttention
 
 
@@ -205,7 +205,7 @@ class DistributedAttention(torch.nn.Module):
 class MinimalA2AAttnOp(DistributedAttention):
     def __init__(self, *args, **kwargs):
         del args, kwargs
-        super(MinimalA2AAttnOp, self).__init__(flash_attention)
+        super(MinimalA2AAttnOp, self).__init__(attention)
 
     def set_context_parallel_group(self, process_group, ranks, stream):
         del ranks
@@ -219,5 +219,5 @@ class MinimalA2AAttnOp(DistributedAttention):
 class NattenA2AAttnOp(MinimalA2AAttnOp):
     def __init__(self, *args, **kwargs):
         super(NattenA2AAttnOp, self).__init__(None)
-        self.natten_op = NeighborhoodAttention(*args, **kwargs, base_attn_op=flash_attention)
+        self.natten_op = NeighborhoodAttention(*args, **kwargs, base_attn_op=attention)
         self.local_attn = self.natten_op
