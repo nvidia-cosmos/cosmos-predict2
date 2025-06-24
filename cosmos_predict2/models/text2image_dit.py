@@ -679,7 +679,11 @@ class TimestepEmbedding(nn.Module):
             adaln_lora_B_T_3D = emb
             emb_B_T_D = sample
         else:
-            adaln_lora_B_T_3D = None
+            # To make the graph static for torch.export, we return a zero tensor
+            # of the correct shape when LoRA is disabled, instead of None.
+            adaln_lora_B_T_3D = torch.zeros(
+                emb.shape[0], emb.shape[1], 3 * self.out_dim, device=emb.device, dtype=emb.dtype
+            )
             emb_B_T_D = emb
 
         return emb_B_T_D, adaln_lora_B_T_3D

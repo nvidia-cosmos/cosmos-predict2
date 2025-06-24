@@ -57,10 +57,10 @@ def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
     for i, block in enumerate(dit_model.blocks):
         if isinstance(block, CheckpointWrapper):
             dit_model.blocks[i] = block._checkpoint_wrapped_module
-            dit_model.blocks[i].use_adaln_lora = False
+            # dit_model.blocks[i].use_adaln_lora = False
     if isinstance(dit_model.final_layer, CheckpointWrapper):
         dit_model.final_layer = dit_model.final_layer._checkpoint_wrapped_module
-        dit_model.final_layer.use_adaln_lora = False
+        # dit_model.final_layer.use_adaln_lora = False
 
     # Temporarily replace the problematic save_io method with a dummy function
     # to allow torch.export to succeed.
