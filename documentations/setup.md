@@ -16,6 +16,10 @@ git clone git@github.com:nvidia-cosmos/cosmos-predict2.git
 cd cosmos-predict2
 ```
 
+### ARM installation
+When using an ARM platform, like GB200, special steps are required to install the `decord` package.
+You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
+The installation will be handled by the Conda scripts of Dockerfile.
 ### Option 1: Conda environment
 
 Please make sure you have a Conda distribution installed ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
@@ -25,6 +29,8 @@ Please make sure you have a Conda distribution installed ([instructions](https:/
 conda env create --file cosmos-predict2.yaml
 conda activate cosmos-predict2
 
+# Try to install decord when on ARM platform
+bash scripts/install_decord_arm.sh
 # Install dependencies
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
