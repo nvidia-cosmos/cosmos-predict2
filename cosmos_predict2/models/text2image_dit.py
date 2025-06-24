@@ -397,7 +397,8 @@ class Attention(nn.Module):
     def set_context_parallel_group(
         self, process_group: ProcessGroup, ranks: List[int], stream: torch.cuda.Stream
     ) -> None:
-        self.attn_op.set_context_parallel_group(process_group, ranks, stream)
+        if hasattr(self.attn_op, "set_context_parallel_group"):
+            self.attn_op.set_context_parallel_group(process_group, ranks, stream)
 
 
 class VideoPositionEmb(nn.Module):

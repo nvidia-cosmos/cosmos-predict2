@@ -67,8 +67,16 @@ def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
     if hasattr(dit_model, "save_io"):
         dit_model.save_io = lambda: None
     
+    if hasattr(dit_model, "disable_context_parallel"):
+        log.info("Disabling context parallelism on the model before compilation.")
+        dit_model.disable_context_parallel()
+
     # Create dummy inputs
     inputs = load_sample_inputs(args.load_dit_input_path)
+    # Add the 'use_cuda_graphs' argument to the inputs to match the inference signature.
+    # The compiled graph will not use this argument, but it needs to be in the signature
+    # to avoid a mismatch error at runtime.
+    inputs["use_cuda_graphs"] = False
 
     # --- Timing before optimization ---
     log.info("Running inference before optimization for latency comparison...")
@@ -128,6 +136,13 @@ def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
     # --- Comparison ---
     speedup = avg_latency_before / avg_latency_after
     log.success(f"Optimization speedup: {speedup:.2f}x")
+
+    # Monkey-patch the compiled graph to have a dummy disable_context_parallel method,
+    # as the original method is not available on the compiled object.
+    def dummy_disable_cp():
+        pass
+
+    compiled_gm.disable_context_parallel = dummy_disable_cp
 
     pipe.dit = compiled_gm
     print("[Auto-Deploy] Optimization completed")
