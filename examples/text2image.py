@@ -16,6 +16,9 @@
 import argparse
 import json
 import os
+import time
+
+import numpy as np
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -66,16 +69,32 @@ def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
     
     # Create dummy inputs
     inputs = load_sample_inputs(args.load_dit_input_path)
-    output = dit_model.forward(**inputs)
-    log.success(f"Successfully ran forward pass with loaded inputs. Output shape: {output.shape}")
 
-    
+    # --- Timing before optimization ---
+    log.info("Running inference before optimization for latency comparison...")
+    # Warmup
+    for _ in range(5):
+        _ = dit_model.forward(**inputs)
+    torch.cuda.synchronize()
+
+    # Timing
+    latencies_before = []
+    for _ in range(20):
+        start_time = time.time()
+        _ = dit_model.forward(**inputs)
+        torch.cuda.synchronize()
+        end_time = time.time()
+        latencies_before.append((end_time - start_time) * 1000)
+
+    avg_latency_before = np.mean(latencies_before)
+    log.success(f"Average latency before optimization: {avg_latency_before:.2f} ms")
+
     # Export and compile
     exported_gm = torch_export_to_gm(
         dit_model,
         args=(),
         kwargs=inputs,
-        clone=False
+        clone=False,
     )
 
     compiled_gm = compile_and_capture(
@@ -84,7 +103,32 @@ def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
         args=(),
         kwargs=inputs,
     )
-    
+
+    # --- Timing after optimization ---
+    log.info("Running inference after optimization for latency comparison...")
+    # Warmup
+    with torch.inference_mode():
+        for _ in range(5):
+            _ = compiled_gm.forward(**inputs)
+        torch.cuda.synchronize()
+
+    # Timing
+    latencies_after = []
+    with torch.inference_mode():
+        for _ in range(20):
+            start_time = time.time()
+            _ = compiled_gm.forward(**inputs)
+            torch.cuda.synchronize()
+            end_time = time.time()
+            latencies_after.append((end_time - start_time) * 1000)
+
+    avg_latency_after = np.mean(latencies_after)
+    log.success(f"Average latency after optimization: {avg_latency_after:.2f} ms")
+
+    # --- Comparison ---
+    speedup = avg_latency_before / avg_latency_after
+    log.success(f"Optimization speedup: {speedup:.2f}x")
+
     pipe.dit = compiled_gm
     print("[Auto-Deploy] Optimization completed")
 
