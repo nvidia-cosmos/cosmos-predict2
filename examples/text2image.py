@@ -29,9 +29,65 @@ from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
+from cosmos_predict2.pipelines.text2image import (
+    Text2ImagePipeline,
+    load_sample_inputs,
+)
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
+
+from tensorrt_llm._torch.auto_deploy.compile import compile_and_capture
+from tensorrt_llm._torch.auto_deploy.transformations.export import torch_export_to_gm
+
+
+def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
+    """Apply auto-deploy optimization to a model"""
+    print("[Auto-Deploy] Starting optimization...")
+
+    dit_model = pipe.dit
+    
+    # Unwrap checkpointed blocks before export, as they are incompatible with torch.export
+    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
+        CheckpointWrapper,
+    )
+
+    for i, block in enumerate(dit_model.blocks):
+        if isinstance(block, CheckpointWrapper):
+            dit_model.blocks[i] = block._checkpoint_wrapped_module
+            dit_model.blocks[i].use_adaln_lora = False
+    if isinstance(dit_model.final_layer, CheckpointWrapper):
+        dit_model.final_layer = dit_model.final_layer._checkpoint_wrapped_module
+        dit_model.final_layer.use_adaln_lora = False
+
+    # Temporarily replace the problematic save_io method with a dummy function
+    # to allow torch.export to succeed.
+    if hasattr(dit_model, "save_io"):
+        dit_model.save_io = lambda: None
+    
+    # Create dummy inputs
+    inputs = load_sample_inputs(args.load_dit_input_path)
+    output = dit_model.forward(**inputs)
+    log.success(f"Successfully ran forward pass with loaded inputs. Output shape: {output.shape}")
+
+    
+    # Export and compile
+    exported_gm = torch_export_to_gm(
+        dit_model,
+        args=(),
+        kwargs=inputs,
+        clone=False
+    )
+
+    compiled_gm = compile_and_capture(
+        exported_gm,
+        backend="torch-opt",
+        args=(),
+        kwargs=inputs,
+    )
+    
+    pipe.dit = compiled_gm
+    print("[Auto-Deploy] Optimization completed")
+
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 
@@ -82,6 +138,12 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=None,
         help="Path to save the actual DiT input dictionary to a .pt file. The script will save the input and continue with generation.",
+    )
+    parser.add_argument(
+        "--load_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to load a DiT input dictionary from a .pt file. If provided, the script will run a single forward pass and exit.",
     )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the inference.")
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
@@ -307,8 +369,12 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
-        if args.save_dit_input_path:
+        if args.load_dit_input_path:
+            log.info(f"Loading DiT inputs from {args.load_dit_input_path}")
+            ad_optimize_t2i_dit(pipe, args)
+        elif args.save_dit_input_path:
             pipe.dit.set_save_input_path(args.save_dit_input_path)
+
         generate_image(args, pipe)
     finally:
         # Make sure to clean up the distributed environment

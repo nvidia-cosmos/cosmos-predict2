@@ -261,7 +261,7 @@ class Attention(nn.Module):
         head_dim: int = 64,
         dropout: float = 0.0,
         qkv_format: str = "bshd",
-        backend: str = "transformer_engine",
+        backend: str = "torch",
         natten_params: Optional[Mapping] = None,
     ) -> None:
         super().__init__()
@@ -286,10 +286,10 @@ class Attention(nn.Module):
         self.context_dim = context_dim
 
         self.q_proj = nn.Linear(query_dim, inner_dim, bias=False)
-        self.q_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.q_norm = RMSNorm(self.head_dim, eps=1e-6)
 
         self.k_proj = nn.Linear(context_dim, inner_dim, bias=False)
-        self.k_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.k_norm = RMSNorm(self.head_dim, eps=1e-6)
 
         self.v_proj = nn.Linear(context_dim, inner_dim, bias=False)
         self.v_norm = nn.Identity()
@@ -359,8 +359,8 @@ class Attention(nn.Module):
             k = self.k_norm(k)
             v = self.v_norm(v)
             if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
-                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
+                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=False)
+                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=False)
             return q, k, v
 
         q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)
@@ -1170,7 +1170,7 @@ class MiniTrainDIT(WeightTrainingStat):
         num_blocks: int = 10,
         num_heads: int = 16,
         mlp_ratio: float = 4.0,
-        atten_backend: str = "transformer_engine",
+        atten_backend: str = "torch",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
         # positional embedding settings
@@ -1278,7 +1278,7 @@ class MiniTrainDIT(WeightTrainingStat):
             adaln_lora_dim=self.adaln_lora_dim,
         )
 
-        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        self.t_embedding_norm = RMSNorm(model_channels, eps=1e-6)
         self.init_weights()
         self.enable_selective_checkpoint(sac_config)
         self._is_context_parallel_enabled = False
@@ -1459,11 +1459,11 @@ class MiniTrainDIT(WeightTrainingStat):
         t_embedding_B_T_D = self.t_embedding_norm(t_embedding_B_T_D)
 
         # for logging purpose
-        affline_scale_log_info = {}
-        affline_scale_log_info["t_embedding_B_T_D"] = t_embedding_B_T_D.detach()
-        self.affline_scale_log_info = affline_scale_log_info
-        self.affline_emb = t_embedding_B_T_D
-        self.crossattn_emb = crossattn_emb
+        # affline_scale_log_info = {}
+        # affline_scale_log_info["t_embedding_B_T_D"] = t_embedding_B_T_D.detach()
+        # self.affline_scale_log_info = affline_scale_log_info
+        # self.affline_emb = t_embedding_B_T_D
+        # self.crossattn_emb = crossattn_emb
 
         if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
             assert (
