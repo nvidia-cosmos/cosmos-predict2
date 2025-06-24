@@ -245,7 +245,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed, benchmark
+    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed, benchmark=False
 ):
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
