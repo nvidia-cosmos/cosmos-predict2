@@ -43,6 +43,8 @@ python -m examples.video2world --help
 
 ### Single Video Generation
 
+#### Using the 2B model
+
 This is a basic example for running inference on the 2B model with a single image.
 The output is saved to `output/video2world_2b.mp4`.
 
@@ -57,6 +59,8 @@ python -m examples.video2world \
     --prompt "${PROMPT}" \
     --save_path output/video2world_2b.mp4
 ```
+
+#### Using the 14B model
 
 The 14B model can be run similarly by changing the model size parameter. For GPUs with lower memory limit, it may also make sense to offload guardrail and prompt refiner models.
 
@@ -73,6 +77,8 @@ python -m examples.video2world \
     --offload_guardrail \
     --offload_prompt_refiner
 ```
+
+The 14B model requires significant GPU memory, so it is recommended to offload the prompt refiner or guardrail models to CPU to conserve GPU memory.
 
 ### Batch Video Generation
 
@@ -208,6 +214,8 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/video2world.py \
 
 This distributes the computation across multiple GPUs, with each GPU processing a subset of the video frames. The final video is automatically combined from the results of all GPUs.
 
+If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
+
 > **Note:** Both parameters are required: `--nproc_per_node` tells PyTorch how many processes to launch, while `--num_gpus` tells the model how to distribute the workload. Using the same environment variable for both ensures they are synchronized.
 
 Important considerations for multi-GPU inference:
@@ -277,6 +285,8 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
 
 Example output is included at `assets/video2world_lvg/example_output.mp4`.
 
+If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
+
 ## API Documentation
 
 The `video2world.py` script supports the following command-line arguments:
@@ -287,7 +297,7 @@ Model selection:
 - `--fps`: FPS of the model to use for video-to-world generation (choices: 10, 16, default: 16)
 - `--resolution`: Resolution of the model to use for video-to-world generation (choices: 480, 720, default: 720)
 
-By default a 720P + 16FPS model is used for `model_size` size model. If you want to use another config, download the corresponding checkpoin tand pass either `--fps` or `--resolution` or both.
+By default a 720P + 16FPS model is used for `model_size` size model. If you want to use another config, download the corresponding checkpoint and pass either `--fps` or `--resolution` or both.
 
 Input parameters:
 - `--prompt`: Text prompt describing the video to generate (default: empty string)
