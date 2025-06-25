@@ -198,7 +198,8 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
         with open(args.batch_input_json, "r") as f:
             batch_inputs = json.load(f)
 
-        for idx, item in enumerate(tqdm(batch_inputs)):
+        for idx, item in enumerate(batch_inputs):
+            log.info(f"Processing batch item {idx + 1}/{len(batch_inputs)}")
             prompt = item.get("prompt", "")
             output_image = item.get("output_image", f"output_{idx}.jpg")
 

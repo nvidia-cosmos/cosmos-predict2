@@ -139,7 +139,8 @@ def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Na
                 batch_inputs = json.load(f)
 
             # Generate all the first frames first
-            for idx, item in enumerate(tqdm(batch_inputs, desc="Generating first frames")):
+            for idx, item in enumerate(batch_inputs):
+                log.info(f"Generating first frame {idx + 1}/{len(batch_inputs)}")
                 prompt = item.get("prompt", "")
                 output_video = item.get("output_video", f"output_{idx}.mp4")
 
@@ -214,7 +215,8 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
     Generate videos from first frames using the video2world pipeline.
     """
     # Process all items for video generation
-    for item in tqdm(batch_items, desc="Generating videos from first frames"):
+    for idx, item in enumerate(batch_items):
+        log.info(f"Generating video from first frame {idx + 1}/{len(batch_items)}")
         prompt = item["prompt"]
         output_video = item["output_video"]
         temp_image_path = item["temp_image_path"]

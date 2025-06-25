@@ -302,7 +302,8 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
         with open(args.batch_input_json, "r") as f:
             batch_inputs = json.load(f)
 
-        for idx, item in enumerate(tqdm(batch_inputs)):
+        for idx, item in enumerate(batch_inputs):
+            log.info(f"Processing batch item {idx + 1}/{len(batch_inputs)}")
             input_video = item.get("input_video", "")
             prompt = item.get("prompt", "")
             output_video = item.get("output_video", f"output_{idx}.mp4")
