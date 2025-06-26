@@ -118,6 +118,11 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
+    parser.add_argument(
+        "--natten",
+        action="store_true",
+        help="Run the sparse attention variant (with NATTEN).",
+    )
     return parser.parse_args()
 
 

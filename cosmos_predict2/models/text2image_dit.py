@@ -15,9 +15,10 @@
 
 import collections
 import math
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Union
 
 import numpy as np
 import torch
@@ -34,7 +35,8 @@ from torchvision import transforms
 from transformer_engine.pytorch.attention import DotProductAttention, apply_rotary_pos_emb
 
 from cosmos_predict2.conditioner import DataType
-from cosmos_predict2.module.a2a_cp import MinimalA2AAttnOp
+from cosmos_predict2.module.a2a_cp import MinimalA2AAttnOp, NattenA2AAttnOp
+from cosmos_predict2.module.neighborhood_attn import NeighborhoodAttention
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
 from cosmos_predict2.utils.context_parallel import split_inputs_cp
@@ -130,6 +132,11 @@ class SACConfig(_SACConfig):
         else:
             # Reuse parent class implementation for other modes
             return super().get_context_fn()
+
+
+from collections import namedtuple
+
+VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
 
 
 class RMSNorm(torch.nn.Module):
@@ -255,6 +262,7 @@ class Attention(nn.Module):
         dropout: float = 0.0,
         qkv_format: str = "bshd",
         backend: str = "transformer_engine",
+        natten_params: Optional[Mapping] = None,
     ) -> None:
         super().__init__()
         log.debug(
@@ -263,7 +271,9 @@ class Attention(nn.Module):
         )
         self.is_selfattn = context_dim is None  # self attention
 
-        assert backend in ["transformer_engine", "torch", "minimal_a2a"], f"Invalid backend: {backend}"
+        if backend not in ["transformer_engine", "torch", "minimal_a2a", "natten"]:
+            raise NotImplementedError(f"Unrecognized {backend=}.")
+
         self.backend = backend
 
         context_dim = query_dim if context_dim is None else context_dim
@@ -298,8 +308,15 @@ class Attention(nn.Module):
             )
         elif self.backend == "minimal_a2a":
             self.attn_op = MinimalA2AAttnOp()
+        elif self.backend == "natten":
+            if natten_params is None:
+                raise ValueError("You must specify `natten_params` when using the NATTEN backend, got None.")
+            self.attn_op = NattenA2AAttnOp(natten_parameters=natten_params)
+
         elif self.backend == "torch":
             self.attn_op = torch_attention_op
+        else:
+            raise NotImplementedError()
 
         self._query_dim = query_dim
         self._context_dim = context_dim
@@ -350,8 +367,14 @@ class Attention(nn.Module):
 
         return q, k, v
 
-    def compute_attention(self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
-        result = self.attn_op(q, k, v)  # [B, S, H, D]
+    def compute_attention(
+        self, q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, video_size: Optional[VideoSize] = None
+    ) -> torch.Tensor:
+        additional_args = {}
+        if isinstance(self.attn_op, (NattenA2AAttnOp, NeighborhoodAttention)):
+            additional_args["video_size"] = video_size
+
+        result = self.attn_op(q, k, v, **additional_args)  # [B, S, H, D]
         return self.output_dropout(self.output_proj(result))
 
     def forward(
@@ -359,14 +382,17 @@ class Attention(nn.Module):
         x: torch.Tensor,
         context: Optional[torch.Tensor] = None,
         rope_emb: Optional[torch.Tensor] = None,
+        video_size: Optional[VideoSize] = None,
     ) -> torch.Tensor:
         """
         Args:
             x (Tensor): The query tensor of shape [B, Mq, K]
             context (Optional[Tensor]): The key tensor of shape [B, Mk, K] or use x as context [self attention] if None
+            rope_emb (Optional[Tensor]): RoPE embedding tensor, or no RoPE embeddings (i.e. in cross attention)
+            video_size(VideoSize): Shape [T, H, W]
         """
         q, k, v = self.compute_qkv(x, context, rope_emb=rope_emb)
-        return self.compute_attention(q, k, v)
+        return self.compute_attention(q, k, v, video_size=video_size)
 
     def set_context_parallel_group(
         self, process_group: ProcessGroup, ranks: List[int], stream: torch.cuda.Stream
@@ -891,16 +917,26 @@ class Block(nn.Module):
         mlp_ratio: float = 4.0,
         use_adaln_lora: bool = False,
         adaln_lora_dim: int = 256,
-        backend: str = "transformer_engine",
+        self_attention_backend: str = "transformer_engine",
+        cross_attention_backend: str = "transformer_engine",
+        natten_params: Optional[Mapping] = None,
     ):
         super().__init__()
         self.x_dim = x_dim
         self.layer_norm_self_attn = nn.LayerNorm(x_dim, elementwise_affine=False, eps=1e-6)
-        self.self_attn = Attention(x_dim, None, num_heads, x_dim // num_heads, qkv_format="bshd", backend=backend)
+        self.self_attn = Attention(
+            x_dim,
+            None,
+            num_heads,
+            x_dim // num_heads,
+            qkv_format="bshd",
+            backend=self_attention_backend,
+            natten_params=natten_params,
+        )
 
         self.layer_norm_cross_attn = nn.LayerNorm(x_dim, elementwise_affine=False, eps=1e-6)
         self.cross_attn = Attention(
-            x_dim, context_dim, num_heads, x_dim // num_heads, qkv_format="bshd", backend=backend
+            x_dim, context_dim, num_heads, x_dim // num_heads, qkv_format="bshd", backend=cross_attention_backend
         )
 
         self.layer_norm_mlp = nn.LayerNorm(x_dim, elementwise_affine=False, eps=1e-6)
@@ -927,6 +963,16 @@ class Block(nn.Module):
             self.adaln_modulation_self_attn = nn.Sequential(nn.SiLU(), nn.Linear(x_dim, 3 * x_dim, bias=False))
             self.adaln_modulation_cross_attn = nn.Sequential(nn.SiLU(), nn.Linear(x_dim, 3 * x_dim, bias=False))
             self.adaln_modulation_mlp = nn.Sequential(nn.SiLU(), nn.Linear(x_dim, 3 * x_dim, bias=False))
+
+        self.cp_size = None
+
+    def set_context_parallel_group(self, process_group, ranks, stream):
+        self.cp_size = None if ranks is None else len(ranks)
+        self.self_attn.set_context_parallel_group(
+            process_group=process_group,
+            ranks=ranks,
+            stream=stream,
+        )
 
     def reset_parameters(self) -> None:
         self.layer_norm_self_attn.reset_parameters()
@@ -1007,12 +1053,19 @@ class Block(nn.Module):
             scale_self_attn_B_T_1_1_D,
             shift_self_attn_B_T_1_1_D,
         )
+
+        video_size = VideoSize(T=T, H=H, W=W)
+
+        if self.cp_size is not None and self.cp_size > 1:
+            video_size = VideoSize(T=T * self.cp_size, H=H, W=W)
+
         result_B_T_H_W_D = rearrange(
             self.self_attn(
                 # normalized_x_B_T_HW_D,
                 rearrange(normalized_x_B_T_H_W_D, "b t h w d -> b (t h w) d"),
                 None,
                 rope_emb=rope_emb_L_1_1_D,
+                video_size=video_size,
             ),
             "b (t h w) d -> b t h w d",
             t=T,
@@ -1095,6 +1148,11 @@ class MiniTrainDIT(WeightTrainingStat):
         extra_h_extrapolation_ratio (float): Height extrapolation ratio for extra embeddings.
         extra_w_extrapolation_ratio (float): Width extrapolation ratio for extra embeddings.
         extra_t_extrapolation_ratio (float): Temporal extrapolation ratio for extra embeddings.
+        natten_parameters (Optional[List[dict]]): list of parameters for NATTEN attention backend.
+            Should include at least one key: `window_size`. Other keys such as `stride`, `dilation`,
+            and `is_causal` are optional, and fall back to NATTEN defaults.
+            Key `base_shape` may also be passed so that all other parameters (i.e. `window_size`)
+            are scaled according to input video resolution.
     """
 
     def __init__(
@@ -1132,6 +1190,7 @@ class MiniTrainDIT(WeightTrainingStat):
         extra_t_extrapolation_ratio: float = 1.0,
         rope_enable_fps_modulation: bool = True,
         sac_config: SACConfig = SACConfig(),
+        natten_parameters: Union[dict, list] = None,
     ) -> None:
         super().__init__()
         self.max_img_h = max_img_h
@@ -1171,6 +1230,26 @@ class MiniTrainDIT(WeightTrainingStat):
             TimestepEmbedding(model_channels, model_channels, use_adaln_lora=use_adaln_lora),
         )
 
+        if natten_parameters is not None and not isinstance(natten_parameters, Sequence):
+            raise ValueError(
+                "`natten_parameters` must either be None, or a list of the same length as the number of blocks, "
+                f"got {type(natten_parameters)=}."
+            )
+
+        if natten_parameters is not None and len(natten_parameters) != num_blocks:
+            raise ValueError(
+                "`natten_parameters` must either be None, or a list of the same length as the number of blocks, "
+                f"got {len(natten_parameters)=} != {num_blocks=}."
+            )
+
+        if natten_parameters is not None and any(
+            x is not None and not isinstance(x, Mapping) for x in natten_parameters
+        ):
+            raise ValueError(
+                "`natten_parameters` must be a list of Nones (self attention, no sparsity) or dicts "
+                f"that indicate at least a `window_size`, got {natten_parameters=}."
+            )
+
         self.blocks = nn.ModuleList(
             [
                 Block(
@@ -1180,9 +1259,13 @@ class MiniTrainDIT(WeightTrainingStat):
                     mlp_ratio=mlp_ratio,
                     use_adaln_lora=use_adaln_lora,
                     adaln_lora_dim=adaln_lora_dim,
-                    backend=atten_backend,
+                    self_attention_backend=atten_backend
+                    if natten_parameters is None or natten_parameters[i] is None
+                    else "natten",
+                    cross_attention_backend=atten_backend,
+                    natten_params=None if natten_parameters is None else natten_parameters[i],
                 )
-                for _ in range(num_blocks)
+                for i in range(num_blocks)
             ]
         )
 
@@ -1450,7 +1533,7 @@ class MiniTrainDIT(WeightTrainingStat):
 
         # attention
         for block in self.blocks:
-            block.self_attn.set_context_parallel_group(
+            block.set_context_parallel_group(
                 process_group=None,
                 ranks=None,
                 stream=torch.cuda.Stream(),
@@ -1467,7 +1550,7 @@ class MiniTrainDIT(WeightTrainingStat):
         # attention
         cp_ranks = get_process_group_ranks(process_group)
         for block in self.blocks:
-            block.self_attn.set_context_parallel_group(
+            block.set_context_parallel_group(
                 process_group=process_group,
                 ranks=cp_ranks,
                 stream=torch.cuda.Stream(),

@@ -146,6 +146,9 @@ Generation parameters:
 
 Performance optimization parameters:
 - `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--natten`: Use sparse attention variants built with [NATTEN](https://natten.org). This feature is
+    only available with 720p resolution, and on Hopper and specific Blackwell datacenter cards
+    (B200 and GB200) for now. [Learn more](performance.md).
 - `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Text2Image phase parameters:

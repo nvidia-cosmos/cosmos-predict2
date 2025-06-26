@@ -28,6 +28,8 @@ from megatron.core import parallel_state
 from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
+    PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B,
+    PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B,
 )
 from cosmos_predict2.pipelines.video2world import (
     _IMAGE_EXTENSIONS,
@@ -164,12 +166,38 @@ def parse_args() -> argparse.Namespace:
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the text2image inference.")
+    parser.add_argument(
+        "--natten",
+        action="store_true",
+        help="Run Video2World + NATTEN (sparse attention variant).",
+    )
     return parser.parse_args()
 
 
 def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
-    if args.model_size == "2B":
+    if args.natten:
+        assert args.model_size in ["2B", "14B"]
+        config = (
+            PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B
+            if args.model_size == "2B"
+            else PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B
+        )
+
+        config.resolution = args.resolution
+
+        if args.fps == 10:
+            config.state_t = 16
+
+        if args.resolution != "720":
+            raise NotImplementedError("Cosmos-Predict2 + NATTEN only supports 720p inference at the moment.")
+
+        if args.aspect_ratio != "16:9":
+            raise NotImplementedError("Cosmos-Predict2 + NATTEN only supports 16:9 aspect ratio at the moment.")
+
+        dit_path = f"checkpoints/nvidia/Cosmos-Predict2-{args.model_size}-Video2World/model-720p-{args.fps}fps-natten.pt"
+
+    elif args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
 
         config.resolution = args.resolution

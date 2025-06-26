@@ -121,6 +121,13 @@ python -m scripts.download_checkpoints --model_types video2world --model_sizes 2
 You can pass `--checkpoint_dir <path to ckpt>` if you want to control where to put the checkpoints.
 You can also add `--verify_md5` flag to verify MD5 checksums of downloaded files. If checksums don't match, models will be automatically redownloaded.
 
+To download models with [sparse attention](performance.md#sparse-attention-powered-by-natten), run the
+script with the `--natten` option:
+
+```bash
+python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B 14B --resolution 720 --fps 10 16 --natten
+```
+
 ## Troubleshooting
 
 ### CUDA/GPU Issues

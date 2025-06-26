@@ -42,6 +42,43 @@ Note: (OOM) indicates "Out of Memory" - the model is too large to run on that GP
 
 Note: Video2World was run with 480p resolution and at 16 FPS.
 
+### Sparse Attention powered by [NATTEN](https://natten.org)
+Video2World offers variants trained with sparse attention, which can accelerate inference up to 2.5X
+on the Hopper and Blackwell architectures.
+This feature is only available for 720p inference, and only on NVIDIA GPUs with compute capability
+9.0 or 10.0.
+
+Since many concurrent works in sparse attention for video generation report performance numbers with
+Flash Attention V2, We note that the baseline models run with the state of the art attention kernels
+for those architectures, namely [Flash Attention V3](https://arxiv.org/abs/2407.08608) for Hopper,
+and cuDNN Attention for Blackwell.
+
+NATTEN's [Hopper](https://natten.org/backends/#hopper-fna-fmha) and
+[Blackwell FNA](https://natten.org/backends/#blackwell-fna-fmha) kernels can deliver speedups
+**proportional to reduction in FLOPs** over FAv3 and cuDNN's Blackwell FMHA.
+
+The following table shows generation times (720p, 16fps) with and without sparsity across supported NVIDIA GPUs:
+
+| GPU Hardware     | 2B-Video2World | 2B-Video2World + [NATTEN](https://natten.org) | 14B-Video2World | 14B-Video2World + [NATTEN](https://natten.org) |
+|------------------|----------------|------------------|----------------|------------------|
+| NVIDIA B200      | 123.9 sec      | 54.0 sec (2.3X)  | 439.4 sec      | 223.1 sec (2.0X) |
+| NVIDIA H200 SXM  | 221.7 sec      | 89.4 sec (2.5X)  | 836.9 sec      | 412.9 sec (2.0X) |
+| NVIDIA H200 NVL  | 267.2 sec      | 104.3 sec (2.6X) | 1006.7 sec     | 489.5 sec (2.1X) |
+| NVIDIA H100 PCIe | 378.5 sec      | 149.6 sec (2.5X) | 1425.4 sec     | 706.9 sec (2.0X) |
+| NVIDIA H100 NVL  | 355.7 sec      | 138.7 sec (2.6X) | 1348.6 sec     | 677.0 sec (2.0X) |
+| NVIDIA H100 SXM  | 228.8 sec      | 94.2 sec (2.4X)  | 856.9 sec      | 426.0 sec (2.0X) |
+
+The following table shows generation times (720p, 10fps) with and without sparsity across supported NVIDIA GPUs:
+
+| GPU Hardware     | 2B-Video2World | 2B-Video2World + [NATTEN](https://natten.org) | 14B-Video2World | 14B-Video2World + [NATTEN](https://natten.org) |
+|------------------|----------------|------------------|----------------|------------------|
+| NVIDIA B200      | 62.4 sec       | 32.6 sec (1.9X)  | 230.0 sec      | 136.5 sec (1.7X) |
+| NVIDIA H200 SXM  | 111.1 sec      | 52.9 sec (2.1X)  | 436.7 sec      | 252.1 sec (1.7X) |
+| NVIDIA H200 NVL  | 133.1 sec      | 60.7 sec (2.2X)  | 519.3 sec      | 296.6 sec (1.8X) |
+| NVIDIA H100 PCIe | 187.9 sec      | 87.4 sec (2.1X)  | 749.2 sec      | 439.3 sec (1.7X) |
+| NVIDIA H100 NVL  | 175.5 sec      | 79.0 sec (2.2X)  | 711.5 sec      | 418.0 sec (1.7X) |
+| NVIDIA H100 SXM  | 115.1 sec      | 56.0 sec (2.0X)  | 447.9 sec      | 260.0 sec (1.7X) |
+
 ### Post-training performance
 
 Review the [AgiBot-Fisheye](post-training_video2world_agibot_fisheye.md) post-training example, which contains performance numbers on different GPUs.
