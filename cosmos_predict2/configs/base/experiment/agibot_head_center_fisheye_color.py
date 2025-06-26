@@ -39,7 +39,6 @@ example_video_dataset_agibot_head_center_fisheye_color_train = L(Dataset)(
     num_frames=93,
     video_size=(704, 1280),
 )
-
 example_video_dataset_agibot_head_center_fisheye_color_val = L(Dataset)(
     dataset_dir="datasets/agibot_head_center_fisheye_color/val",
     num_frames=93,
@@ -54,10 +53,69 @@ dataloader_train_agibot_head_center_fisheye_color = L(DataLoader)(
     num_workers=4,
     pin_memory=True,
 )
-
 dataloader_val_agibot_head_center_fisheye_color = L(DataLoader)(
     dataset=example_video_dataset_agibot_head_center_fisheye_color_val,
     sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_val),
+    batch_size=1,
+    drop_last=True,
+    num_workers=4,
+    pin_memory=True,
+)
+
+# agibot_head_center_fisheye_color example by the resolution
+# 480p
+example_video_dataset_agibot_head_center_fisheye_color_480p_train = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/train",
+    num_frames=93,
+    video_size=(432, 768),
+)
+example_video_dataset_agibot_head_center_fisheye_color_480p_val = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/val",
+    num_frames=93,
+    video_size=(432, 768),
+)
+# 720p
+example_video_dataset_agibot_head_center_fisheye_color_720p_train = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/train",
+    num_frames=93,
+    video_size=(704, 1280),
+)
+example_video_dataset_agibot_head_center_fisheye_color_720p_val = L(Dataset)(
+    dataset_dir="datasets/agibot_head_center_fisheye_color/val",
+    num_frames=93,
+    video_size=(704, 1280),
+)
+
+# dataloader
+# 480p
+dataloader_train_agibot_head_center_fisheye_color_480p = L(DataLoader)(
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_480p_train,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_480p_train),
+    batch_size=1,
+    drop_last=True,
+    num_workers=4,
+    pin_memory=True,
+)
+dataloader_val_agibot_head_center_fisheye_color_480p = L(DataLoader)(
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_480p_val,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_480p_val),
+    batch_size=1,
+    drop_last=True,
+    num_workers=4,
+    pin_memory=True,
+)
+# 720p
+dataloader_train_agibot_head_center_fisheye_color_720p = L(DataLoader)(
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_720p_train,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_720p_train),
+    batch_size=1,
+    drop_last=True,
+    num_workers=4,
+    pin_memory=True,
+)
+dataloader_val_agibot_head_center_fisheye_color_720p = L(DataLoader)(
+    dataset=example_video_dataset_agibot_head_center_fisheye_color_720p_val,
+    sampler=L(get_sampler)(dataset=example_video_dataset_agibot_head_center_fisheye_color_720p_val),
     batch_size=1,
     drop_last=True,
     num_workers=4,
@@ -71,7 +129,7 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
         {"override /optimizer": "fusedadamw"},
         {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
-        {"override /dataloader_val": "mock"},
+        # {"override /dataloader_val": "mock"},
         "_self_",
     ],
     job=dict(
@@ -98,7 +156,63 @@ predict2_video2world_training_2b_agibot_head_center_fisheye_color = dict(
         context_parallel_size=2,
     ),
     dataloader_train=dataloader_train_agibot_head_center_fisheye_color,
-    # dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
+    dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
+    trainer=dict(
+        distributed_parallelism="fsdp",
+        callbacks=dict(
+            iter_speed=dict(hit_thres=10),
+        ),
+        max_iter=100000,
+    ),
+    checkpoint=dict(
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-15.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.99],
+        f_min=[0.4],
+    ),
+)
+
+# torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_2b_agibot_head_center_fisheye_color_480p_10fps
+predict2_video2world_training_2b_agibot_head_center_fisheye_color_480p_10fps = dict(
+    defaults=[
+        {"override /model": "predict2_video2world_fsdp_2b_480p_10fps"},
+        {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
+        {"override /ckpt_type": "standard"},
+        # {"override /dataloader_val": "mock"},
+        "_self_",
+    ],
+    job=dict(
+        project="posttraining",
+        group="video2world",
+        name="2b_agibot_head_center_fisheye_color_480p_10fps",
+    ),
+    model=dict(
+        config=dict(
+            pipe_config=dict(
+                ema=dict(enabled=True),
+                guardrail_config=dict(enabled=False),
+                max_num_conditional_frames=1,
+                min_num_conditional_frames=1,
+                net=dict(
+                    rope_h_extrapolation_ratio=2.0,
+                    rope_t_extrapolation_ratio=1.0,
+                    rope_w_extrapolation_ratio=2.0,
+                ),
+            ),
+        )
+    ),
+    model_parallel=dict(
+        context_parallel_size=1,
+    ),
+    dataloader_train=dataloader_train_agibot_head_center_fisheye_color_480p,
+    dataloader_val=dataloader_val_agibot_head_center_fisheye_color_480p,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -127,7 +241,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
         {"override /optimizer": "fusedadamw"},
         {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
-        {"override /dataloader_val": "mock"},
+        # {"override /dataloader_val": "mock"},
         "_self_",
     ],
     job=dict(
@@ -149,7 +263,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
         context_parallel_size=8,
     ),
     dataloader_train=dataloader_train_agibot_head_center_fisheye_color,
-    # dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
+    dataloader_val=dataloader_val_agibot_head_center_fisheye_color,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -175,6 +289,7 @@ predict2_video2world_training_14b_agibot_head_center_fisheye_color = dict(
 for _item in [
     # 2b, agibot_head_center_fisheye_color
     predict2_video2world_training_2b_agibot_head_center_fisheye_color,
+    predict2_video2world_training_2b_agibot_head_center_fisheye_color_480p_10fps,
     # 14b, agibot_head_center_fisheye_color
     predict2_video2world_training_14b_agibot_head_center_fisheye_color,
 ]:
