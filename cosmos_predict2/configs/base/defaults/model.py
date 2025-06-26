@@ -16,8 +16,16 @@
 from hydra.core.config_store import ConfigStore
 
 from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B,  # 720p, 16fps
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_10FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_16FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_10FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_16FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B,  # 720p, 16fps
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_10FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_16FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS,
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS,
 )
 from cosmos_predict2.models.video2world_model import (
     Predict2ModelManagerConfig,
@@ -26,6 +34,7 @@ from cosmos_predict2.models.video2world_model import (
 )
 from imaginaire.lazy_config import LazyCall as L
 
+# default 2b model config for predict2 video2world (720p, 16fps)
 PREDICT2_VIDEO2WORLD_FSDP_2B = dict(
     trainer=dict(
         distributed_parallelism="fsdp",
@@ -44,6 +53,7 @@ PREDICT2_VIDEO2WORLD_FSDP_2B = dict(
     ),
 )
 
+# default 14b model config for predict2 video2world (720p, 16fps)
 PREDICT2_VIDEO2WORLD_FSDP_14B = dict(
     trainer=dict(
         distributed_parallelism="fsdp",
@@ -62,12 +72,208 @@ PREDICT2_VIDEO2WORLD_FSDP_14B = dict(
     ),
 )
 
+# 2b model configs for predict2 video2world with different resolutions and fps
+PREDICT2_VIDEO2WORLD_FSDP_2B_480P_10FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_10FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-480p-10fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_2B_480P_16FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_16FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-480p-16fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_2B_720P_10FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_10FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_2B_720P_16FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_16FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+# 14b model configs for predict2 video2world with different resolutions and fps
+PREDICT2_VIDEO2WORLD_FSDP_14B_480P_10FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_10FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_14B_480P_16FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_16FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_14B_720P_10FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
+PREDICT2_VIDEO2WORLD_FSDP_14B_720P_16FPS = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2Video2WorldModel)(
+        config=Predict2Video2WorldModelConfig(
+            pipe_config=PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
 
 def register_model() -> None:
     cs = ConfigStore.instance()
-    # predict2 v2w 2b model
+    # predict2 v2w 2b model (default 720p, 16fps)
     cs.store(group="model", package="_global_", name="predict2_video2world_fsdp_2b", node=PREDICT2_VIDEO2WORLD_FSDP_2B)
-    # predict2 v2w 14b model
+    # predict2 v2w 14b model (default 720p, 16fps)
     cs.store(
         group="model", package="_global_", name="predict2_video2world_fsdp_14b", node=PREDICT2_VIDEO2WORLD_FSDP_14B
+    )
+    # predict2 v2w 2b model by resolution and fps
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_2b_480p_10fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_2B_480P_10FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_2b_480p_16fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_2B_480P_16FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_2b_720p_10fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_2B_720P_10FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_2b_720p_16fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_2B_720P_16FPS,
+    )
+    # predict2 v2w 14b model by resolution and fps
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_14b_480p_10fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_14B_480P_10FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_14b_480p_16fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_14B_480P_16FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_14b_720p_10fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_14B_720P_10FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_video2world_fsdp_14b_720p_16fps",
+        node=PREDICT2_VIDEO2WORLD_FSDP_14B_720P_16FPS,
     )
