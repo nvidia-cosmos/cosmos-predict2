@@ -146,7 +146,30 @@ checkpoints/posttraining/video2world/2b_agibot_head_center_fisheye_color/checkpo
 ├── latest_checkpoint.txt
 ```
 
-##### Cosmos-Predict2-14B-Video2World
+##### Resolution, FPS variants
+
+Post-training can be done from the provided checkpoints with resolution - [480p, 720p] and fps - [10fps, 16fps] choices.
+The corresponding config names are with `_{RESOLUTION}p_{FPS}fps` appended to the default config name.
+The default config without those postfixes is with 720p 16fps.
+```bash
+# 480p, 10fps
+EXP=predict2_video2world_training_2b_agibot_head_center_fisheye_color_480p_10fps
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 480p, 16fps
+EXP=predict2_video2world_training_2b_agibot_head_center_fisheye_color_480p_16fps
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 720p, 10fps
+EXP=predict2_video2world_training_2b_agibot_head_center_fisheye_color_720p_10fps
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 720p, 16fps
+EXP=predict2_video2world_training_2b_agibot_head_center_fisheye_color_720p_16fps
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+```
+
+#### Cosmos-Predict2-14B-Video2World
 
 Run the following command to execute an example post-training job with `agibot_head_center_fisheye_color` data with 4 nodes with 8 GPUs.
 ```bash
@@ -166,6 +189,37 @@ checkpoints/posttraining/video2world/14b_agibot_head_center_fisheye_color/checkp
 ├── scheduler/
 ├── trainer/
 ├── latest_checkpoint.txt
+```
+
+##### Resolution, FPS variants
+
+Like 2B models, post-training can be done from the provided checkpoints with resolution - [480p, 720p] and fps - [10fps, 16fps] choices.
+The corresponding config names are with `_{RESOLUTION}p_{FPS}fps` appended to the default config name.
+The default config without those postfixes is with 720p 16fps.
+```bash
+# 480p, 10fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color_480p_10fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color
+torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 \
+-m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 480p, 16fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color_480p_16fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color
+torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 \
+-m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 720p, 10fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color_720p_10fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color
+torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 \
+-m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
+
+# 720p, 16fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color_720p_16fps
+EXP=predict2_video2world_training_14b_agibot_head_center_fisheye_color
+torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 \
+-m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
 ```
 
 ### 2.2 Post-training performance

@@ -114,7 +114,7 @@ checkpoints/posttraining/video2world/2b_cosmos_nemo_assets/checkpoints/
 ├── latest_checkpoint.txt
 ```
 
-##### Cosmos-Predict2-14B-Video2World
+#### Cosmos-Predict2-14B-Video2World
 
 Run the following command to execute an example post-training job with `cosmos_nemo_assets` data with 4 nodes with 8 GPUs.
 ```bash

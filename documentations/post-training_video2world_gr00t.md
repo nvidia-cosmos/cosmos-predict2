@@ -125,7 +125,7 @@ checkpoints/posttraining/video2world/2b_groot_gr1_480/checkpoints/
 ├── latest_checkpoint.txt
 ```
 
-##### Cosmos-Predict2-14B-Video2World
+#### Cosmos-Predict2-14B-Video2World
 
 Run the following command to execute an example post-training job with `GR1` data with 4 nodes with 8 GPUs.
 ```bash
