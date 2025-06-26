@@ -21,8 +21,12 @@ Cosmos-Predict2 provides two models for generating videos from a combination of 
 
 We support post-training the models with example datasets.
 - [post-training_video2world_cosmos_nemo_assets](/documentations/post-training_video2world_cosmos_nemo_assets.md)
-
-
+  - Basic examples with a small 4 videos dataset
+- [post-training_video2world_agibot_fisheye](/documentations/post-training_video2world_agibot_fisheye.md)
+  - Examples with fisheye-view dataset
+  - Post-training from checkpoints with resolution & fps choices
+- [post-training_video2world_gr00t](/documentations/post-training_video2world_gr00t.md)
+  - Examples with GR00T-dreams datasets
 ## Post-training Guide
 
 ### 1. Preparing Data
