@@ -41,7 +41,6 @@ from imaginaire.utils import log
 class Predict2ModelManagerConfig:
     # Local path, use it in fast debug run
     dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
-    dit_ema_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
     # For inference
     text_encoder_path: str = ""  # not used in training.
 
