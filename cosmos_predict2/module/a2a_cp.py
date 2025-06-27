@@ -22,8 +22,8 @@ from torch import Tensor
 from torch.distributed import ProcessGroup
 from torch.nn import Module
 
-from cosmos_predict2.networks.attention import attention
-from cosmos_predict2.networks.neighborhood_attn import NeighborhoodAttention
+from cosmos_predict2.module.attention import attention
+from cosmos_predict2.module.neighborhood_attn import NeighborhoodAttention
 
 
 def post_all2all(local_seq_2_local_head, seq_world_size):
