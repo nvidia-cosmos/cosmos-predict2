@@ -13,6 +13,49 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# Description:
+# Single point of entry for all generic attention ops (self and cross attention), that tries to
+# deliver the best performance possible given any use case (GPU and environment).
+#
+# On Hopper GPUs (i.e. H100, H20, H200), Flash Attention 3 is the best-performing choice, but it
+# needs to be installed. When it is not available, the second best choice is cuDNN attention, which
+# we get using PyTorch's SDPA API.
+#
+# For all other use cases, we will just use PyTorch's SDPA, but we need to specify backends and
+# priorities.
+# Flash Attention 2, which is one of the backends, is the best choice for Ampere GPUs (both RTX and
+# datacenter-class).
+#
+# For anything pre-Ampere, the only choice is "memory-efficient" (xformers) FMHA.
+#
+# For Ada and Blackwell RTX, it is unclear at the moment, so we defer to Flash Attention 2, and
+# fallbacks are cuDNN and xformers.
+#
+# For Blackwell datacenter-class (B200, GB200), cuDNN is the best choice.
+#
+#
+# Dispatching to the desired backends/paths are done by checking the compute capability (really SM
+# number, which is just compute capability * 10) of the GPU device the input tensors are on.
+#
+# Here's a breakdown of relevant compute capabilities:
+#
+# | GPU / category | Arch  |
+# |================|=======|
+# | A100           | SM80  |
+# | A40            | SM80  |
+# | Ampere RTX     | SM86  |
+# |----------------|-------|
+# | Ada Lovelace   | SM89  |
+# |----------------|-------|
+# | H20            | SM90  |
+# | H100           | SM90  |
+# | H200           | SM90  |
+# |----------------|-------|
+# | B200           | SM100 |
+# | Blackwell RTX  | SM103 |
+# |----------------|-------|
+#
+
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
@@ -137,6 +180,8 @@ def attention(
     if q_scale is not None:
         q = q * q_scale
 
+    # If Flash Attention 3 is installed, and the user's running on a Hopper GPU (compute capability
+    # 9.0, or SM90), use Flash Attention 3.
     if compute_cap == 90 and FLASH_ATTN_3_AVAILABLE:
         return flash_attention(
             q=q,
@@ -152,6 +197,9 @@ def attention(
             dtype=dtype,
         )
     else:
+        # If Blackwell or Hopper (SM100 or SM90), cuDNN has native FMHA kernels. The Hopper one is
+        # not always as fast as Flash Attention 3, but when Flash Attention is unavailable, it's
+        # still a far better choice than Flash Attention 2 (Ampere).
         if compute_cap in [90, 100]:
             SDPA_BACKENDS = [
                     SDPBackend.CUDNN_ATTENTION,
