@@ -233,8 +233,6 @@ Note that 2B model uses 8 GPUs, while 14B model uses 32 GPUs. 14B model also has
 | NVIDIA H100 NVL | 10.07 sec      | 8.72 sec        |
 | NVIDIA A100     | 22.5 sec       | 22.14 sec       |
 
-**Note that when running on Blackwell we need to set `model.config.pipe_config.net.atten_backend="transformer_engine"`, as FA3 doesn't support Blackwell.**
-
 ## 3. Inference with the Post-trained checkpoint
 ### 3.1 Inference
 ##### Cosmos-Predict2-2B-Video2World
