@@ -17,7 +17,7 @@ import attrs
 
 from cosmos_predict2.conditioner import ReMapkey, TextAttr, VideoConditioner
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
-from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
+from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface, CosmosImageTokenizer
 from imaginaire.config import make_freezable
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
@@ -59,6 +59,81 @@ class Text2ImagePipelineConfig:
     text_encoder_class: str = "T5"
     guardrail_config: CosmosGuardrailConfig = attrs.field(factory=CosmosGuardrailConfig)
 
+
+# Cosmos Predict2 Text2Image 0.6B
+PREDICT2_TEXT2IMAGE_NET_0P6B = L(MiniTrainDIT)(
+    max_img_h=240,
+    max_img_w=240,
+    max_frames=128,
+    in_channels=16,
+    out_channels=16,
+    patch_spatial=2,
+    patch_temporal=1,
+    concat_padding_mask=True,
+    # attention settings
+    model_channels=1280,
+    num_blocks=20,
+    num_heads=20,
+    mlp_ratio=4.0,
+    # cross attention settings
+    crossattn_emb_channels=1024,
+    # positional embedding settings
+    pos_emb_cls="rope3d",
+    pos_emb_learnable=True,
+    pos_emb_interpolation="crop",
+    min_fps=1,
+    max_fps=30,
+    use_adaln_lora=True,
+    adaln_lora_dim=256,
+    rope_h_extrapolation_ratio=4.0,
+    rope_w_extrapolation_ratio=4.0,
+    rope_t_extrapolation_ratio=1.0,
+    extra_per_block_abs_pos_emb=False,
+    extra_h_extrapolation_ratio=1.0,
+    extra_w_extrapolation_ratio=1.0,
+    extra_t_extrapolation_ratio=1.0,
+    rope_enable_fps_modulation=False,
+)
+
+PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
+    adjust_video_noise=True,
+    conditioner=L(VideoConditioner)(
+        fps=L(ReMapkey)(
+            dropout_rate=0.0,
+            dtype=None,
+            input_key="fps",
+            output_key="fps",
+        ),
+        padding_mask=L(ReMapkey)(
+            dropout_rate=0.0,
+            dtype=None,
+            input_key="padding_mask",
+            output_key="padding_mask",
+        ),
+        text=L(TextAttr)(
+            dropout_rate=0.2,
+            input_key=["t5_text_embeddings"],
+        ),
+    ),
+    net=PREDICT2_TEXT2IMAGE_NET_0P6B,
+    precision="bfloat16",
+    rectified_flow_t_scaling_factor=1.0,
+    resize_online=True,
+    resolution="1024",
+    sigma_data=1.0,
+    state_ch=16,
+    state_t=24,
+    text_encoder_class="T5",
+    tokenizer=L(CosmosImageTokenizer)(
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0p6B-Text2Image/tokenizer/tokenizer.pth",
+    ),
+    guardrail_config=CosmosGuardrailConfig(
+        checkpoint_dir="checkpoints/",
+        offload_model_to_cpu=True,
+        enabled=True,
+    ),
+)
 
 # Cosmos Predict2 Text2Image 2B
 PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
