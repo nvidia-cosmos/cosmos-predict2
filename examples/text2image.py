@@ -94,7 +94,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
 
     if args.model_size == "0.6B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_0P6B
-        dit_path = "checkpoints/nvidia/Cosmos-Predict2-0p6B-Text2Image/model.pt"
+        dit_path = "checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/model.pt"
     elif args.model_size == "2B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_2B
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model.pt"
