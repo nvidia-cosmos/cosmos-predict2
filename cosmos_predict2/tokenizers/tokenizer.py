@@ -15,6 +15,7 @@
 
 from contextlib import nullcontext
 
+import io
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
@@ -723,6 +724,240 @@ class VAE:
             video_recon = self.model.decode(zs, self.scale)
         video_recon = video_recon.to(in_dtype)
         return video_recon
+
+
+class CosmosImageTokenizer(torch.nn.Module, VideoTokenizerInterface):
+    """
+    Cosmos Image Tokenizer class.
+    """
+
+    def __init__(
+        self,
+        vae_pth: str,
+        name: str = "",
+        dtype: torch.dtype = torch.bfloat16,
+        pixel_chunk_duration: int = 32,
+        num_overlap_latent: int = 0,
+        spatial_compression_factor: int = 8,
+        temporal_compression_factor: int = 8,
+        latent_ch: int = 16,
+        max_enc_batch_size: int = 4,
+        max_dec_batch_size: int = 2,
+        spatial_resolution: str = "720",
+        apply_mean_std: bool = True,
+        is_image: bool = False,
+        state_dict: bool = False,
+        squeeze_for_image: bool = True,
+    ):
+        """Cosmos Image tokenizer.
+        Args:
+            vae_pth (str): The file path to the vae model.
+            name (str): The name of the model, which include the hyper-parameters passed to the model.
+            dtype (torch.dtype): The data type of the model.
+            pixel_chunk_duration (int): The number of pixel frames in a chunk.
+            num_overlap_latent (int): The number of overlapping latent frames between two chunks.
+            spatial_compression_factor (int): The spatial compression factor.
+            temporal_compression_factor (int): The temporal compression factor.
+            latent_ch (int): The number of channels in the latent tensor.
+            max_enc_batch_size (int): The maximum batch size for encoding.
+            max_dec_batch_size (int): The maximum batch size for decoding.
+            spatial_resolution (str): The spatial resolution of the input data.
+            apply_mean_std (bool): Whether to apply mean and std normalization.
+            is_image (bool): Whether the input data is image.
+            state_dict (bool): Whether to use the state_dict module. If True, module_lazy_class parameter also needs to be passed. Defaults to False.
+            squeeze_for_image (bool): Whether to squeeze the image data. Defaults to False.
+        """
+        super().__init__()
+        
+        self.dtype = dtype
+        self.is_image = is_image
+        self.is_casual = False
+        
+        self.apply_mean_std = apply_mean_std
+        self.num_overlap_latent = num_overlap_latent
+        self.name = name
+        self._spatial_compression_factor = spatial_compression_factor
+        self._temporal_compression_factor = temporal_compression_factor
+        self._pixel_chunk_duration = pixel_chunk_duration
+        self._spatial_resolution = spatial_resolution
+        self.max_enc_batch_size = max_enc_batch_size
+        self.max_dec_batch_size = max_dec_batch_size
+        self._latent_ch = latent_ch
+        self.use_state_dict = state_dict
+        self.squeeze_for_image = squeeze_for_image
+
+        tokenizer_ckpt = torch.load(vae_pth)
+
+        self.encoder = torch.jit.load(io.BytesIO(tokenizer_ckpt["encoder"]))
+        self.decoder = torch.jit.load(io.BytesIO(tokenizer_ckpt["decoder"]))
+        self.encoder.eval()
+        self.decoder.eval()
+        mean_std = tokenizer_ckpt["mean_std"]
+        self.register_mean_std(mean_std[0], mean_std[1])
+        
+        log.info(f"Built tokenizer {self.name}")
+
+    @property
+    def latent_ch(self):
+        return self._latent_ch
+
+    def register_mean_std(self, mean, std) -> None:
+        latent_mean, latent_std = mean, std
+        latent_mean = latent_mean.to(torch.device(torch.cuda.current_device()))
+        latent_std = latent_std.to(torch.device(torch.cuda.current_device()))
+        latent_mean = latent_mean.view(self.latent_ch, -1)
+        latent_std = latent_std.view(self.latent_ch, -1)
+        target_shape = [1, self.latent_ch, 1, 1, 1]
+        latent_mean = latent_mean.reshape(*target_shape)
+        latent_std = latent_std.reshape(*target_shape)
+
+        self.register_buffer(
+            "latent_mean",
+            latent_mean.to(self.dtype),
+            persistent=False,
+        )
+        self.register_buffer(
+            "latent_std",
+            latent_std.to(self.dtype),
+            persistent=False,
+        )
+
+    def reset_dtype(self, *args, **kwargs):
+        """
+        Resets the data type of the encoder and decoder to the model's default data type.
+
+        Args:
+            *args, **kwargs: Unused, present to allow flexibility in method calls.
+        """
+        del args, kwargs
+        self.decoder.cuda().to(self.dtype)
+        self.encoder.cuda().to(self.dtype)
+        self.latent_mean = self.latent_mean.cuda().to(self.dtype)
+        self.latent_std = self.latent_std.cuda().to(self.dtype)
+
+    def normalize_latent(self, latent: torch.Tensor) -> torch.Tensor:
+        num_frames = latent.shape[2]
+        latent_mean = self.latent_mean.to(latent.dtype)
+        latent_std = self.latent_std.to(latent.dtype)
+        return (latent - latent_mean[:, :, :num_frames]) / latent_std[:, :, :num_frames]
+
+    def denormalize_latent(self, latent: torch.Tensor) -> torch.Tensor:
+        latent_mean = self.latent_mean.to(latent.dtype)
+        latent_std = self.latent_std.to(latent.dtype)
+        num_frames = latent.shape[2]
+        return latent * latent_std[:, :, :num_frames] + latent_mean[:, :, :num_frames]
+
+    @property
+    def spatial_compression_factor(self):
+        """hyper-parameter of vae"""
+        return self._spatial_compression_factor
+
+    @property
+    def temporal_compression_factor(self):
+        """hyper-parameter of vae"""
+        return self._temporal_compression_factor
+
+    @property
+    def spatial_resolution(self):
+        return self._spatial_resolution
+
+    @property
+    def pixel_chunk_duration(self):
+        """number of pixel frames in a chunk, inference time hyper-parameter"""
+        return self._pixel_chunk_duration
+
+    @property
+    def latent_chunk_duration(self):
+        """number of latent frames in a chunk, computed from pixel_chunk_duration and temporal_compression_factor"""
+        return self.pixel_chunk_duration // self.temporal_compression_factor
+
+    @property
+    def num_overlap_pixels(self):
+        """number of overlapping pixel frames between two chunks, computed from num_overlap_latent and temporal_compression_factor"""
+        return self.num_overlap_latent * self.temporal_compression_factor
+
+    def get_latent_num_frames(self, num_pixel_frames: int) -> int:
+        """Given total number of pixel frames, compute the number of latent frames."""
+        return 1
+
+    def get_pixel_num_frames(self, num_latent_frames: int) -> int:
+        return 1
+
+    def compute_num_chunks(self, num_pixel_frames: int = None, num_latent_frames: int = None) -> int:
+        """Compute the number of chunks given the number of pixel frames or latent frames.
+        The number of chunks is computed based on the pixel_chunk_duration and num_overlap_pixels.
+        It will raise an error if the number of frames is not divisible by the chunk size.
+
+        Args:
+            num_pixel_frames (int): The number of pixel frames.
+            num_latent_frames (int): The number of latent frames, if num_pixel_frames is not provided.
+        Returns:
+            num_chunks (int): The number of chunks.
+
+        """
+        if num_pixel_frames is None:
+            assert num_latent_frames is not None, "Either num_pixel_frames or num_latent_frames should be provided"
+            num_pixel_frames = self.get_pixel_num_frames(num_latent_frames)
+        assert (
+            num_pixel_frames >= self.pixel_chunk_duration
+        ), f"Expect the number of frames {num_pixel_frames} to be larger than the chunk size {self.pixel_chunk_duration}"
+
+        # Check if the number of frames is divisible by the chunk size
+        if (num_pixel_frames - self.pixel_chunk_duration) % (self.pixel_chunk_duration - self.num_overlap_pixels) != 0:
+            num_generate_pixels_per_chunk = self.pixel_chunk_duration - self.num_overlap_pixels
+            # Suggest the number of frames that is divisible by the chunk size
+            suggested_num_pixel_frames = (
+                num_pixel_frames - self.pixel_chunk_duration
+            ) // num_generate_pixels_per_chunk * num_generate_pixels_per_chunk + self.pixel_chunk_duration
+            raise ValueError(
+                f"Expect the number of frames {num_pixel_frames} - {self.pixel_chunk_duration} to be divisible "
+                f"by the chunk size {self.pixel_chunk_duration} - {self.num_overlap_pixels}, "
+                f"suggested number of frames is {suggested_num_pixel_frames}"
+            )
+
+        num_chunks = 1 + (num_pixel_frames - self.pixel_chunk_duration) // (
+            self.pixel_chunk_duration - self.num_overlap_pixels
+        )
+        log.debug(
+            f"num_chunks={num_chunks} given num_pixel_frames: {num_pixel_frames}, num_overlap_pixels: {self.num_overlap_pixels}, pixel_chunk_duration: {self.pixel_chunk_duration}"
+        )
+        return num_chunks
+
+    @torch.no_grad()
+    def encode(self, state: torch.Tensor) -> torch.Tensor:
+        if not self.squeeze_for_image:
+            assert state.shape[2] == 1, f"Expect the number of frames {state.shape[2]} to be 1"
+        in_dtype = state.dtype
+
+        if self.squeeze_for_image:
+            latent = self.encoder(state.to(self.dtype).squeeze(2))
+        else:
+            latent = self.encoder(state.to(self.dtype))
+        if isinstance(latent, tuple):
+            latent = latent[0]
+        if self.squeeze_for_image:
+            latent = latent.unsqueeze(2)
+        assert isinstance(latent, torch.Tensor), "Invalid type of encoded state"
+
+        if self.apply_mean_std:
+            latent = self.normalize_latent(latent)
+
+        latent = latent.to(in_dtype)
+        return latent
+
+    @torch.no_grad()
+    def decode(self, state: torch.Tensor) -> torch.Tensor:
+        assert state.shape[2] == 1, f"Expect the number of frames {state.shape[2]} to be 1"
+        in_dtype = state.dtype
+        if self.apply_mean_std:
+            state = self.denormalize_latent(state.to(self.dtype))
+        if self.squeeze_for_image:
+            state = state.squeeze(2)
+        decoded_state = self.decoder(state.to(self.dtype))
+        if self.squeeze_for_image:
+            decoded_state = decoded_state.unsqueeze(2)
+        decoded_state = decoded_state.to(in_dtype)
+        return decoded_state
 
 
 class TokenizerInterface(VideoTokenizerInterface):
