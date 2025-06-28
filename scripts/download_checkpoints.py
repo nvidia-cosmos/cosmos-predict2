@@ -95,6 +95,7 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt": "34730e3d5e65c4c590f3a88ca3fd4e74",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt": "b1dcd8adbe82e69496532d1e237c7022",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt": "53a04f51880272d9f4a5c4460b82966d",
+    "nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer/tokenizer.pth": "6eddc5eaf9e9e527803184f6daa65d25",
     "nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
