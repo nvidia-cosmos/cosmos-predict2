@@ -126,7 +126,7 @@ PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     text_encoder_class="T5",
     tokenizer=L(CosmosImageTokenizer)(
         name="tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0p6B-Text2Image/tokenizer/tokenizer.pth",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer/tokenizer.pth",
     ),
     guardrail_config=CosmosGuardrailConfig(
         checkpoint_dir="checkpoints/",
