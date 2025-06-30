@@ -240,6 +240,13 @@ def parse_args():
         help="Negative text prompt for video-to-world generation",
     )
     parser.add_argument(
+        "--aspect_ratio",
+        choices=["1,1", "4,3", "3,4", "16,9", "9,16"],
+        default="9,16",
+        type=str,
+        help="Aspect ratio of the generated output (height, width)",
+    )
+    parser.add_argument(
         "--num_conditional_frames",
         type=int,
         default=1,
@@ -315,6 +322,7 @@ def generate_video(
             prompt=prompt,
             output_path=output_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             guidance=args.guidance,
             seed=current_seed,

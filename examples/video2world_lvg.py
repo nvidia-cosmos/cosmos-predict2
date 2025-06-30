@@ -100,6 +100,13 @@ def parse_args() -> argparse.Namespace:
         help="Negative text prompt for video-to-world generation",
     )
     parser.add_argument(
+        "--aspect_ratio",
+        choices=["1,1", "4,3", "3,4", "16,9", "9,16"],
+        default="9,16",
+        type=str,
+        help="Aspect ratio of the generated output (height, width)",
+    )
+    parser.add_argument(
         "--num_conditional_frames",
         type=int,
         default=1,
@@ -194,8 +201,17 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, num_chunks, guidance, seed
-):
+    pipe: Video2WorldPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    num_chunks: int,
+    guidance: float,
+    seed: int,
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -213,6 +229,7 @@ def process_single_generation(
             video = pipe(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
+                aspect_ratio=aspect_ratio,
                 input_path=current_input_path,
                 num_conditional_frames=num_conditional_frames,
                 guidance=guidance,
@@ -273,6 +290,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 prompt=prompt,
                 output_path=output_video,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 num_conditional_frames=args.num_conditional_frames,
                 num_chunks=args.num_chunks,
                 guidance=args.guidance,
@@ -285,6 +303,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             num_chunks=args.num_chunks,
             guidance=args.guidance,
