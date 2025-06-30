@@ -36,8 +36,8 @@ from imaginaire.utils import log, misc
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
 
-def sample_batch_image(resolution: str = "1024", batch_size: int = 1) -> dict:
-    h, w = IMAGE_RES_SIZE_INFO[resolution]["9,16"]  # type: ignore
+def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "9,16", batch_size: int = 1) -> dict:
+    h, w = IMAGE_RES_SIZE_INFO[resolution][aspect_ratio]
     data_batch = {
         "dataset_name": "image_data",
         "images": torch.randn(batch_size, 3, h, w).cuda(),
@@ -50,9 +50,10 @@ def sample_batch_image(resolution: str = "1024", batch_size: int = 1) -> dict:
 
 def get_sample_batch(
     resolution: str = "512",
+    aspect_ratio: str = "9,16",
     batch_size: int = 1,
 ) -> dict:
-    data_batch = sample_batch_image(resolution, batch_size)
+    data_batch = sample_batch_image(resolution, aspect_ratio, batch_size)
 
     for k, v in data_batch.items():
         if isinstance(v, torch.Tensor) and torch.is_floating_point(data_batch[k]):
@@ -278,14 +279,14 @@ class Text2ImagePipeline(BasePipeline):
         self,
         prompt: str,
         negative_prompt: str = "",
+        aspect_ratio: str = "9,16",
         seed: int = 0,
         guidance: float = 4.0,
         num_sampling_step: int = 35,
-        solver_option: str = "2ab",
         use_cuda_graphs: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
-        height, width = IMAGE_RES_SIZE_INFO[self.config.resolution]["9,16"]  # type: ignore
+        height, width = IMAGE_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
         height, width = self.check_resize_height_width(height, width)
 
         # Run text guardrail on the prompt
@@ -299,7 +300,7 @@ class Text2ImagePipeline(BasePipeline):
                 log.success("Passed guardrail on prompt")
 
         # get sample batch
-        data_batch = get_sample_batch(resolution=self.config.resolution, batch_size=1)
+        data_batch = get_sample_batch(resolution=self.config.resolution, aspect_ratio=aspect_ratio, batch_size=1)
         data_batch["t5_text_embeddings"] = self.encode_prompt(prompt).to(dtype=self.torch_dtype)
         data_batch["neg_t5_text_embeddings"] = self.encode_prompt(negative_prompt).to(dtype=self.torch_dtype)
 

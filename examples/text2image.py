@@ -24,7 +24,6 @@ import time
 
 import torch
 from megatron.core import parallel_state
-from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
@@ -53,6 +52,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to JSON file containing batch inputs. Each entry should have 'prompt' and 'output_image' fields.",
     )
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative text prompt for image generation")
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1,1", "4,3", "3,4", "16,9", "9,16"],
+        default="9,16",
+        type=str,
+        help="Aspect ratio of the generated output (height, width)",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
         "--save_path",
@@ -151,7 +157,16 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
         return pipe
 
 
-def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, use_cuda_graphs, benchmark):
+def process_single_generation(
+    pipe: Text2ImagePipeline,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    seed: int,
+    use_cuda_graphs: bool,
+    benchmark: bool,
+) -> bool:
     log.info(f"Running Text2ImagePipeline\nprompt: {prompt}")
 
     # When benchmarking, run inference 4 times, exclude the 1st due to warmup and average time.
@@ -165,6 +180,7 @@ def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, 
         image = pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
             seed=seed,
             use_cuda_graphs=use_cuda_graphs,
         )
@@ -212,6 +228,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
                 prompt=prompt,
                 output_path=output_image,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
                 benchmark=args.benchmark,
@@ -226,6 +243,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             seed=args.seed,
             use_cuda_graphs=args.use_cuda_graphs,
             benchmark=args.benchmark,
