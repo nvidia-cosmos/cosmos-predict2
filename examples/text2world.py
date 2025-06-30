@@ -22,7 +22,6 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
 import torch.distributed
-from tqdm import tqdm
 
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
@@ -59,6 +58,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=_DEFAULT_NEGATIVE_PROMPT,
         help="Negative text prompt for video2world generation",
+    )
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1,1", "4,3", "3,4", "16,9", "9,16"],
+        default="9,16",
+        type=str,
+        help="Aspect ratio of the generated output (height, width)",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
@@ -157,6 +163,7 @@ def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Na
                     prompt=prompt,
                     output_path=temp_image_name,
                     negative_prompt=args.negative_prompt,
+                    aspect_ratio=args.aspect_ratio,
                     seed=args.seed,
                     use_cuda_graphs=args.use_cuda_graphs,
                     benchmark=args.benchmark,
@@ -180,6 +187,7 @@ def generate_first_frames(text2image_pipe: Text2ImagePipeline, args: argparse.Na
                 prompt=args.prompt,
                 output_path=temp_image_path,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
                 benchmark=args.benchmark,
@@ -228,6 +236,7 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
             prompt=prompt,
             output_path=output_video,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=1,  # Always use 1 frame for text2world
             guidance=args.guidance,
             seed=args.seed,
