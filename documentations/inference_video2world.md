@@ -306,6 +306,8 @@ Input parameters:
 - `--input_path`: Path to input image or video for conditioning (default: "assets/video2world/input0.jpg")
 - `--num_conditional_frames`: Number of frames to condition on (choices: 1, 5, default: 1)
 
+If the shape of the input image/video is different from the target resolution & aspect ratio, first, the input will be resized to equal or larger lengths in height & width dimensions. Then, it will be center-cropped to match the predefined resolution for the corresponding aspect ratio.
+
 Output parameters:
 - `--save_path`: Path to save the generated video (default: "output/generated_video.mp4")
 
