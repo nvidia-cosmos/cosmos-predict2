@@ -72,7 +72,7 @@ PREDICT2_TEXT2IMAGE_FSDP_14B = dict(
                 dit_path="checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt",
                 text_encoder_path="",  # Do not load text encoder for training.
             ),
-            fsdp_shard_size=4,
+            fsdp_shard_size=8,
         ),
         _recursive_=False,
     ),
