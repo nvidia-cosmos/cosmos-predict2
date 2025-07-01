@@ -15,9 +15,12 @@
 
 from typing import Any, List, Tuple, Union
 
+import numpy as np
 import torch
 from einops import rearrange
 from megatron.core import parallel_state
+from torch.distributed.device_mesh import DeviceMesh
+from torch.distributed.fsdp import fully_shard
 from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
@@ -30,8 +33,13 @@ from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
+from cosmos_predict2.utils.dtensor_helper import (
+    DTensorFastEmaModelUpdater,
+    broadcast_dtensor_model_states,
+)
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
+from imaginaire.utils.ema import FastEmaModelUpdater
 
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
@@ -67,6 +75,7 @@ class Text2ImagePipeline(BasePipeline):
         super().__init__(device=device, torch_dtype=torch_dtype)
         self.text_encoder: CosmosT5TextEncoder = None
         self.dit: MiniTrainDIT = None
+        self.dit_ema: torch.nn.Module = None
         self.tokenizer: TokenizerInterface = None
         self.conditioner = None
         self.text_guardrail_runner = None
@@ -78,8 +87,8 @@ class Text2ImagePipeline(BasePipeline):
     @staticmethod
     def from_config(
         config: LazyDict,
-        dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model_ema_reg.pt",
-        text_encoder_path: str = "checkpoints/google-t5/t5-11b",
+        dit_path: str = "",
+        text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
     ) -> Any:
@@ -96,6 +105,7 @@ class Text2ImagePipeline(BasePipeline):
 
         # 1. set data keys and data information
         pipe.sigma_data = config.sigma_data
+        pipe.setup_data_key()
 
         # 2. setup up diffusion processing and scaling~(pre-condition), sampler
         pipe.scheduler = RectifiedFlowAB2Scheduler(
@@ -113,8 +123,13 @@ class Text2ImagePipeline(BasePipeline):
         ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
 
         # 4. Load text encoder
-        pipe.text_encoder = CosmosT5TextEncoder(device=device, cache_dir=text_encoder_path)
-        pipe.text_encoder.to(device)
+        if text_encoder_path:
+            # inference
+            pipe.text_encoder = CosmosT5TextEncoder(device=device, cache_dir=text_encoder_path)
+            pipe.text_encoder.to(device)
+        else:
+            # training
+            pipe.text_encoder = None
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
@@ -131,25 +146,40 @@ class Text2ImagePipeline(BasePipeline):
         else:
             pipe.text_guardrail_runner = None
 
-        # 6. Load DiT
-        assert dit_path is not None, "dit_path must be provided to load the model"
-        log.info(f"Loading DiT from {dit_path}")
+        # 6. Set up DiT
+        if dit_path:
+            log.info(f"Loading DiT from {dit_path}")
+        else:
+            log.warning("dit_path not provided, initializing DiT with random weights")
         with init_weights_on_device():
             dit_config = config.net
             pipe.dit = instantiate(dit_config).eval()  # inference
 
-        state_dict = load_state_dict(dit_path)
-        # drop net. prefix
-        state_dict_dit_compatible = dict()
-        for k, v in state_dict.items():
-            if k.startswith("net."):
-                state_dict_dit_compatible[k[4:]] = v
-            else:
-                state_dict_dit_compatible[k] = v
-        # pipe.dit.load_state_dict(state_dict, assign=True)
-        pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
-        del state_dict, state_dict_dit_compatible
-        log.success(f"Successfully loaded DiT from {dit_path}")
+        if dit_path:
+            state_dict = load_state_dict(dit_path)
+            # drop net. prefix
+            state_dict_dit_compatible = dict()
+            for k, v in state_dict.items():
+                if k.startswith("net."):
+                    state_dict_dit_compatible[k[4:]] = v
+                else:
+                    state_dict_dit_compatible[k] = v
+            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+            del state_dict, state_dict_dit_compatible
+            log.success(f"Successfully loaded DiT from {dit_path}")
+
+        # 6-2. Handle EMA
+        if config.ema.enabled:
+            pipe.dit_ema = instantiate(dit_config).eval()
+            pipe.dit_ema.requires_grad_(False)
+
+            pipe.dit_ema_worker = FastEmaModelUpdater()  # default when not using FSDP
+
+            s = config.ema.rate
+            pipe.ema_exp_coefficient = np.roots([1, 7, 16 - s**-2, 12 - s**-2]).real.max()
+            # copying is only necessary when starting the training at iteration 0.
+            # Actual state_dict should be loaded after the pipe is created.
+            pipe.dit_ema_worker.copy_to(src_model=pipe.dit, tgt_model=pipe.dit_ema)
 
         pipe.dit = pipe.dit.to(device=device, dtype=torch_dtype)
         torch.cuda.empty_cache()
@@ -161,6 +191,24 @@ class Text2ImagePipeline(BasePipeline):
             pipe.data_parallel_size = 1
 
         return pipe
+
+    def setup_data_key(self) -> None:
+        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_image_key = self.config.input_image_key
+
+    def apply_fsdp(self, dp_mesh: DeviceMesh) -> None:
+        self.dit.fully_shard(mesh=dp_mesh)
+        self.dit = fully_shard(self.dit, mesh=dp_mesh, reshard_after_forward=True)
+        broadcast_dtensor_model_states(self.dit, dp_mesh)
+        if self.dit_ema:
+            self.dit_ema.fully_shard(mesh=dp_mesh)
+            self.dit_ema = fully_shard(self.dit_ema, mesh=dp_mesh, reshard_after_forward=True)
+            broadcast_dtensor_model_states(self.dit_ema, dp_mesh)
+            self.dit_ema_worker = DTensorFastEmaModelUpdater()
+            # No need to copy weights to EMA when applying FSDP, it is already copied before applying FSDP.
+
+    def apply_cp(self) -> None:
+        pass
 
     def denoising_model(self) -> MiniTrainDIT:
         return self.dit
