@@ -64,7 +64,7 @@ def parse_args() -> argparse.Namespace:
         choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
         default="16:9",
         type=str,
-        help="Aspect ratio of the generated output (height, width)",
+        help="Aspect ratio of the generated output (width:height)",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
