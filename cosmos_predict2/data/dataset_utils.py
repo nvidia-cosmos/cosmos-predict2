@@ -13,12 +13,14 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from typing import Tuple
+
 import torch
 import torchvision.transforms.functional as F
 
 
 class Resize_Preprocess:
-    def __init__(self, size: Tuple):
+    def __init__(self, size: Tuple[int, int]):
         """
         Initialize the preprocessing class with the target size.
         Args:

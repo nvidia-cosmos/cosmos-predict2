@@ -22,7 +22,7 @@ from imaginaire.lazy_config import LazyCall as L
 
 _IMAGE_LOADER = L(get_cached_replay_dataloader)(
     dataset=L(get_image_dataset)(
-        resolution="512",
+        resolution="480",
     ),
     batch_size=2,
     shuffle=False,
@@ -34,7 +34,7 @@ _IMAGE_LOADER = L(get_cached_replay_dataloader)(
 
 _VIDEO_LOADER = L(get_cached_replay_dataloader)(
     dataset=L(get_video_dataset)(
-        resolution="512",
+        resolution="480",
         num_video_frames=93,  # number of pixel frames, the number needs to agree with tokenizer encoder since tokenizer can not handle arbitrary length
     ),
     batch_size=1,

@@ -26,7 +26,7 @@ from imaginaire.datasets.mock_dataset import CombinedDictDataset, LambdaDataset
 
 
 def get_image_dataset(
-    resolution: str = "512",
+    resolution: str = "480",
     len_t5: int = 512,
     t5_dim: int = 1024,
     **kwargs,
@@ -52,7 +52,7 @@ def get_image_dataset(
 
 def get_video_dataset(
     num_video_frames: int,
-    resolution: str = "512",
+    resolution: str = "480",
     len_t5: int = 512,
     t5_dim: int = 1024,
     **kwargs,

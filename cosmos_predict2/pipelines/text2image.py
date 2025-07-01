@@ -57,7 +57,7 @@ def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "16:9", bat
 
 
 def get_sample_batch(
-    resolution: str = "512",
+    resolution: str = "480",
     aspect_ratio: str = "16:9",
     batch_size: int = 1,
 ) -> dict:
