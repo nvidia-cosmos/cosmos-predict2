@@ -348,16 +348,16 @@ class Video2WorldPipeline(BasePipeline):
 
         if dit_path:
             state_dict = load_state_dict(dit_path)
-        # drop net. prefix
-        state_dict_dit_compatible = dict()
-        for k, v in state_dict.items():
-            if k.startswith("net."):
-                state_dict_dit_compatible[k[4:]] = v
-            else:
-                state_dict_dit_compatible[k] = v
-        pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
-        del state_dict, state_dict_dit_compatible
-        log.success(f"Successfully loaded DiT from {dit_path}")
+            # drop net. prefix
+            state_dict_dit_compatible = dict()
+            for k, v in state_dict.items():
+                if k.startswith("net."):
+                    state_dict_dit_compatible[k[4:]] = v
+                else:
+                    state_dict_dit_compatible[k] = v
+            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+            del state_dict, state_dict_dit_compatible
+            log.success(f"Successfully loaded DiT from {dit_path}")
 
         # 6-2. Handle EMA
         if config.ema.enabled:
