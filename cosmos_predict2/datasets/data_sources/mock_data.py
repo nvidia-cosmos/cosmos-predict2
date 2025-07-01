@@ -26,12 +26,12 @@ from imaginaire.datasets.mock_dataset import CombinedDictDataset, LambdaDataset
 
 
 def get_image_dataset(
-    resolution: str = "512",
+    resolution: str = "480",
     len_t5: int = 512,
     t5_dim: int = 1024,
     **kwargs,
 ):
-    h, w = IMAGE_RES_SIZE_INFO[resolution]["9,16"]
+    w, h = IMAGE_RES_SIZE_INFO[resolution]["16:9"]
     del kwargs
     return CombinedDictDataset(
         **{
@@ -52,13 +52,13 @@ def get_image_dataset(
 
 def get_video_dataset(
     num_video_frames: int,
-    resolution: str = "512",
+    resolution: str = "480",
     len_t5: int = 512,
     t5_dim: int = 1024,
     **kwargs,
 ):
     del kwargs
-    h, w = VIDEO_RES_SIZE_INFO[resolution]["9,16"]
+    w, h = VIDEO_RES_SIZE_INFO[resolution]["16:9"]
 
     def video_fn():
         return torch.randint(0, 255, size=(3, num_video_frames, h, w)).to(dtype=torch.uint8)
