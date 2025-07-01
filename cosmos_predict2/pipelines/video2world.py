@@ -590,7 +590,9 @@ class Video2WorldPipeline(BasePipeline):
         ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
         return is_image
 
-    def denoise(self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: T2VCondition) -> DenoisePrediction:
+    def denoise(
+        self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: T2VCondition, use_cuda_graphs: bool = False
+    ) -> DenoisePrediction:
         """
         Performs denoising on the input noise data, noise level, and condition
 
@@ -598,6 +600,7 @@ class Video2WorldPipeline(BasePipeline):
             xt (torch.Tensor): The input noise data.
             sigma (torch.Tensor): The noise level.
             condition (T2VCondition): conditional information, generated from self.conditioner
+            use_cuda_graphs (bool, optional): Whether to use CUDA Graphs for inference. Defaults to False.
 
         Returns:
             DenoisePrediction: The denoised prediction, it includes clean data predicton (x0), \
@@ -662,6 +665,7 @@ class Video2WorldPipeline(BasePipeline):
             x_B_C_T_H_W=net_state_in_B_C_T_H_W.to(**self.tensor_kwargs),
             timesteps_B_T=c_noise_B_1_T_1_1.squeeze(dim=[1, 3, 4]).to(**self.tensor_kwargs),
             **condition.to_dict(),
+            use_cuda_graphs=use_cuda_graphs,
         ).float()
 
         x0_pred_B_C_T_H_W = c_skip_B_1_T_1_1 * xt_B_C_T_H_W + c_out_B_1_T_1_1 * net_output_B_C_T_H_W
@@ -681,6 +685,7 @@ class Video2WorldPipeline(BasePipeline):
         data_batch: Dict,
         guidance: float = 1.5,
         is_negative_prompt: bool = False,
+        use_cuda_graphs: bool = False,
     ) -> Callable:
         """
         Generates a callable function `x0_fn` based on the provided data batch and guidance factor.
@@ -737,8 +742,8 @@ class Video2WorldPipeline(BasePipeline):
             ), "parallel_state is not initialized, context parallel should be turned off."
 
         def x0_fn(noise_x: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
-            cond_x0 = self.denoise(noise_x, sigma, condition).x0
-            uncond_x0 = self.denoise(noise_x, sigma, uncondition).x0
+            cond_x0 = self.denoise(noise_x, sigma, condition, use_cuda_graphs=use_cuda_graphs).x0
+            uncond_x0 = self.denoise(noise_x, sigma, uncondition, use_cuda_graphs=use_cuda_graphs).x0
             raw_x0 = cond_x0 + guidance * (cond_x0 - uncond_x0)
             if "guided_image" in data_batch:
                 # replacement trick that enables inpainting with base model
@@ -761,6 +766,7 @@ class Video2WorldPipeline(BasePipeline):
         guidance: float = 7.0,
         num_sampling_step: int = 35,
         seed: int = 0,
+        use_cuda_graphs: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
         width, height = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
@@ -848,7 +854,9 @@ class Video2WorldPipeline(BasePipeline):
             _W // self.tokenizer.spatial_compression_factor,
         ]
 
-        x0_fn = self.get_x0_fn_from_batch(data_batch, guidance, is_negative_prompt=True)
+        x0_fn = self.get_x0_fn_from_batch(
+            data_batch, guidance, is_negative_prompt=True, use_cuda_graphs=use_cuda_graphs
+        )
 
         log.info("Starting video generation...")
 

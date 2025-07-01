@@ -56,110 +56,33 @@
 # |----------------|-------|
 #
 
+from functools import partial
+
 import torch
 from torch.nn.attention import SDPBackend, sdpa_kernel
 
 try:
-    from flash_attn_3.flash_attn_interface import flash_attn_varlen_func
+    from flash_attn_3.flash_attn_interface import flash_attn_func
 
     FLASH_ATTN_3_AVAILABLE = True
 except ModuleNotFoundError:
     FLASH_ATTN_3_AVAILABLE = False
 
-import warnings
-
-__all__ = [
-    "attention",
-]
-
 
 def get_device_cc(device) -> int:
+    """
+    Returns the compute capability of a given torch device if it's a CUDA device, otherwise returns 0.
+
+    Args:
+        device: torch device.
+
+    Returns:
+        device_cc (int): compute capability in the SmXXX format (i.e. 90 for Hopper).
+    """
     if torch.cuda.is_available() and torch.version.cuda and device.type == "cuda":
         major, minor = torch.cuda.get_device_capability(device)
         return major * 10 + minor
-
     return 0
-
-
-def flash_attention(
-    q,
-    k,
-    v,
-    q_lens=None,
-    k_lens=None,
-    dropout_p=0.0,
-    softmax_scale=None,
-    q_scale=None,
-    causal=False,
-    deterministic=False,
-    dtype=torch.bfloat16,
-):
-    """
-    q:              [B, Lq, Nq, C1].
-    k:              [B, Lk, Nk, C1].
-    v:              [B, Lk, Nk, C2]. Nq must be divisible by Nk.
-    q_lens:         [B].
-    k_lens:         [B].
-    dropout_p:      float. Dropout probability.
-    softmax_scale:  float. The scaling of QK^T before applying softmax.
-    causal:         bool. Whether to apply causal attention mask.
-    deterministic:  bool. If True, slightly slower and uses more memory.
-    dtype:          torch.dtype. Apply when dtype of q/k/v is not float16/bfloat16.
-    """
-    compute_cap = get_device_cc(q.device)
-    half_dtypes = (torch.float16, torch.bfloat16)
-    assert dtype in half_dtypes
-    assert q.device.type == "cuda" and q.size(-1) <= 256
-
-    # params
-    b, lq, lk, out_dtype = q.size(0), q.size(1), k.size(1), q.dtype
-
-    def half(x):
-        return x if x.dtype in half_dtypes else x.to(dtype)
-
-    # preprocess query
-    if q_lens is None:
-        q = half(q.flatten(0, 1))
-        q_lens = torch.tensor([lq] * b, dtype=torch.int32).to(device=q.device, non_blocking=True)
-    else:
-        q = half(torch.cat([u[:v] for u, v in zip(q, q_lens)]))
-
-    # preprocess key, value
-    if k_lens is None:
-        k = half(k.flatten(0, 1))
-        v = half(v.flatten(0, 1))
-        k_lens = torch.tensor([lk] * b, dtype=torch.int32).to(device=k.device, non_blocking=True)
-    else:
-        k = half(torch.cat([u[:v] for u, v in zip(k, k_lens)]))
-        v = half(torch.cat([u[:v] for u, v in zip(v, k_lens)]))
-
-    q = q.to(v.dtype)
-    k = k.to(v.dtype)
-
-    assert FLASH_ATTN_3_AVAILABLE and compute_cap == 90
-
-    # Note: dropout_p, window_size are not supported in FA3 now.
-    x = flash_attn_varlen_func(
-        q=q,
-        k=k,
-        v=v,
-        cu_seqlens_q=torch.cat([q_lens.new_zeros([1]), q_lens])
-        .cumsum(0, dtype=torch.int32)
-        .to(q.device, non_blocking=True),
-        cu_seqlens_k=torch.cat([k_lens.new_zeros([1]), k_lens])
-        .cumsum(0, dtype=torch.int32)
-        .to(q.device, non_blocking=True),
-        seqused_q=None,
-        seqused_k=None,
-        max_seqlen_q=lq,
-        max_seqlen_k=lk,
-        softmax_scale=softmax_scale,
-        causal=causal,
-        deterministic=deterministic,
-    )[0].unflatten(0, (b, lq))
-
-    # output
-    return x.type(out_dtype)
 
 
 def attention(
@@ -175,59 +98,58 @@ def attention(
     deterministic=False,
     dtype=torch.bfloat16,
 ):
+    supported_dtypes = [torch.bfloat16, torch.float16, torch.float32]
+    is_half = dtype in [torch.bfloat16, torch.float16]
     compute_cap = get_device_cc(q.device)
+
+    if dtype not in supported_dtypes:
+        raise NotImplementedError(f"{dtype=} is not supported.")
+
+    q = q.to(dtype)
+    k = k.to(dtype)
+    v = v.to(dtype)
 
     if q_scale is not None:
         q = q * q_scale
 
     # If Flash Attention 3 is installed, and the user's running on a Hopper GPU (compute capability
     # 9.0, or SM90), use Flash Attention 3.
-    if compute_cap == 90 and FLASH_ATTN_3_AVAILABLE:
-        return flash_attention(
+    if compute_cap == 90 and FLASH_ATTN_3_AVAILABLE and is_half:
+        return flash_attn_func(
             q=q,
             k=k,
             v=v,
-            q_lens=q_lens,
-            k_lens=k_lens,
-            dropout_p=dropout_p,
             softmax_scale=softmax_scale,
-            q_scale=q_scale,
             causal=causal,
             deterministic=deterministic,
-            dtype=dtype,
-        )
+        )[0]
     else:
         # If Blackwell or Hopper (SM100 or SM90), cuDNN has native FMHA kernels. The Hopper one is
         # not always as fast as Flash Attention 3, but when Flash Attention is unavailable, it's
         # still a far better choice than Flash Attention 2 (Ampere).
-        if compute_cap in [90, 100]:
+        if compute_cap in [90, 100] and is_half:
             SDPA_BACKENDS = [
-                    SDPBackend.CUDNN_ATTENTION,
-                    SDPBackend.FLASH_ATTENTION,
-                    SDPBackend.EFFICIENT_ATTENTION,
-                ]
+                SDPBackend.CUDNN_ATTENTION,
+                SDPBackend.FLASH_ATTENTION,
+                SDPBackend.EFFICIENT_ATTENTION,
+            ]
             BEST_SDPA_BACKEND = SDPBackend.CUDNN_ATTENTION
-        else:
+        elif is_half:
             SDPA_BACKENDS = [
                 SDPBackend.FLASH_ATTENTION,
                 SDPBackend.CUDNN_ATTENTION,
                 SDPBackend.EFFICIENT_ATTENTION,
             ]
             BEST_SDPA_BACKEND = SDPBackend.FLASH_ATTENTION if compute_cap >= 80 else SDPBackend.EFFICIENT_ATTENTION
-
-        if q_lens is not None or k_lens is not None:
-            warnings.warn(
-                "Padding mask is disabled when using scaled_dot_product_attention. It can have a significant impact on performance."
-            )
+        else:
+            assert dtype == torch.float32, f"Unrecognized {dtype=}."
+            SDPA_BACKENDS = [SDPBackend.EFFICIENT_ATTENTION]
+            BEST_SDPA_BACKEND = SDPBackend.EFFICIENT_ATTENTION
 
         if deterministic:
             raise NotImplementedError(
                 "Deterministic mode in attention is only supported when Flash Attention 3 is available."
             )
-
-        q = q.transpose(1, 2).to(dtype)
-        k = k.transpose(1, 2).to(dtype)
-        v = v.transpose(1, 2).to(dtype)
 
         # Torch 2.6 and later allows priorities for backends, but for older versions
         # we can only run with a specific backend. As long as we pick ones we're certain
@@ -238,6 +160,10 @@ def attention(
         except TypeError:
             sdpa_kernel_ = sdpa_kernel
             SDPA_BACKENDS = [BEST_SDPA_BACKEND]
+
+        q = q.transpose(1, 2)
+        k = k.transpose(1, 2)
+        v = v.transpose(1, 2)
 
         with sdpa_kernel_(backends=SDPA_BACKENDS):
             out = torch.nn.functional.scaled_dot_product_attention(

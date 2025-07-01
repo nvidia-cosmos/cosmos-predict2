@@ -36,6 +36,7 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         fps: Optional[torch.Tensor] = None,
         padding_mask: Optional[torch.Tensor] = None,
         data_type: Optional[DataType] = DataType.VIDEO,
+        use_cuda_graphs: bool = False,
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
         del kwargs
@@ -54,4 +55,5 @@ class MinimalV1LVGDiT(MiniTrainDIT):
             fps=fps,
             padding_mask=padding_mask,
             data_type=data_type,
+            use_cuda_graphs=use_cuda_graphs,
         )

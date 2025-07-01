@@ -186,9 +186,12 @@ def process_single_generation(
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
-            time_sum += time.time() - start_time
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
     if benchmark:
-        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_sum / 3} seconds.")
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_avg:.1f} seconds.")
 
     if image is not None:
         # save the generated image

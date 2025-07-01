@@ -241,6 +241,7 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
             guidance=args.guidance,
             seed=args.seed,
             benchmark=args.benchmark,
+            use_cuda_graphs=args.use_cuda_graphs,
         )
 
         # Clean up the temporary image file

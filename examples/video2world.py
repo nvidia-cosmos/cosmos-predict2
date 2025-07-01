@@ -29,11 +29,7 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.video2world import (
-    _IMAGE_EXTENSIONS,
-    _VIDEO_EXTENSIONS,
-    Video2WorldPipeline,
-)
+from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -163,6 +159,7 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
+    parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the text2image inference.")
     return parser.parse_args()
 
 
@@ -264,7 +261,8 @@ def process_single_generation(
     num_conditional_frames: int,
     guidance: float,
     seed: int,
-    benchmark=False,
+    benchmark: bool = False,
+    use_cuda_graphs: bool = False,
 ) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
@@ -287,12 +285,16 @@ def process_single_generation(
             num_conditional_frames=num_conditional_frames,
             guidance=guidance,
             seed=seed,
+            use_cuda_graphs=use_cuda_graphs,
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
-            time_sum += time.time() - start_time
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
     if benchmark:
-        log.critical(f"The benchmarked generation time for Video2WorldPipeline is {time_sum / 3} seconds.")
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"Average generation time for Video2WorldPipeline is {time_avg:.1f} seconds.")
 
     if video is not None:
         # save the generated video
@@ -343,6 +345,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 guidance=args.guidance,
                 seed=args.seed,
                 benchmark=args.benchmark,
+                use_cuda_graphs=args.use_cuda_graphs,
             )
     else:
         process_single_generation(
@@ -356,6 +359,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             guidance=args.guidance,
             seed=args.seed,
             benchmark=args.benchmark,
+            use_cuda_graphs=args.use_cuda_graphs,
         )
 
     return
