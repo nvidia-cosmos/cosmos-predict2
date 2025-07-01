@@ -18,7 +18,7 @@ import torchvision.transforms.functional as F
 
 
 class Resize_Preprocess:
-    def __init__(self, size):
+    def __init__(self, size: Tuple):
         """
         Initialize the preprocessing class with the target size.
         Args:
@@ -34,9 +34,36 @@ class Resize_Preprocess:
         Returns:
         torch.Tensor: The transformed video frames.
         """
-        # Resize each frame in the video
-        resized_frames = torch.stack([F.resize(frame, self.size, antialias=True) for frame in video_frames])
+        if video_frames.ndim == 4:
+            # Resize each frame in the video
+            resized_frames = torch.stack([F.resize(frame, self.size, antialias=True) for frame in video_frames])
+        else:
+            # Resize a single image
+            resized_frames = F.resize(video_frames, self.size, antialias=True)
+
         return resized_frames
+
+
+class ToTensorImage:
+    """
+    Convert tensor data type from uint8 to float, divide value by 255.0 and
+    permute the dimensions of clip tensor
+    """
+
+    def __init__(self):
+        pass
+
+    def __call__(self, clip):
+        """
+        Args:
+            clip (torch.tensor, dtype=torch.uint8): Size is (T, C, H, W)
+        Return:
+            clip (torch.tensor, dtype=torch.float): Size is (T, C, H, W)
+        """
+        return to_tensor_image(clip)
+
+    def __repr__(self) -> str:
+        return self.__class__.__name__
 
 
 class ToTensorVideo:
@@ -61,6 +88,21 @@ class ToTensorVideo:
         return self.__class__.__name__
 
 
+def to_tensor_image(image):
+    """
+    Convert tensor data type from uint8 to float, divide value by 255.0 and
+    permute the dimensions of image tensor
+    Args:
+        image (torch.tensor, dtype=torch.uint8): Size is (T, C, H, W)
+    Return:
+        image (torch.tensor, dtype=torch.float): Size is (T, C, H, W)
+    """
+    _is_tensor_image(image)
+    if not image.dtype == torch.uint8:
+        raise TypeError("image tensor should have data type uint8. Got %s" % str(image.dtype))
+    return image.float() / 255.0
+
+
 def to_tensor(clip):
     """
     Convert tensor data type from uint8 to float, divide value by 255.0 and
@@ -73,11 +115,20 @@ def to_tensor(clip):
     _is_tensor_video_clip(clip)
     if not clip.dtype == torch.uint8:
         raise TypeError("clip tensor should have data type uint8. Got %s" % str(clip.dtype))
-    # return clip.float().permute(3, 0, 1, 2) / 255.0
     return clip.float() / 255.0
 
 
-def _is_tensor_video_clip(clip):
+def _is_tensor_image(image: torch.Tensor) -> bool:
+    if not torch.is_tensor(image):
+        raise TypeError("image should be Tensor. Got %s" % type(image))
+
+    if not image.ndimension() == 3:
+        raise ValueError("image should be 3D. Got %dD" % image.dim())
+
+    return True
+
+
+def _is_tensor_video_clip(clip) -> bool:
     if not torch.is_tensor(clip):
         raise TypeError("clip should be Tensor. Got %s" % type(clip))
 
