@@ -17,6 +17,7 @@ from hydra.core.config_store import ConfigStore
 from megatron.core import parallel_state
 from torch.utils.data import DataLoader, DistributedSampler
 
+from cosmos_predict2.data.dataset_image import ImageDataset
 from cosmos_predict2.data.dataset_video import Dataset
 from imaginaire.lazy_config import LazyCall as L
 
@@ -33,7 +34,118 @@ def get_sampler(dataset) -> DistributedSampler:
 
 cs = ConfigStore.instance()
 
-# Cosmos-NeMo-Assets example
+# Cosmos-NeMo-Assets text2image example
+example_image_dataset_cosmos_nemo_assets_images = L(ImageDataset)(
+    dataset_dir="datasets/benchmark_train/cosmos_nemo_assets_images",
+    image_size=(704, 1280),
+)
+
+dataloader_train_cosmos_nemo_assets_images = L(DataLoader)(
+    dataset=example_image_dataset_cosmos_nemo_assets_images,
+    sampler=L(get_sampler)(dataset=example_image_dataset_cosmos_nemo_assets_images),
+    batch_size=1,
+    drop_last=True,
+    num_workers=8,
+    pin_memory=True,
+)
+
+# torchrun --nproc_per_node=1 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_text2image_training_2b_cosmos_nemo_assets
+predict2_text2image_training_2b_cosmos_nemo_assets = dict(
+    defaults=[
+        {"override /model": "predict2_text2image_fsdp_2b"},
+        {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
+        {"override /ckpt_type": "standard"},
+        {"override /dataloader_val": "mock_image"},
+        "_self_",
+    ],
+    job=dict(
+        project="posttraining",
+        group="text2image",
+        name="2b_cosmos_nemo_assets",
+    ),
+    model=dict(
+        config=dict(
+            pipe_config=dict(
+                ema=dict(enabled=True),
+                guardrail_config=dict(enabled=False),
+            ),
+        )
+    ),
+    model_parallel=dict(
+        context_parallel_size=1,
+    ),
+    dataloader_train=dataloader_train_cosmos_nemo_assets_images,
+    trainer=dict(
+        distributed_parallelism="fsdp",
+        callbacks=dict(
+            iter_speed=dict(hit_thres=10),
+        ),
+        max_iter=1000,
+    ),
+    checkpoint=dict(
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.6],
+        f_min=[0.3],
+    ),
+)
+
+# torchrun --nproc_per_node=4 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_text2image_training_14b_cosmos_nemo_assets
+predict2_text2image_training_14b_cosmos_nemo_assets = dict(
+    defaults=[
+        {"override /model": "predict2_text2image_fsdp_14b"},
+        {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
+        {"override /ckpt_type": "standard"},
+        {"override /dataloader_val": "mock_image"},
+        "_self_",
+    ],
+    job=dict(
+        project="posttraining",
+        group="text2image",
+        name="14b_cosmos_nemo_assets",
+    ),
+    model=dict(
+        config=dict(
+            pipe_config=dict(
+                ema=dict(enabled=True),
+                guardrail_config=dict(enabled=False),
+            ),
+        )
+    ),
+    model_parallel=dict(
+        context_parallel_size=8,
+    ),
+    dataloader_train=dataloader_train_cosmos_nemo_assets_images,
+    trainer=dict(
+        distributed_parallelism="fsdp",
+        callbacks=dict(
+            iter_speed=dict(hit_thres=10),
+        ),
+        max_iter=1000,
+    ),
+    checkpoint=dict(
+        save_iter=500,
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[2_000],
+        cycle_lengths=[400_000],
+        f_max=[0.6],
+        f_min=[0.3],
+    ),
+)
+
+# Cosmos-NeMo-Assets video2world example
 example_video_dataset_cosmos_nemo_assets = L(Dataset)(
     dataset_dir="datasets/benchmark_train/cosmos_nemo_assets",
     num_frames=93,
@@ -68,6 +180,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
         config=dict(
             pipe_config=dict(
                 ema=dict(enabled=True),
+                prompt_refiner_config=dict(enabled=False),
                 guardrail_config=dict(enabled=False),
             ),
         )
@@ -116,6 +229,7 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
         config=dict(
             pipe_config=dict(
                 ema=dict(enabled=True),
+                prompt_refiner_config=dict(enabled=False),
                 guardrail_config=dict(enabled=False),
             ),
         )
@@ -147,6 +261,10 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
 )
 
 for _item in [
+    # 2b, cosmos_nemo_assets
+    predict2_text2image_training_2b_cosmos_nemo_assets,
+    # 14b, cosmos_nemo_assets
+    predict2_text2image_training_14b_cosmos_nemo_assets,
     # 2b, cosmos_nemo_assets
     predict2_video2world_training_2b_cosmos_nemo_assets,
     # 14b, cosmos_nemo_assets
