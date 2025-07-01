@@ -18,7 +18,16 @@ from enum import Enum
 
 import attrs
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, VideoConditioner
+from cosmos_predict2.conditioner import (
+    BooleanFlag,
+    ReMapkey,
+    TextAttr,
+    VideoConditioner,
+)
+from cosmos_predict2.configs.base.config_text2image import (
+    CosmosGuardrailConfig,
+    SolverTimestampConfig,
+)
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
@@ -38,25 +47,7 @@ class ConditioningStrategy(str, Enum):
 
 @make_freezable
 @attrs.define(slots=False)
-class SolverTimestampConfig:
-    nfe: int = 35
-    t_min: float = 0.002
-    t_max: float = 80.0
-    order: float = 7.0
-    is_forward: bool = False  # whether generate forward or backward timestamps
-
-
-@make_freezable
-@attrs.define(slots=False)
 class CosmosReason1Config:
-    checkpoint_dir: str
-    offload_model_to_cpu: bool = True
-    enabled: bool = True
-
-
-@make_freezable
-@attrs.define(slots=False)
-class CosmosGuardrailConfig:
     checkpoint_dir: str
     offload_model_to_cpu: bool = True
     enabled: bool = True
