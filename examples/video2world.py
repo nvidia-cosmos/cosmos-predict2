@@ -146,10 +146,10 @@ def parse_args() -> argparse.Namespace:
         default=1,
         help="Number of GPUs to use for context parallel inference (should be a divisor of the total frames)",
     )
-    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument("--enable_guardrail", action="store_true", help="Enable guardrail checks on prompts")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     parser.add_argument(
-        "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
+        "--enable_prompt_refiner", action="store_true", help="Enable prompt refiner that enhances short prompts"
     )
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
@@ -221,14 +221,14 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
             else:
                 log.info(f"Using existing context parallel group with {current_cp_size} GPUs")
 
-    # Disable guardrail if requested
-    if args.disable_guardrail:
+    # Enable guardrail if requested
+    if not args.enable_guardrail:
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
     config.guardrail_config.offload_model_to_cpu = args.offload_guardrail
 
-    # Disable prompt refiner if requested
-    if args.disable_prompt_refiner:
+    # Enable prompt refiner if requested
+    if not args.enable_prompt_refiner:
         log.warning("Prompt refiner is disabled")
         config.prompt_refiner_config.enabled = False
     config.prompt_refiner_config.offload_model_to_cpu = args.offload_prompt_refiner

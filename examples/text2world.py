@@ -73,7 +73,7 @@ def parse_args() -> argparse.Namespace:
         default="output/generated_video.mp4",
         help="Path to save the generated video (include file extension)",
     )
-    parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
+    parser.add_argument("--enable_guardrail", action="store_true", help="Enable guardrail checks on prompts")
     parser.add_argument(
         "--num_gpus",
         type=int,
@@ -113,7 +113,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value for video generation")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
     parser.add_argument(
-        "--disable_prompt_refiner", action="store_true", help="Disable prompt refiner that enhances short prompts"
+        "--enable_prompt_refiner", action="store_true", help="Enable prompt refiner that enhances short prompts"
     )
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
