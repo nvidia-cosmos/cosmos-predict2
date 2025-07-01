@@ -105,6 +105,7 @@ predict2_video2world_training_2b_custom_data = dict(
         config=dict(
             pipe_config=dict(
                 ema=dict(enabled=True),     # enable EMA during training
+                prompt_refiner_config=dict(enabled=False),  # disable prompt refiner during training
                 guardrail_config=dict(enabled=False),   # disable guardrail during training
             ),
         )
