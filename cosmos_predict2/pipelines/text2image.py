@@ -36,8 +36,8 @@ from imaginaire.utils import log, misc
 IS_PREPROCESSED_KEY = "is_preprocessed"
 
 
-def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "9,16", batch_size: int = 1) -> dict:
-    h, w = IMAGE_RES_SIZE_INFO[resolution][aspect_ratio]
+def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "16:9", batch_size: int = 1) -> dict:
+    w, h = IMAGE_RES_SIZE_INFO[resolution][aspect_ratio]
     data_batch = {
         "dataset_name": "image_data",
         "images": torch.randn(batch_size, 3, h, w).cuda(),
@@ -50,7 +50,7 @@ def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "9,16", bat
 
 def get_sample_batch(
     resolution: str = "512",
-    aspect_ratio: str = "9,16",
+    aspect_ratio: str = "16:9",
     batch_size: int = 1,
 ) -> dict:
     data_batch = sample_batch_image(resolution, aspect_ratio, batch_size)
@@ -279,14 +279,14 @@ class Text2ImagePipeline(BasePipeline):
         self,
         prompt: str,
         negative_prompt: str = "",
-        aspect_ratio: str = "9,16",
+        aspect_ratio: str = "16:9",
         seed: int = 0,
         guidance: float = 4.0,
         num_sampling_step: int = 35,
         use_cuda_graphs: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
-        height, width = IMAGE_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
+        width, height = IMAGE_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
         height, width = self.check_resize_height_width(height, width)
 
         # Run text guardrail on the prompt

@@ -756,14 +756,14 @@ class Video2WorldPipeline(BasePipeline):
         input_path: str,
         prompt: str,
         negative_prompt: str = "",
-        aspect_ratio: str = "9,16",
+        aspect_ratio: str = "16:9",
         num_conditional_frames: int = 1,
         guidance: float = 7.0,
         num_sampling_step: int = 35,
         seed: int = 0,
     ) -> torch.Tensor | None:
         # Parameter check
-        height, width = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
+        width, height = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
         height, width = self.check_resize_height_width(height, width)
         assert num_conditional_frames in [1, 5], "num_conditional_frames must be 1 or 5"
         num_latent_conditional_frames = self.tokenizer.get_latent_num_frames(num_conditional_frames)

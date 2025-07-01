@@ -135,7 +135,7 @@ Model selection:
 Input parameters:
 - `--prompt`: Text prompt describing the video to generate (default: predefined example prompt)
 - `--negative_prompt`: Text describing what to avoid in the generated video (default: predefined negative prompt)
-- `--aspect_ratio`: Aspect ratio of the generated output (height, width) (choices: "1,1", "4,3", "3,4", "16,9", "9,16", default: "9,16")
+- `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
 
 Output parameters:
 - `--save_path`: Path to save the generated video (default: "output/generated_video.mp4")

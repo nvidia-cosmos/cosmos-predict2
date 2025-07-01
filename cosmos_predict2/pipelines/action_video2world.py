@@ -226,7 +226,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         solver_option: str = "2ab",
     ) -> torch.Tensor | None:
         # Parameter check
-        # height, width = VIDEO_RES_SIZE_INFO[self.config.resolution]["9,16"]  # type: ignore
+        # width, height = VIDEO_RES_SIZE_INFO[self.config.resolution]["16:9"]  # type: ignore
         # height, width = self.check_resize_height_width(height, width)
         assert num_conditional_frames in [1, 5], "num_conditional_frames must be 1 or 5"
         num_latent_conditional_frames = self.tokenizer.get_latent_num_frames(num_conditional_frames)

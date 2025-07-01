@@ -302,7 +302,7 @@ By default a 720P + 16FPS model is used for `model_size` size model. If you want
 Input parameters:
 - `--prompt`: Text prompt describing the video to generate (default: empty string)
 - `--negative_prompt`: Text describing what to avoid in the generated video (default: predefined negative prompt)
-- `--aspect_ratio`: Aspect ratio of the generated output (height, width) (choices: "1,1", "4,3", "3,4", "16,9", "9,16", default: "9,16")
+- `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
 - `--input_path`: Path to input image or video for conditioning (default: "assets/video2world/input0.jpg")
 - `--num_conditional_frames`: Number of frames to condition on (choices: 1, 5, default: 1)
 
