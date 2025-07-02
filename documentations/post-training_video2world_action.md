@@ -90,7 +90,5 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/action_video2world.py 
   --num_conditional_frames 1 \
   --save_path output/generated_video.mp4 \
   --guidance 0 \
-  --seed 0 \
-  --disable_guardrail \
-  --disable_prompt_refiner
+  --seed 0
 ```

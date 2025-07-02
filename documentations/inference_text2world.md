@@ -108,9 +108,7 @@ torchrun --nproc_per_node=${NUM_GPUS} -m examples.text2world \
     --model_size 2B \
     --prompt "${PROMPT}" \
     --save_path output/text2world_2b_${NUM_GPUS}gpu.mp4 \
-    --num_gpus ${NUM_GPUS} \
-    --disable_guardrail \
-    --disable_prompt_refiner
+    --num_gpus ${NUM_GPUS}
 ```
 
 This distributes the computation across multiple GPUs for the video generation phase (Video2World), with each GPU processing a subset of the video frames. The image generation phase (Text2Image) still runs on a single GPU.
@@ -163,8 +161,8 @@ Batch processing:
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_video' fields
 
 Content safety and controls:
-- `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
-- `--disable_prompt_refiner`: Disable prompt refiner that enhances short prompts (by default, the prompt refiner is enabled)
+- `--enable_guardrail`: Enable guardrail checks against harmful content in prompts
+- `--enable_prompt_refiner`: Enable prompt refiner that enhances short prompts
 - `--offload_guardrail`: Offload guardrail to CPU to save GPU memory
 - `--offload_prompt_refiner`: Offload prompt refiner to CPU to save GPU memory
 

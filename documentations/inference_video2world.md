@@ -173,14 +173,14 @@ python -m examples.video2world \
     --save_path output/video2world_2b_with_prompt_refiner.mp4
 ```
 
-The prompt refiner is enabled by default. To disable it, use the `--disable_prompt_refiner` flag:
+The prompt refiner is disabled by default. To enable it, use the `--enable_prompt_refiner` flag:
 ```bash
-# Run video2world generation without prompt refinement
+# Run video2world generation with prompt refinement
 python -m examples.video2world \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
     --prompt "${PROMPT}" \
-    --disable_prompt_refiner \
+    --enable_prompt_refiner \
     --save_path output/video2world_2b_without_prompt_refiner.mp4
 ```
 
@@ -239,7 +239,6 @@ python -m examples.video2world_bestofn \
     --prompt "${PROMPT}" \
     --num_generations 4 \
     --num_critic_trials 5 \
-    --disable_guardrail \
     --save_path output/rejection_sampling_demo
 ```
 
@@ -278,9 +277,7 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --input_path assets/video2world_lvg/example_input.jpg \
     --prompt "${PROMPT}" \
     --save_path output/video2world_2b_lvg_example1.mp4 \
-    --num_gpus ${NUM_GPUS} \
-    --disable_guardrail \
-    --disable_prompt_refiner
+    --num_gpus ${NUM_GPUS}
 ```
 
 Example output is included at `assets/video2world_lvg/example_output.mp4`.
@@ -325,8 +322,8 @@ Batch processing:
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'input_video', 'prompt', and 'output_video' fields
 
 Content safety and controls:
-- `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
-- `--disable_prompt_refiner`: Disable prompt refiner that enhances short prompts (by default, the prompt refiner is enabled)
+- `--enable_guardrail`: Enable guardrail checks against harmful content in prompts
+- `--enable_prompt_refiner`: Enable prompt refiner that enhances short prompts
 
 GPU memory controls:
 - `--offload_guardrail`: Offload guardrail to CPU to save GPU memory

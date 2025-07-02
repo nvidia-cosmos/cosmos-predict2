@@ -100,7 +100,7 @@ Performance optimization:
 - `--benchmark`: Run in benchmark mode to measure average generation time
 
 Content safety:
-- `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
+- `--enable_guardrail`: Enable guardrail checks against harmful content in prompts
 
 > **Note**: Text2Image runs on a single GPU and does not support multi-GPU inference. For multi-GPU video generation, use [Text2World](inference_text2world.md) or [Video2World](inference_video2world.md) pipelines.
 

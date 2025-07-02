@@ -191,10 +191,8 @@ python -m scripts.prepare_batch_input_json \
 python -m examples.video2world_gr00t \
   --model_size 14B \
   --gr00t_variant gr1 \
-  --batch_input_json dream_gen_benchmark/gr1_object/batch_input.json \
-  --disable_guardrail
+  --batch_input_json dream_gen_benchmark/gr1_object/batch_input.json
 ```
-* Note: For full evaluation without missing videos, it's better to turn off the guardrail checks (add `--disable_guardrail` to the command) to make sure all the videos are generated.
 * See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
 
 ## 5. Inference with Cosmos-Reason1 Rejection Sampling
@@ -211,6 +209,5 @@ torchrun --nproc_per_node=8 --master_port=12341 \
   --num_gpus 8 \
   --num_generations 4 \
   --prompt_prefix "" \
-  --disable_guardrail \
   --save_path output/best-of-n-gr00t-gr1
 ```

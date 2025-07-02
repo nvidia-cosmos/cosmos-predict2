@@ -104,7 +104,7 @@ def parse_args() -> argparse.Namespace:
         help="Number of GPUs to use for context parallel inference (should be a divisor of the total frames)",
     )
     parser.add_argument(
-        "--disable_guardrail",
+        "--enable_guardrail",
         action="store_true",
         help="Disable guardrail checks on prompts",
     )
@@ -154,8 +154,8 @@ def setup_pipeline(args: argparse.Namespace):
         parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
         log.info(f"Context parallel group initialized with {args.num_gpus} GPUs")
 
-    # Disable guardrail if requested
-    if args.disable_guardrail:
+    # Enable guardrail if requested
+    if not args.enable_guardrail:
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
 
