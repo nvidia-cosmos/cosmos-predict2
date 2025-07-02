@@ -198,6 +198,15 @@ def main(args):
         repo_id = "nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned"
         download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5)
 
+    # Download the GR00T models
+    if "sample_gr00t_dreams_gr1" in args.model_types:
+        repo_id = f"nvidia/{model_size_mapping['14B']}-{model_type_mapping['sample_gr00t_dreams_gr1']}"
+        download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5)
+
+    if "sample_gr00t_dreams_droid" in args.model_types:
+        repo_id = f"nvidia/{model_size_mapping['14B']}-{model_type_mapping['sample_gr00t_dreams_droid']}"
+        download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5)
+
     # Download T5 model
     download_model(args.checkpoint_dir, "google-t5/t5-11b", verify_md5=args.verify_md5, ignore_patterns=["tf_model.h5"])
 
