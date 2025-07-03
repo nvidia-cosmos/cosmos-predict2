@@ -79,6 +79,7 @@ PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
     num_blocks=28,
     num_heads=16,
     mlp_ratio=4.0,
+    atten_backend="minimal_a2a",
     # cross attention settings
     crossattn_emb_channels=1024,
     # positional embedding settings

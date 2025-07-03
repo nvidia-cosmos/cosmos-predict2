@@ -37,7 +37,7 @@ cs = ConfigStore.instance()
 # Cosmos-NeMo-Assets text2image example
 example_image_dataset_cosmos_nemo_assets_images = L(ImageDataset)(
     dataset_dir="datasets/benchmark_train/cosmos_nemo_assets_images",
-    image_size=(704, 1280),
+    image_size=(768, 1360),  # 1024 resolution, 16:9 aspect ratio
 )
 
 dataloader_train_cosmos_nemo_assets_images = L(DataLoader)(
@@ -87,13 +87,13 @@ predict2_text2image_training_2b_cosmos_nemo_assets = dict(
         save_iter=500,
     ),
     optimizer=dict(
-        lr=2 ** (-14.5),
+        lr=2 ** (-15),
     ),
     scheduler=dict(
-        warm_up_steps=[2_000],
-        cycle_lengths=[400_000],
-        f_max=[0.6],
-        f_min=[0.3],
+        warm_up_steps=[0],
+        cycle_lengths=[100_000],
+        f_max=[0.17],
+        f_min=[0.1],
     ),
 )
 
@@ -121,7 +121,7 @@ predict2_text2image_training_14b_cosmos_nemo_assets = dict(
         )
     ),
     model_parallel=dict(
-        context_parallel_size=8,
+        context_parallel_size=1,
     ),
     dataloader_train=dataloader_train_cosmos_nemo_assets_images,
     trainer=dict(
@@ -136,12 +136,13 @@ predict2_text2image_training_14b_cosmos_nemo_assets = dict(
     ),
     optimizer=dict(
         lr=2 ** (-14.5),
+        weight_decay=0.2,
     ),
     scheduler=dict(
         warm_up_steps=[2_000],
         cycle_lengths=[400_000],
-        f_max=[0.6],
-        f_min=[0.3],
+        f_max=[0.4],
+        f_min=[0.1],
     ),
 )
 
