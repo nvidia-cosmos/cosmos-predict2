@@ -59,7 +59,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
    ```bash
    # Pull the Cosmos-Predict2 container
-   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0
+   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1
    ```
 
 * **Option 2B: Build container from Dockerfile**
@@ -72,7 +72,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
 * **Running the container**
 
-   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0` or `cosmos-predict2-local`:
+   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1` or `cosmos-predict2-local`:
 
    ```bash
    # Run the container with GPU support and mount necessary directories
