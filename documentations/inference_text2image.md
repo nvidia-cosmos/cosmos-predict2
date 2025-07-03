@@ -94,10 +94,12 @@ Input and output parameters:
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
 
-Performance optimization:
+Generation parameters:
 - `--seed`: Random seed for reproducible results (default: 0)
-- `--use_cuda_graphs`: Use CUDA Graphs for inference acceleration
-- `--benchmark`: Run in benchmark mode to measure average generation time
+
+Performance optimization parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Content safety:
 - `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)

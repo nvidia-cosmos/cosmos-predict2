@@ -40,6 +40,8 @@ The following table shows generation times across different NVIDIA GPU hardware:
 
 Note: (OOM) indicates "Out of Memory" - the model is too large to run on that GPU.
 
+Note: Video2World was run with 480p resolution and at 16 FPS.
+
 ### Post-training performance
 
 Review the [AgiBot-Fisheye](post-training_video2world_agibot_fisheye.md) post-training example, which contains performance numbers on different GPUs.

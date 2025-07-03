@@ -316,6 +316,10 @@ Generation parameters:
 - `--seed`: Random seed for reproducibility (default: 0)
 - `--num_gpus`: Number of GPUs to use for context parallel inference in the video generation phase (default: 1)
 
+Performance parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
+
 Multi-GPU inference:
 - For multi-GPU inference, use `torchrun --nproc_per_node=$NUM_GPUS examples/video2world.py ...`
 - Both `--nproc_per_node` (for torchrun) and `--num_gpus` (for the script) must be set to the same value

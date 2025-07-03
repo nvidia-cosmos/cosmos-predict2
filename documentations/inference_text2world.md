@@ -143,10 +143,12 @@ Output parameters:
 Generation parameters:
 - `--guidance`: Classifier-free guidance scale for video generation (default: 7.0)
 - `--seed`: Random seed for reproducibility (default: 0)
-- `--benchmark`: Run in benchmark mode to measure average generation time
+
+Performance optimization parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Text2Image phase parameters:
-- `--use_cuda_graphs`: Use CUDA Graphs for Text2Image inference acceleration
 - `--resolution`: Resolution for text2image generation (choices: "480", "720", default: "720")
 - `--fps`: FPS for video2world generation (choices: 10, 16, default: 16)
 

@@ -22,6 +22,7 @@ import torch
 import torchvision
 from einops import rearrange
 from megatron.core import parallel_state
+from tqdm import tqdm
 from PIL import Image
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import fully_shard
@@ -887,7 +888,7 @@ class Video2WorldPipeline(BasePipeline):
 
         x0_prev: torch.Tensor | None = None
 
-        for i, _ in enumerate(scheduler.timesteps):
+        for i, _ in enumerate(tqdm(scheduler.timesteps, desc="Generating world", leave=False)):
             # Current noise level (sigma_t).
             sigma_t = scheduler.sigmas[i].to(sample.device, dtype=torch.float32)
 
