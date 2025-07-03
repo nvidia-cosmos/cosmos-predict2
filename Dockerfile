@@ -39,7 +39,7 @@ RUN if [[ ${TARGETPLATFORM} == 'linux/arm64' ]]; then apt remove -y python3-blin
 # Install the dependencies from requirements-docker.txt
 COPY ./requirements-docker.txt /requirements.txt
 ARG NATTEN_CUDA_ARCH="8.0;8.6;8.9;9.0;10.0;10.3;12.0"
-RUN NATTEN_N_WORKERS=$(( $(nproc) / 4 )) pip install --no-cache-dir -r /requirements.txt
+RUN pip install --no-cache-dir -r /requirements.txt
 RUN mkdir -p /workspace
 WORKDIR /workspace
 
