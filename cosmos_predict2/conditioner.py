@@ -220,7 +220,9 @@ class BooleanFlag(AbstractEmbModel):
         key = self.output_key if self.output_key else self.input_key
         return f"Output key: {key} \n\t This is a boolean flag"
 
+
 # ------------------- condition classes -------------------
+
 
 # BaseCondition and its children
 @dataclass(frozen=True)
@@ -363,9 +365,7 @@ class VideoCondition(TextCondition):
         kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask_B_C_T_H_W
         return type(self)(**kwargs)
 
-    def edit_for_inference(
-        self, is_cfg_conditional: bool = True, num_conditional_frames: int = 1
-    ) -> VideoCondition:
+    def edit_for_inference(self, is_cfg_conditional: bool = True, num_conditional_frames: int = 1) -> VideoCondition:
         _condition = self.set_video_condition(
             gt_frames=self.gt_frames,
             random_min_num_conditional_frames=0,
@@ -411,9 +411,7 @@ class GR00TV1VideoCondition(TextCondition):
     use_image_condition: bool = False
     condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
 
-    def edit_video_condition(
-        self, x0_B_C_T_H_W, process_group: Optional[ProcessGroup] = None
-    ) -> GR00TV1VideoCondition:
+    def edit_video_condition(self, x0_B_C_T_H_W, process_group: Optional[ProcessGroup] = None) -> GR00TV1VideoCondition:
         """Edit the video condition to include the video mask information.
 
         Args:
@@ -437,7 +435,9 @@ class GR00TV1VideoCondition(TextCondition):
 class ActionCondition(VideoCondition):
     action: Optional[torch.Tensor] = None
 
+
 # ------------------- conditioner classes -------------------
+
 
 # Conditioners
 class GeneralConditioner(nn.Module, ABC):
