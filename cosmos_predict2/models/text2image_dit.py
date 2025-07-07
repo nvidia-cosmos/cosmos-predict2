@@ -17,7 +17,7 @@ import collections
 import math
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any, Callable, List, Optional, Tuple
+from typing import Any, Callable, List, Optional, Tuple, Dict
 
 import numpy as np
 import torch
@@ -1328,6 +1328,122 @@ class MiniTrainDIT(WeightTrainingStat):
             t=self.patch_temporal,
         )
         return x_B_C_Tt_Hp_Wp
+
+    class TensorRTBlock(torch.nn.Module):
+        def __init__(self, engine_path: str):
+            super().__init__()
+
+            from cosmos_predict2.utils.ext import trt_inference
+            import tensorrt as trt
+
+            # Load engine
+            with open(engine_path, "rb") as f:
+                engine_serialized = f.read()
+            self.trt_stream = trt_inference._trt_stream
+            self.pyt_stream = trt_inference._pyt_stream
+            self.engine = trt_inference._trt_runtime.deserialize_cuda_engine(engine_serialized)
+            self.context = trt_inference.create_execution_context_from_pool(self.engine)
+            self.context_set_input = lambda name, tensor: trt_inference.trt_set_tensor_check(self.context, name, tensor, check_shape=True)
+            self.context_set_output = lambda tensor: trt_inference.trt_set_tensor_check(self.context, 'output', tensor, check_shape=False)
+            log.info(f"TRT engine loaded: {engine_path}")
+
+            # Check attention backend
+            engine_inspector = self.engine.create_engine_inspector()
+            layer_names = [ engine_inspector.get_layer_information(i, trt.LayerInformationFormat.ONELINE) for i in range(self.engine.num_layers) ]
+            self.has_bert_attn = any([ "BertAttention" in name for name in layer_names ])
+            self.has_gpt_attn = any([ "GPTAttention" in name for name in layer_names ])
+            self.has_ring_sage_attn = any([ "RingSageAttentionFusedQKV" in name for name in layer_names ])
+            assert self.has_bert_attn or self.has_gpt_attn or self.has_ring_sage_attn, \
+                "Engine should contain one of (BertAttention, GPTAttention, RingSageAttentionFusedQKV) as its self-attention backend"
+
+            # Prepare supplementary input tensors
+            self.register_buffer("host_max_attention_window", torch.tensor([0], dtype=torch.int32)) # (1, )
+            self.register_buffer("host_sink_token_length", torch.tensor([0], dtype=torch.int32)) # (1, )
+            self.register_buffer("host_request_types", torch.tensor([0], dtype=torch.int32)) # (B, ): 0 for context phase
+            self.register_buffer("host_context_length", torch.tensor([-1], dtype=torch.int32)) # (B, ): Cached value for the observed T*H*W
+            self.register_buffer("host_runtime_perf_knobs", torch.tensor([0], dtype=torch.int64)) # (Optional at C++ level): Empty
+            self.register_buffer("host_context_progress", torch.tensor([0], dtype=torch.int64)) # (Optional at C++ level): Empty
+            self.register_buffer("host_cp_size", torch.tensor([1], dtype=torch.int32)) # (1, )
+            self.register_buffer("host_cp_rank", torch.tensor([0], dtype=torch.int32)) # (1, )
+            self.register_buffer("host_cp_group", torch.tensor([0] * 72, dtype=torch.int32)) # (72, )
+
+            # Compatibility hack
+            self.self_attn = MiniTrainDIT.TensorRTBlock.Compat(self)
+
+        class Compat:
+            def __init__(self, hook):
+                self.hook = hook
+
+            def set_context_parallel_group(self, *args, **kwargs):
+                return self.hook.set_context_parallel_group(*args, **kwargs)
+
+        def set_context_parallel_group(
+            self, process_group: Optional[ProcessGroup], ranks: List[int], stream: torch.cuda.Stream
+        ):
+            if process_group is not None:
+                from cosmos_predict2.utils.ext import sageattn_ring
+                sageattn_ring.set_cp_procgrp(ranks, process_group)
+
+                self.host_cp_rank[0] = process_group.rank()
+                self.host_cp_size[0] = len(ranks)
+                for i, rank in enumerate(ranks):
+                    self.host_cp_group[i] = rank
+            else:
+                self.host_cp_rank[0] = 0
+                self.host_cp_size[0] = 1
+
+        def forward(
+            self,
+            x_B_T_H_W_D: torch.Tensor,
+            t_embedding_B_T_D: torch.Tensor,
+            crossattn_emb: torch.Tensor,
+            **kwargs: Dict[str, Optional[torch.Tensor]],
+        ) -> torch.Tensor:
+
+            B, T, H, W, _ = x_B_T_H_W_D.shape
+            # Check the cached context length. Recompute if necessary.
+            if B != self.host_context_length.shape[0] or T*H*W != self.host_context_length[0]:
+                self.host_request_types = torch.tensor([0] * B, dtype=torch.int32)
+                self.host_context_length = torch.tensor([T*H*W] * B, dtype=torch.int32)
+                self.context_lengths = self.host_context_length.to(device=x_B_T_H_W_D.device)
+
+            # Treat rope_emb_L_1_1_D as requried
+            rope_emb_L_1_1_D = kwargs.pop('rope_emb_L_1_1_D')
+            rope_emb_T_H_W_1_1_D = rope_emb_L_1_1_D.unflatten(0, (T, H, W))
+            out_B_T_H_W_D = torch.empty_like(x_B_T_H_W_D)
+
+            self.context_set_input('x_B_T_H_W_D', x_B_T_H_W_D)
+            self.context_set_input('emb_B_T_D', t_embedding_B_T_D)
+            self.context_set_input('crossattn_emb', crossattn_emb)
+            self.context_set_input('rope_emb_T_H_W_1_1_D', rope_emb_T_H_W_1_1_D)
+            self.context_set_input('context_lengths', self.context_lengths)
+            for name, tensor in kwargs.items():
+                if tensor is not None:
+                    self.context_set_input(name, tensor)
+            self.context_set_output(out_B_T_H_W_D)
+            if self.has_gpt_attn:
+                self.context.set_tensor_address('host_max_attention_window', self.host_max_attention_window.data_ptr())
+                self.context.set_tensor_address('host_sink_token_length', self.host_sink_token_length.data_ptr())
+                self.context.set_tensor_address('host_request_types', self.host_request_types.data_ptr())
+                self.context.set_tensor_address('host_context_length', self.host_context_length.data_ptr())
+                self.context.set_tensor_address('host_runtime_perf_knobs', self.host_runtime_perf_knobs.data_ptr())
+                self.context.set_tensor_address('host_context_progress', self.host_context_progress.data_ptr())
+            if self.has_ring_sage_attn:
+                self.context.set_tensor_address('host_cp_size', self.host_cp_size.data_ptr())
+                self.context.set_tensor_address('host_cp_rank', self.host_cp_rank.data_ptr())
+                self.context.set_tensor_address('host_cp_group', self.host_cp_group.data_ptr())
+
+            self.trt_stream.wait_stream(self.pyt_stream)
+            self.context.execute_async_v3(self.trt_stream.cuda_stream)
+            self.pyt_stream.wait_stream(self.trt_stream)
+
+            return out_B_T_H_W_D
+
+    def load_trt(self, prefix):
+        self.trt_prefix = prefix
+        for iblock in range(len(self.blocks)):
+            trt_engine_file = f"{prefix}{iblock}.engine"
+            self.blocks[iblock] = MiniTrainDIT.TensorRTBlock(trt_engine_file)
 
     def forward(
         self,
