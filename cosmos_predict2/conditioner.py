@@ -662,13 +662,11 @@ class Vid2VidConditionerV2(GeneralConditioner):
         return Vid2VidConditionV2(**output)
 
 
-# NOTE: extend the condition class to include action
 @dataclass(frozen=True)
 class ActionConditionedCondition(Vid2VidCondition):
     action: Optional[torch.Tensor] = None
 
 
-# NOTE: extend the conditioner class to include action
 class ActionConditionedConditioner(Vid2VidConditioner):
     def forward(
         self,

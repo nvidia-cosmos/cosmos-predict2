@@ -20,12 +20,12 @@ from megatron.core import parallel_state
 from torch.distributed.device_mesh import init_device_mesh
 
 from cosmos_predict2.models.video2world_model import Predict2Video2WorldModel, Predict2Video2WorldModelConfig
-from cosmos_predict2.pipelines.action_video2world import ActionConditionedVideo2WorldPipeline
+from cosmos_predict2.pipelines.video2world_action import Video2WorldActionConditionedPipeline
 from imaginaire.model import ImaginaireModel
 from imaginaire.utils import log
 
 
-class ActionConditionedPredict2Video2WorldModel(Predict2Video2WorldModel):
+class Predict2Video2WorldActionConditionedModel(Predict2Video2WorldModel):
     def __init__(self, config: Predict2Video2WorldModelConfig):
         super(ImaginaireModel, self).__init__()
 
@@ -59,7 +59,7 @@ class ActionConditionedPredict2Video2WorldModel(Predict2Video2WorldModel):
             self.data_parallel_size = 1
 
         # NOTE: replace the pipeline with action-conditioned setup
-        self.pipe = ActionConditionedVideo2WorldPipeline.from_config(
+        self.pipe = Video2WorldActionConditionedPipeline.from_config(
             config.pipe_config,
             dit_path=config.model_manager_config.dit_path,
         )

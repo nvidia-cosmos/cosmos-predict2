@@ -37,7 +37,7 @@ _VIDEO_EXTENSIONS = [".mp4"]
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
-class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
+class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         super().__init__(device=device, torch_dtype=torch_dtype)
 
@@ -51,7 +51,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
-        pipe = ActionConditionedVideo2WorldPipeline(device=device, torch_dtype=torch_dtype)
+        pipe = Video2WorldActionConditionedPipeline(device=device, torch_dtype=torch_dtype)
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,

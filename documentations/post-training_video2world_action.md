@@ -41,7 +41,7 @@ We use this information as conditioning input for video generation.
 ##### Cosmos-Predict2-2B-Video2World
 Run the following command to launch an example post-training job using the Bridge dataset:
 ```bash
-torchrun --nproc_per_node=2 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment="action_conditioned_predict2_video2world_2b_training"
+torchrun --nproc_per_node=2 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment="predict2_video2world_2b_action_conditioned_training"
 ```
 See `cosmos_predict2/configs/action_conditioned/defaults/data.py` to understand how the dataloader is defined.
 To add action as additional condition, we create new `conditioner` to support action in `cosmos_predict2/configs/action_conditioned/defaults/conditioner.py`.
@@ -54,14 +54,14 @@ checkpoints/PROJECT/GROUP/NAME
 For the example command above:
 - PROJECT: `posttraining`
 - GROUP: `video2world`
-- NAME: `action_conditioned_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}`
+- NAME: `predict2_video2world_2b_action_conditioned_training_${now:%Y-%m-%d}_${now:%H-%M-%S}`
 
 ##### Configuration Snippet
 Below is a configuration snippet defining the experiment setup:
 ```python
-action_conditioned_predict2_video2world_2b_training = dict(
+predict2_video2world_2b_action_conditioned_training = dict(
     defaults=[
-        {"override /model": "action_conditioned_predict2_v2w_2b_fsdp"},
+        {"override /model": "predict2_v2w_2b_action_conditioned_fsdp"},
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
         {"override /dataloader_train": "bridge_train"},
@@ -72,7 +72,7 @@ action_conditioned_predict2_video2world_2b_training = dict(
             fsdp_shard_size=-1,
         )
     ),
-    job=dict(group="debug", name="action_conditioned_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}"),
+    job=dict(group="debug", name="predict2_video2world_2b_action_conditioned_training_${now:%Y-%m-%d}_${now:%H-%M-%S}"),
 )
 ```
 
@@ -82,9 +82,9 @@ action_conditioned_predict2_video2world_2b_training = dict(
 To run inference using a post-trained checkpoint (e.g., at 1000 iterations), use the command below.
 Specify the path to the checkpoint using the `--dit_path` argument:
 ```
-CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/action_video2world.py \
+CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world_action.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/action_conditioned_predict2_video2world_2b_training_${now:%Y-%m-%d}_${now:%H-%M-%S}/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/predict2_video2world_2b_action_conditioned_training_${now:%Y-%m-%d}_${now:%H-%M-%S}/checkpoints/model/iter_000001000.pt" \
   --input_video datasets/bridge/videos/test/13/rgb.mp4 \
   --input_annotation datasets/bridge/annotation/test/13.json \
   --num_conditional_frames 1 \
