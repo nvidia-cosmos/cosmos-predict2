@@ -20,7 +20,7 @@ import attrs
 
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
-from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidConditioner
+from cosmos_predict2.conditioner import Vid2VidConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
