@@ -17,7 +17,7 @@ from typing import Optional
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, Vid2VidConditioner, Vid2VidConditionerV2
+from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, Vid2VidConditioner
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
 
@@ -49,10 +49,6 @@ VideoPredictionConditioner: LazyDict = L(Vid2VidConditioner)(
     **_SHARED_CONFIG,
 )
 
-VideoPredictionConditionerV2: LazyDict = L(Vid2VidConditionerV2)(
-    **_SHARED_CONFIG,
-)
-
 
 def register_conditioner():
     cs = ConfigStore.instance()
@@ -61,11 +57,4 @@ def register_conditioner():
         package="model.config.conditioner",
         name="video_prediction_conditioner",
         node=VideoPredictionConditioner,
-    )
-
-    cs.store(
-        group="conditioner",
-        package="model.config.conditioner",
-        name="video_prediction_conditioner_v2",
-        node=VideoPredictionConditionerV2,
     )

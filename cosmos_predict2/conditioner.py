@@ -608,40 +608,6 @@ class Vid2VidCondition(T2VCondition):
         return type(self)(**kwargs)
 
 
-class Vid2VidConditionV2(Vid2VidCondition):
-    """
-    compared to Vid2VidCondition, this class apply zero frames when use_video_condition is False~(unconditional generation in cfg)
-    in the case, we do zero-out conditional frames in the video condition
-    """
-
-    def set_video_condition(
-        self,
-        gt_frames: torch.Tensor,
-        random_min_num_conditional_frames: int,
-        random_max_num_conditional_frames: int,
-        num_conditional_frames: Optional[int] = None,
-    ) -> "Vid2VidConditionV2":
-        num_conditional_frames = 0 if not self.use_video_condition else num_conditional_frames
-        return super().set_video_condition(
-            gt_frames=gt_frames,
-            random_min_num_conditional_frames=random_min_num_conditional_frames,
-            random_max_num_conditional_frames=random_max_num_conditional_frames,
-            num_conditional_frames=num_conditional_frames,
-        )
-
-    def edit_for_inference(
-        self, is_cfg_conditional: bool = True, num_conditional_frames: int = 1
-    ) -> "Vid2VidConditionV2":
-        del is_cfg_conditional
-        _condition = super().set_video_condition(
-            gt_frames=self.gt_frames,
-            random_min_num_conditional_frames=0,
-            random_max_num_conditional_frames=0,
-            num_conditional_frames=num_conditional_frames,
-        )
-        return _condition
-
-
 class Vid2VidConditioner(GeneralConditioner):
     def forward(
         self,
@@ -650,16 +616,6 @@ class Vid2VidConditioner(GeneralConditioner):
     ) -> Vid2VidCondition:
         output = super()._forward(batch, override_dropout_rate)
         return Vid2VidCondition(**output)
-
-
-class Vid2VidConditionerV2(GeneralConditioner):
-    def forward(
-        self,
-        batch: Dict,
-        override_dropout_rate: Optional[Dict[str, float]] = None,
-    ) -> Vid2VidConditionV2:
-        output = super()._forward(batch, override_dropout_rate)
-        return Vid2VidConditionV2(**output)
 
 
 @dataclass(frozen=True)
