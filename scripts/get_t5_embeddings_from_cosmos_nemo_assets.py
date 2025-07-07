@@ -22,7 +22,7 @@ import numpy as np
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 
 """example command
-python -m scripts.get_t5_embeddings_from_cosmos_nemo_assets --dataset_path datasets/benchmark_train/cosmos_nemo_assets
+python -m scripts.get_t5_embeddings_from_cosmos_nemo_assets --dataset_path datasets/cosmos_nemo_assets
 """
 
 
@@ -31,7 +31,7 @@ def parse_args() -> argparse.ArgumentParser:
     parser.add_argument(
         "--dataset_path",
         type=str,
-        default="datasets/benchmark_train/cosmos_nemo_assets",
+        default="datasets/cosmos_nemo_assets",
         help="Root path to the dataset",
     )
     parser.add_argument("--max_length", type=int, default=512, help="Maximum length of the text embedding")
@@ -39,20 +39,29 @@ def parse_args() -> argparse.ArgumentParser:
     parser.add_argument(
         "--cache_dir", type=str, default="checkpoints/google-t5/t5-11b", help="Directory to cache the T5 model"
     )
+    parser.add_argument("--is_image", action="store_true", help="Set if the dataset is image-based")
     return parser.parse_args()
 
 
 def main(args) -> None:
+    images_dir = os.path.join(args.dataset_path, "images")
     videos_dir = os.path.join(args.dataset_path, "videos")
 
     # Cosmos-NeMo-Assets come with videos only. A prompt is provided as an argument.
     metas_dir = os.path.join(args.dataset_path, "metas")
     os.makedirs(metas_dir, exist_ok=True)
-    metas_list = [
-        os.path.join(metas_dir, filename.replace(".mp4", ".txt"))
-        for filename in sorted(os.listdir(videos_dir))
-        if filename.endswith(".mp4")
-    ]
+    if args.is_image:
+        metas_list = [
+            os.path.join(metas_dir, filename.replace(".jpg", ".txt"))
+            for filename in sorted(os.listdir(images_dir))
+            if filename.endswith(".jpg")
+        ]
+    else:
+        metas_list = [
+            os.path.join(metas_dir, filename.replace(".mp4", ".txt"))
+            for filename in sorted(os.listdir(videos_dir))
+            if filename.endswith(".mp4")
+        ]
 
     # Write txt files to match other dataset formats.
     for meta_filename in metas_list:
@@ -66,27 +75,26 @@ def main(args) -> None:
     # Initialize T5
     encoder = CosmosT5TextEncoder(cache_dir=args.cache_dir, local_files_only=True)
 
+    # Compute T5 embeddings
+    print(f"Computing T5 embeddings for the prompt: {args.prompt}")
+    max_length = args.max_length
+    encoded_text, mask_bool = encoder.encode_prompts(
+        args.prompt, max_length=max_length, return_mask=True
+    )  # list of np.ndarray in (len, 1024)
+    attn_mask = mask_bool.long()
+    lengths = attn_mask.sum(dim=1).cpu()
+
+    encoded_text = encoded_text.cpu().numpy().astype(np.float16)
+
+    # trim zeros to save space
+    encoded_text = [encoded_text[batch_id][: lengths[batch_id]] for batch_id in range(encoded_text.shape[0])]
+
+    print(f"Saving T5 embeddings to {t5_xxl_dir}")
     for meta_filename in metas_list:
         t5_xxl_filename = os.path.join(t5_xxl_dir, os.path.basename(meta_filename).replace(".txt", ".pickle"))
         if os.path.exists(t5_xxl_filename):
             # Skip if the file already exists
             continue
-
-        with open(meta_filename, "r") as fp:
-            prompt = fp.read().strip()
-
-        # Compute T5 embeddings
-        max_length = args.max_length
-        encoded_text, mask_bool = encoder.encode_prompts(
-            prompt, max_length=max_length, return_mask=True
-        )  # list of np.ndarray in (len, 1024)
-        attn_mask = mask_bool.long()
-        lengths = attn_mask.sum(dim=1).cpu()
-
-        encoded_text = encoded_text.cpu().numpy().astype(np.float16)
-
-        # trim zeros to save space
-        encoded_text = [encoded_text[batch_id][: lengths[batch_id]] for batch_id in range(encoded_text.shape[0])]
 
         # Save T5 embeddings as pickle file
         with open(t5_xxl_filename, "wb") as fp:
