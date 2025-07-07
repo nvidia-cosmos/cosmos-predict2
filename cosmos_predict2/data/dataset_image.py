@@ -78,7 +78,7 @@ class ImageDataset(Dataset):
         image = imageio.v3.imread(image_path)
         image = torch.from_numpy(image).permute(2, 0, 1)  # (c, h, w)
         image = self.preprocess(image)
-        image = torch.clamp(image * 255.0, 0, 255).to(torch.uint8)
+        image = torch.clamp(image, 0.0, 1.0).sub_(0.5).div_(0.5)  # Normalize to [-1, 1]
 
         return image
 
