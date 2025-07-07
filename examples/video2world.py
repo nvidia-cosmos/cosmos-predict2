@@ -29,7 +29,11 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
+from cosmos_predict2.pipelines.video2world import (
+    _IMAGE_EXTENSIONS,
+    _VIDEO_EXTENSIONS,
+    Video2WorldPipeline,
+)
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -186,9 +190,10 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
+    log.info(f"Using dit_path: {dit_path}")
+
     # Only set up text encoder path if no encoder is provided
     text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
-    log.info(f"Using dit_path: {dit_path}")
     if text_encoder is not None:
         log.info("Using provided text encoder")
     else:

@@ -44,6 +44,12 @@ def parse_args() -> argparse.Namespace:
         default="2B",
         help="Size of the model to use for text-to-image generation",
     )
+    parser.add_argument(
+        "--dit_path",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
     parser.add_argument("--prompt", type=str, default=_DEFAULT_POSITIVE_PROMPT, help="Text prompt for image generation")
     parser.add_argument(
         "--batch_input_json",
@@ -77,7 +83,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
+def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePipeline:
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_2B
@@ -87,6 +93,16 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
+    if hasattr(args, "dit_path") and args.dit_path:
+        dit_path = args.dit_path
+
+    log.info(f"Using dit_path: {dit_path}")
+    # Only set up text encoder path if no encoder is provided
+    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
+    if text_encoder is not None:
+        log.info("Using provided text encoder")
+    else:
+        log.info(f"Using text encoder from: {text_encoder_path}")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -151,9 +167,15 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
         pipe = Text2ImagePipeline.from_config(
             config=config,
             dit_path=dit_path,
+            text_encoder_path=text_encoder_path,
             device="cuda",
             torch_dtype=torch.bfloat16,
         )
+
+        # Set the provided text encoder if one was passed
+        if text_encoder is not None:
+            pipe.text_encoder = text_encoder
+
         return pipe
 
 
