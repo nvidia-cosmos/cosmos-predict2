@@ -249,7 +249,7 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --prompt "${PROMPT}" \
   --input_path "datasets/agibot_head_center_fisheye_color/val/task_327_episode_685393_window_0_frame_0-149.mp4" \
   --num_conditional_frmaes 1 \
-  --save_path results/agibot_head_center_fisheye_color/generated_video_2b.mp4
+  --save_path output/agibot_head_center_fisheye_color/generated_video_2b.mp4
 ```
 
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.

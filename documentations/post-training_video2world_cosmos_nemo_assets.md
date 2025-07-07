@@ -150,7 +150,7 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --dit_path "checkpoints/posttraining/video2world/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
   --prompt "A video of sks teal robot." \
   --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
-  --save_path results/cosmos_nemo_assets/generated_video_teal_robot.mp4
+  --save_path output/cosmos_nemo_assets/generated_video_teal_robot.mp4
 ```
 
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.

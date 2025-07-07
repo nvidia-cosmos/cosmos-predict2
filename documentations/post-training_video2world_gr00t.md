@@ -182,7 +182,7 @@ huggingface-cli download nvidia/EVAL-175 --repo-type dataset --local-dir dream_g
 ```bash
 python -m scripts.prepare_batch_input_json \
   --dataset_path dream_gen_benchmark/gr1_object/ \
-  --save_path results/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
+  --save_path output/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
   --output_path dream_gen_benchmark/gr1_object/batch_input.json
 ```
 
