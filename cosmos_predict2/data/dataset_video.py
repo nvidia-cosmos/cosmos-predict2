@@ -113,8 +113,9 @@ class Dataset(Dataset):
             data["video_name"] = {
                 "video_path": video_path,
                 "t5_embedding_path": t5_embedding_path,
-                # "start_frame_id": '0',
             }
+
+            _, _, h, w = video.shape
 
             # Just add these to fit the interface
             # t5_embedding = np.load(sample["t5_embedding_path"])[0]
@@ -131,9 +132,9 @@ class Dataset(Dataset):
             data["t5_text_embeddings"] = torch.from_numpy(t5_embedding)
             data["t5_text_mask"] = t5_text_mask
             data["fps"] = fps
-            data["image_size"] = torch.tensor([704, 1280, 704, 1280])
+            data["image_size"] = torch.tensor([h, w, h, w])
             data["num_frames"] = self.sequence_length
-            data["padding_mask"] = torch.zeros(1, 704, 1280)
+            data["padding_mask"] = torch.zeros(1, h, w)
 
             return data
         except Exception:

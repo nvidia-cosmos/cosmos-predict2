@@ -55,14 +55,14 @@ class ToTensorImage:
     def __init__(self):
         pass
 
-    def __call__(self, clip):
+    def __call__(self, image):
         """
         Args:
-            clip (torch.tensor, dtype=torch.uint8): Size is (T, C, H, W)
+            image (torch.tensor, dtype=torch.uint8): Size is (C, H, W)
         Return:
-            clip (torch.tensor, dtype=torch.float): Size is (T, C, H, W)
+            image (torch.tensor, dtype=torch.float): Size is (C, H, W)
         """
-        return to_tensor_image(clip)
+        return to_tensor_image(image)
 
     def __repr__(self) -> str:
         return self.__class__.__name__
