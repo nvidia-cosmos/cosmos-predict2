@@ -635,6 +635,6 @@ class ActionConditioner(VideoConditioner):
         override_dropout_rate: Optional[Dict[str, float]] = None,
     ) -> ActionCondition:
         output = super()._forward(batch, override_dropout_rate)
-        assert "action" in batch, "ActionConditionalConditioner requires 'action' in batch"
+        assert "action" in batch, "ActionConditioner requires 'action' in batch"
         output["action"] = batch["action"]
         return ActionCondition(**output)
