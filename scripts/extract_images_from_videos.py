@@ -1,12 +1,11 @@
 import argparse
 import os
-import shutil
 
 import imageio
 
 """
 Example command:
-python -m scripts.extract_images_from_videos --input_dataset_dir datasets/benchmark_train/cosmos_nemo_assets --output_dataset_dir datasets/benchmark_train/cosmos_nemo_assets_images --stride 5
+python -m scripts.extract_images_from_videos --input_dataset_dir datasets/cosmos_nemo_assets --output_dataset_dir datasets/cosmos_nemo_assets_images --stride 30
 """
 
 
@@ -18,7 +17,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--output_dataset_dir", type=str, required=True, help="Path to the dataset directory containing videos"
     )
-    parser.add_argument("--stride", type=int, default=5, help="Stride for frame extraction (default: 5)")
+    parser.add_argument("--stride", type=int, default=30, help="Stride for frame extraction (default: 30)")
     return parser.parse_args()
 
 
@@ -32,20 +31,15 @@ def main(args) -> None:
     output_images_dir = os.path.join(args.output_dataset_dir, "images")
     os.makedirs(output_images_dir, exist_ok=True)
 
-    input_t5_dir = os.path.join(args.input_dataset_dir, "t5_xxl")
-    output_t5_dir = os.path.join(args.output_dataset_dir, "t5_xxl")
-    os.makedirs(output_t5_dir, exist_ok=True)
-
     # Get the list of video files in the dataset directory
     video_files = [filename for filename in os.listdir(videos_dir) if filename.endswith((".mp4"))]
 
     global_count = 0
     for video_file in video_files:
         video_path = os.path.join(videos_dir, video_file)
-        print(f"Processing video: {video_path}")
+        print(f"Extracting frames from video: {video_path}")
 
         video_basename = os.path.splitext(video_file)[0]
-        input_t5_path = os.path.join(input_t5_dir, f"{video_basename}.pickle")
         # Read the video frames
         reader = imageio.get_reader(video_path)
 
@@ -55,10 +49,6 @@ def main(args) -> None:
                 # save a frame as an image
                 output_image_path = os.path.join(output_images_dir, f"{video_basename}_{count:08d}.jpg")
                 imageio.v3.imwrite(output_image_path, frame)
-
-                # copy video t5 embeddings
-                output_t5_path = os.path.join(output_t5_dir, f"{video_basename}_{count:08d}.pickle")
-                shutil.copy(input_t5_path, output_t5_path)
 
                 count += 1
 
