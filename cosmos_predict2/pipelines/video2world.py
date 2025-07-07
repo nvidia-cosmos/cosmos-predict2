@@ -29,7 +29,7 @@ from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
-from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
 from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
@@ -559,7 +559,7 @@ class Video2WorldPipeline(BasePipeline):
 
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor, T2VCondition]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, TextCondition]:
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
@@ -592,7 +592,7 @@ class Video2WorldPipeline(BasePipeline):
         return is_image
 
     def denoise(
-        self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: T2VCondition, use_cuda_graphs: bool = False
+        self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: TextCondition, use_cuda_graphs: bool = False
     ) -> DenoisePrediction:
         """
         Performs denoising on the input noise data, noise level, and condition
@@ -600,7 +600,7 @@ class Video2WorldPipeline(BasePipeline):
         Args:
             xt (torch.Tensor): The input noise data.
             sigma (torch.Tensor): The noise level.
-            condition (T2VCondition): conditional information, generated from self.conditioner
+            condition (TextCondition): conditional information, generated from self.conditioner
             use_cuda_graphs (bool, optional): Whether to use CUDA Graphs for inference. Defaults to False.
 
         Returns:

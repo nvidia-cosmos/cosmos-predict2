@@ -15,7 +15,7 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import ActionConditionedConditioner, BooleanFlag, ReMapkey, TextAttr
+from cosmos_predict2.conditioner import ActionConditioner, BooleanFlag, ReMapkey, TextAttr
 from cosmos_predict2.configs.base.config_video2world import (
     ConditioningStrategy,
     CosmosGuardrailConfig,
@@ -67,7 +67,7 @@ PREDICT2_VIDEO2WORLD_NET_2B_ACTION_CONDITIONED = L(ActionConditionedMinimalV1LVG
 
 PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED = Video2WorldPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(ActionConditionedConditioner)(
+    conditioner=L(ActionConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,

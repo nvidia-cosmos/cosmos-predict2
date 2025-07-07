@@ -15,7 +15,7 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import ReMapkey, TextAttr, VideoConditioner
+from cosmos_predict2.conditioner import ReMapkey, TextAttr, TextConditioner
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from imaginaire.config import make_freezable
@@ -97,7 +97,7 @@ PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -174,7 +174,7 @@ PREDICT2_TEXT2IMAGE_NET_14B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_14B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,

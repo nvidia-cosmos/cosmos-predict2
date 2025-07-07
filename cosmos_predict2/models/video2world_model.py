@@ -25,7 +25,7 @@ from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
-from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_2B, Video2WorldPipelineConfig
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
@@ -291,7 +291,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
     def compute_loss_with_epsilon_and_sigma(
         self,
         x0_B_C_T_H_W: torch.Tensor,
-        condition: T2VCondition,
+        condition: TextCondition,
         epsilon_B_C_T_H_W: torch.Tensor,
         sigma_B_T: torch.Tensor,
     ) -> Tuple[dict, torch.Tensor, torch.Tensor, torch.Tensor]:
