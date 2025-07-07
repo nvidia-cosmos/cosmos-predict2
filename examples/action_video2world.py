@@ -27,7 +27,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 from megatron.core import parallel_state
 
-from cosmos_predict2.configs.action_conditioned.config_action_conditioned import (
+from cosmos_predict2.configs.action_conditioned.config import (
     ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
 )
 from cosmos_predict2.pipelines.action_video2world import ActionConditionedVideo2WorldPipeline

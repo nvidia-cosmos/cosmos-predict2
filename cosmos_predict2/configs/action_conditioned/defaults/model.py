@@ -15,7 +15,7 @@
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.configs.action_conditioned.config_action_conditioned import (
+from cosmos_predict2.configs.action_conditioned.config import (
     ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
 )
 from cosmos_predict2.models.action_video2world_model import ActionConditionedPredict2Video2WorldModel
