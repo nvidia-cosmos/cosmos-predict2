@@ -92,7 +92,9 @@ class ImageDataset(Dataset):
                 os.path.basename(image_path).replace(".jpg", ".pickle"),
             )
 
-            data["images"] = image  # .unsqueeze(0)  # Add batch dimension
+            _, h, w = image.shape
+
+            data["images"] = image
             with open(t5_embedding_path, "rb") as f:
                 t5_embedding = pickle.load(f)[0]  # [n_tokens, 1024]
             n_tokens = t5_embedding.shape[0]
@@ -105,10 +107,10 @@ class ImageDataset(Dataset):
 
             data["t5_text_embeddings"] = torch.from_numpy(t5_embedding)
             data["t5_text_mask"] = t5_text_mask
-            data["fps"] = torch.zeros(1, dtype=torch.float)  # No FPS for images
-            data["image_size"] = torch.tensor([704, 1280, 704, 1280])
+            data["fps"] = torch.ones(1, dtype=torch.float) * 16  # Dummy FPS for images
+            data["image_size"] = torch.tensor([h, w, h, w])
             data["num_frames"] = torch.ones(1)
-            data["padding_mask"] = torch.zeros(1, 704, 1280)
+            data["padding_mask"] = torch.zeros(1, h, w)
 
             return data
         except Exception:
@@ -125,7 +127,7 @@ class ImageDataset(Dataset):
 
 if __name__ == "__main__":
     dataset = ImageDataset(
-        dataset_dir="datasets/benchmark_train/cosmos_nemo_assets_images",
+        dataset_dir="datasets/cosmos_nemo_assets_images",
         image_size=[480, 832],
     )
 

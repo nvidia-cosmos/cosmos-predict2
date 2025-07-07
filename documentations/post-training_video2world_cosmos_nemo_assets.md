@@ -27,12 +27,12 @@ You must provide a folder containing a collection of videos in **MP4 format**, p
 You can use [nvidia/Cosmos-NeMo-Assets](https://huggingface.co/datasets/nvidia/Cosmos-NeMo-Assets) for post-training.
 
 ```bash
-mkdir -p datasets/benchmark_train/cosmos_nemo_assets/
+mkdir -p datasets/cosmos_nemo_assets/
 
 # This command will download the videos for physical AI
-huggingface-cli download nvidia/Cosmos-NeMo-Assets --repo-type dataset --local-dir datasets/benchmark_train/cosmos_nemo_assets/ --include "*.mp4*"
+huggingface-cli download nvidia/Cosmos-NeMo-Assets --repo-type dataset --local-dir datasets/cosmos_nemo_assets/ --include "*.mp4*"
 
-mv datasets/benchmark_train/cosmos_nemo_assets/nemo_diffusion_example_data datasets/benchmark_train/cosmos_nemo_assets/videos
+mv datasets/cosmos_nemo_assets/nemo_diffusion_example_data datasets/cosmos_nemo_assets/videos
 ```
 
 ### 1.2 Preprocessing the Data
@@ -41,12 +41,12 @@ Cosmos-NeMo-Assets comes with a single caption for 4 long videos.
 Run the following command to pre-compute T5-XXL embeddings for the video caption used for post-training:
 ```bash
 # The script will use the provided prompt, save the T5-XXL embeddings in pickle format.
-PYTHONPATH=$(pwd) python scripts/get_t5_embeddings_from_cosmos_nemo_assets.py --dataset_path datasets/benchmark_train/cosmos_nemo_assets --prompt "A video of sks teal robot."
+PYTHONPATH=$(pwd) python scripts/get_t5_embeddings_from_cosmos_nemo_assets.py --dataset_path datasets/cosmos_nemo_assets --prompt "A video of sks teal robot."
 ```
 
 Dataset folder format:
 ```
-datasets/benchmark_train/cosmos_nemo_assets/
+datasets/cosmos_nemo_assets/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -70,7 +70,7 @@ See the config `predict2_video2world_training_2b_cosmos_nemo_assets` defined in 
 ```python
 # Cosmos-NeMo-Assets example
 example_video_dataset_cosmos_nemo_assets = L(Dataset)(
-    dataset_dir="datasets/benchmark_train/cosmos_nemo_assets",
+    dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=93,
     video_size=(704, 1280),
 )
@@ -147,7 +147,7 @@ Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 ```bash
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/predict2_video2world_training_2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
   --prompt "A video of sks teal robot." \
   --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
   --save_path results/cosmos_nemo_assets/generated_video_teal_robot.mp4

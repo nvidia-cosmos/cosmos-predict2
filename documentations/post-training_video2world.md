@@ -1,4 +1,4 @@
-# Predict2 Post-Training Guide
+# Predict2 Video2World Post-Training Guide
 
 This guide provides instructions on running post-training with Cosmos-Predict2 Video2World models.
 
@@ -36,7 +36,7 @@ For example, a custom dataset can be saved in a following structure.
 
 Dataset folder format:
 ```
-datasets/benchmark_train/custom_dataset/
+datasets/custom_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -48,11 +48,11 @@ datasets/benchmark_train/custom_dataset/
 
 After preparing `metas` and `videos` folders, run the following command to pre-compute T5-XXL embeddings.
 ```bash
-python -m scripts.get_t5_embeddings --dataset_path datasets/benchmark_train/custom_dataset/
+python -m scripts.get_t5_embeddings --dataset_path datasets/custom_video2world_dataset/
 ```
 This script will create `t5_xxl` folder under the dataset root where the T5-XXL embeddings are saved as `.pickle` files.
 ```
-datasets/benchmark_train/custom_dataset/
+datasets/custom_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -69,7 +69,7 @@ For example,
 ```python
 # custom dataset example
 example_video_dataset = L(Dataset)(
-    dataset_dir="datasets/benchmark_train/custom_dataset",
+    dataset_dir="datasets/custom_video2world_dataset",
     num_frames=93,
     video_size=(704, 1280),
 )
@@ -179,6 +179,8 @@ cosmos_predict2/configs/base/
 │   └── scheduler.py            # Learning rate scheduler configurations
 └── experiment/                 # Experiment-specific configurations
     ├── cosmos_nemo_assets.py   # Experiments with cosmos_nemo_assets
+    ├── agibot_head_center_fisheye_color.py  # Experiments with agibot_head_center_fisheye_color
+    ├── groot.py                # Experiments with groot
     └── utils.py                # Utility functions for experiments
 ```
 

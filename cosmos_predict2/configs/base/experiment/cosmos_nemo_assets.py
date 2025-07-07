@@ -36,7 +36,7 @@ cs = ConfigStore.instance()
 
 # Cosmos-NeMo-Assets text2image example
 example_image_dataset_cosmos_nemo_assets_images = L(ImageDataset)(
-    dataset_dir="datasets/benchmark_train/cosmos_nemo_assets_images",
+    dataset_dir="datasets/cosmos_nemo_assets_images",
     image_size=(768, 1360),  # 1024 resolution, 16:9 aspect ratio
 )
 
@@ -148,7 +148,7 @@ predict2_text2image_training_14b_cosmos_nemo_assets = dict(
 
 # Cosmos-NeMo-Assets video2world example
 example_video_dataset_cosmos_nemo_assets = L(Dataset)(
-    dataset_dir="datasets/benchmark_train/cosmos_nemo_assets",
+    dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=93,
     video_size=(704, 1280),
 )
