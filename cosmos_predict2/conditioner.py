@@ -228,6 +228,8 @@ class BooleanFlag(AbstractEmbModel):
 @dataclass(frozen=True)
 class BaseCondition(ABC):
     """
+    Base class for condition data structures that hold conditioning information for generation models.
+
     Attributes:
         _is_broadcasted: Flag indicating if parallel broadcast splitting
             has been performed. This is an internal implementation detail.
@@ -442,6 +444,8 @@ class ActionCondition(VideoCondition):
 # Conditioners
 class GeneralConditioner(nn.Module, ABC):
     """
+    Base class for processing modules that transform input data into BaseCondition objects using embedders.
+
     An abstract module designed to handle various embedding models with conditional and unconditional configurations.
     This abstract base class initializes and manages a collection of embedders that can dynamically adjust
     their dropout rates based on conditioning.
