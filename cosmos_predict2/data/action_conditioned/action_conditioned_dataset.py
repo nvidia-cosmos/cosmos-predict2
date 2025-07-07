@@ -197,7 +197,8 @@ class ActionConditionedDataset(Dataset):
         return len(self.samples)
 
     def _load_video(self, video_path, frame_ids):
-        from decord import VideoReader, cpu # Importing here due to malloc errors on ARM when importing on top level
+        from decord import VideoReader, cpu  # Importing here due to malloc errors on ARM when importing on top level
+
         vr = VideoReader(video_path, ctx=cpu(0), num_threads=2)
         assert (np.array(frame_ids) < len(vr)).all()
         assert (np.array(frame_ids) >= 0).all()

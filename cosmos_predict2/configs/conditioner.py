@@ -17,12 +17,9 @@ from typing import Optional
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
-from cosmos_predict2.conditioner import Vid2VidConditioner
-from cosmos_predict2.conditioner import Vid2VidConditionerV2
+from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, Vid2VidConditioner, Vid2VidConditionerV2
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
-
 
 _SHARED_CONFIG = dict(
     fps=L(ReMapkey)(

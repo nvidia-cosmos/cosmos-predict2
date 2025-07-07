@@ -15,8 +15,7 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
-from cosmos_predict2.conditioner import ActionConditionedConditioner
+from cosmos_predict2.conditioner import ActionConditionedConditioner, BooleanFlag, ReMapkey, TextAttr
 from cosmos_predict2.configs.base.config_video2world import (
     ConditioningStrategy,
     CosmosGuardrailConfig,

@@ -22,10 +22,10 @@ import torch
 import torchvision
 from einops import rearrange
 from megatron.core import parallel_state
-from tqdm import tqdm
 from PIL import Image
 from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import fully_shard
+from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
