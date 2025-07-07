@@ -9,6 +9,7 @@ This guide provides instructions on running inference with Cosmos-Predict2 Text2
   - [Single Video Generation](#single-video-generation)
   - [Batch Video Generation](#batch-video-generation)
   - [Multi-GPU Inference](#multi-gpu-inference)
+  - [Video to Video Generation (SDEdit)](#video-to-video-generation-sdedit)
 - [API Documentation](#api-documentation)
 - [Prompt Engineering Tips](#prompt-engineering-tips)
 
@@ -124,6 +125,26 @@ This distributes the computation across multiple GPUs for the video generation p
 - Context parallelism works best with the 14B model where memory constraints are significant
 - Requires NCCL support and proper GPU interconnect for efficient communication
 - Significant speedup for video generation while maintaining the same quality
+
+### Video to Video Generation (SDEdit)
+
+This is a basic example for running video editing (SDEdit) on the 2B model with an input video and a text prompt.
+The output is saved to `output/video2video_2b.mp4`.
+
+```bash
+# Set the input prompt
+PROMPT="A point-of-view video shot from inside a vehicle, capturing a snowy suburban street in the winter filled with snow on the side of the road."
+# Run text2world generation
+python -m examples.video2video_sdedit \
+    --model_size 2B \
+    --prompt "${PROMPT}" \
+    --text2image_edit_strength 0.4 \
+    --video2world_edit_strength 0.8 \
+    --input_video_path "assets/video2world/input3.mp4" \
+    --save_path output/video2video_2b.mp4
+```
+
+The 14B model can be run similarly by changing the model size parameter.
 
 ## API Documentation
 
