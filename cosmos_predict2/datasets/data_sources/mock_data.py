@@ -31,7 +31,7 @@ def get_image_dataset(
     t5_dim: int = 1024,
     **kwargs,
 ):
-    h, w = IMAGE_RES_SIZE_INFO[resolution]["9,16"]
+    h, w = IMAGE_RES_SIZE_INFO[resolution]["9:16"]
     del kwargs
     return CombinedDictDataset(
         **{
@@ -58,7 +58,7 @@ def get_video_dataset(
     **kwargs,
 ):
     del kwargs
-    h, w = VIDEO_RES_SIZE_INFO[resolution]["9,16"]
+    h, w = VIDEO_RES_SIZE_INFO[resolution]["9:16"]
 
     def video_fn():
         return torch.randint(0, 255, size=(3, num_video_frames, h, w)).to(dtype=torch.uint8)
