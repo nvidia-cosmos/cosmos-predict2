@@ -15,7 +15,6 @@ loguru==0.7.2
 mediapy==1.2.2
 megatron-core==0.10.0
 modelscope==1.26.0
-natten==0.20.1
 nltk==3.9.1
 numpy==1.26.4
 nvidia-ml-py==12.535.133

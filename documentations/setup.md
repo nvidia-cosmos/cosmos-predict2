@@ -34,13 +34,15 @@ bash scripts/install_decord_arm.sh
 # Install dependencies
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
-# Patch Transformer engine linking issues
+# Transformer engine
 ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
 ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
-pip install transformer-engine[pytorch]==1.13.0
+CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
+# NATTEN
+CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
 
 # Apex library for training (optional if inference only)
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
+CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
 
 # Verify setup
 CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
