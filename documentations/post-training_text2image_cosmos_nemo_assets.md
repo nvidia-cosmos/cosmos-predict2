@@ -62,7 +62,7 @@ datasets/cosmos_nemo_assets_images/
 ├── metas/
 │   ├── *.txt
 ├── images/
-│   ├── *.mp4
+│   ├── *.jpg
 ├── t5_xxl/
 │   ├── *.pickle
 ```
