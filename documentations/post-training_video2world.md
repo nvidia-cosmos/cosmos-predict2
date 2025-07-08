@@ -128,10 +128,10 @@ predict2_video2world_training_2b_custom_data = dict(
         lr=2 ** (-14.5),
     ),
     scheduler=dict(
-        warm_up_steps=[2_000],
-        cycle_lengths=[400_000],
+        warm_up_steps=[0],
+        cycle_lengths=[1_000],              # adjust considering max_iter
         f_max=[0.6],
-        f_min=[0.3],
+        f_min=[0.0],
     ),
 )
 ```

@@ -123,10 +123,10 @@ predict2_text2image_training_2b_custom_data = dict(
         weight_decay=0.2,
     ),
     scheduler=dict(
-        warm_up_steps=[2_000],
-        cycle_lengths=[400_000],
+        warm_up_steps=[0],
+        cycle_lengths=[1_000],              # adjust considering max_iter
         f_max=[0.4],
-        f_min=[0.1],
+        f_min=[0.0],
     ),
 )
 ```
