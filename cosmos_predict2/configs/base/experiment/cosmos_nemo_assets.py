@@ -93,7 +93,7 @@ predict2_text2image_training_2b_cosmos_nemo_assets = dict(
         warm_up_steps=[0],
         cycle_lengths=[100_000],
         f_max=[0.17],
-        f_min=[0.1],
+        f_min=[0.0],
     ),
 )
 
@@ -142,7 +142,7 @@ predict2_text2image_training_14b_cosmos_nemo_assets = dict(
         warm_up_steps=[2_000],
         cycle_lengths=[400_000],
         f_max=[0.4],
-        f_min=[0.1],
+        f_min=[0.0],
     ),
 )
 
@@ -207,7 +207,7 @@ predict2_video2world_training_2b_cosmos_nemo_assets = dict(
         warm_up_steps=[2_000],
         cycle_lengths=[400_000],
         f_max=[0.6],
-        f_min=[0.3],
+        f_min=[0.0],
     ),
 )
 
@@ -257,7 +257,7 @@ predict2_video2world_training_14b_cosmos_nemo_assets = dict(
         warm_up_steps=[2_000],
         cycle_lengths=[40_000],
         f_max=[0.25],
-        f_min=[0.1],
+        f_min=[0.0],
     ),
 )
 
