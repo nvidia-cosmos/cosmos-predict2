@@ -75,7 +75,7 @@ class Video2WorldPipelineConfig:
     state_ch: int = 16
     state_t: int = 24
     text_encoder_class: str = "T5"
-    input_data_key: str = "video"
+    input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)
 

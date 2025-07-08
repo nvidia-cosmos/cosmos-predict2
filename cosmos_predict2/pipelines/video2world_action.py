@@ -25,7 +25,9 @@ from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineC
 from cosmos_predict2.models.utils import load_state_dict
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
+from cosmos_predict2.schedulers.rectified_flow_scheduler import (
+    RectifiedFlowAB2Scheduler,
+)
 from cosmos_predict2.utils.context_parallel import cat_outputs_cp, split_inputs_cp
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
@@ -250,7 +252,7 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [

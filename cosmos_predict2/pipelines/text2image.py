@@ -31,7 +31,9 @@ from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
 from cosmos_predict2.module.denoise_prediction import DenoisePrediction
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
+from cosmos_predict2.schedulers.rectified_flow_scheduler import (
+    RectifiedFlowAB2Scheduler,
+)
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from cosmos_predict2.utils.dtensor_helper import (
     DTensorFastEmaModelUpdater,
@@ -193,7 +195,7 @@ class Text2ImagePipeline(BasePipeline):
         return pipe
 
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key
         self.input_image_key = self.config.input_image_key
 
     def apply_fsdp(self, dp_mesh: DeviceMesh) -> None:

@@ -30,16 +30,29 @@ from tqdm import tqdm
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.conditioner import DataType, TextCondition
-from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
+from cosmos_predict2.configs.base.config_video2world import (
+    ConditioningStrategy,
+    Video2WorldPipelineConfig,
+)
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
 from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
 from cosmos_predict2.module.denoise_prediction import DenoisePrediction
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
+from cosmos_predict2.schedulers.rectified_flow_scheduler import (
+    RectifiedFlowAB2Scheduler,
+)
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
-from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
+from cosmos_predict2.utils.context_parallel import (
+    broadcast,
+    broadcast_split_tensor,
+    cat_outputs_cp,
+    split_inputs_cp,
+)
+from cosmos_predict2.utils.dtensor_helper import (
+    DTensorFastEmaModelUpdater,
+    broadcast_dtensor_model_states,
+)
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -384,7 +397,7 @@ class Video2WorldPipeline(BasePipeline):
         return pipe
 
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
         self.input_image_key = self.config.input_image_key
 
     def apply_fsdp(self, dp_mesh: DeviceMesh) -> None:
@@ -473,14 +486,14 @@ class Video2WorldPipeline(BasePipeline):
                 This tensor is expected to be on a CUDA device and have dtype of torch.uint8.
 
         Side Effects:
-            Modifies the 'input_data_key' tensor within the 'data_batch' dictionary in-place.
+            Modifies the 'input_video_key' tensor within the 'data_batch' dictionary in-place.
 
         Note:
             This operation is performed directly on the CUDA device to avoid the overhead associated
             with moving data to/from the GPU. Ensure that the tensor is already on the appropriate device
             and has the correct dtype (torch.uint8) to avoid unexpected behaviors.
         """
-        input_key = self.input_data_key if input_key is None else input_key
+        input_key = self.input_video_key if input_key is None else input_key
         # only handle video batch
         if input_key in data_batch:
             # Check if the data has already been normalized and avoid re-normalizing
@@ -565,7 +578,7 @@ class Video2WorldPipeline(BasePipeline):
         is_image_batch = self.is_image_batch(data_batch)
 
         # Latent state
-        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_data_key]
+        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_video_key]
         latent_state = self.encode(raw_state).contiguous().float()
 
         # Condition
@@ -585,10 +598,10 @@ class Video2WorldPipeline(BasePipeline):
         Another comes from a dataloader which we by default assumes as video_data for video model training.
         """
         is_image = self.input_image_key in data_batch
-        is_video = self.input_data_key in data_batch
+        is_video = self.input_video_key in data_batch
         assert (
             is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        ), "Only one of the input_image_key or input_video_key should be present in the data_batch."
         return is_image
 
     def denoise(
@@ -845,7 +858,7 @@ class Video2WorldPipeline(BasePipeline):
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [

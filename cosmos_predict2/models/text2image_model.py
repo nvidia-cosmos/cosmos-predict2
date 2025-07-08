@@ -56,7 +56,7 @@ class Predict2Text2ImageModelConfig:
     init_lora_weights: bool = True
 
     precision: str = "bfloat16"
-    input_data_key: str = "video"
+    input_video_key: str = "video"
     input_image_key: str = "images"
     loss_reduce: str = "mean"
     loss_scale: float = 10.0
@@ -228,7 +228,7 @@ class Predict2Text2ImageModel(ImaginaireModel):
                 param.data = param.to(torch.float32)
 
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
         self.input_image_key = self.config.input_image_key
 
     def is_image_batch(self, data_batch: dict[str, torch.Tensor]) -> bool:
@@ -236,15 +236,15 @@ class Predict2Text2ImageModel(ImaginaireModel):
         Another comes from a dataloader which we by default assumes as video_data for video model training.
         """
         is_image = self.input_image_key in data_batch
-        is_video = self.input_data_key in data_batch
+        is_video = self.input_video_key in data_batch
         assert (
             is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        ), "Only one of the input_image_key or input_video_key should be present in the data_batch."
         return is_image
 
     def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
         is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
+        input_key = self.input_image_key if is_image else self.input_video_key
         if isinstance(self.pipe.dit, WeightTrainingStat):
             if is_image:
                 self.pipe.dit.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
