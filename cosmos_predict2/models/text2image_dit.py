@@ -254,7 +254,7 @@ class Attention(nn.Module):
         head_dim: int = 64,
         dropout: float = 0.0,
         qkv_format: str = "bshd",
-        backend: str = "transformer_engine",
+        backend: str = "torch",
     ) -> None:
         super().__init__()
         log.debug(
@@ -276,10 +276,10 @@ class Attention(nn.Module):
         self.context_dim = context_dim
 
         self.q_proj = nn.Linear(query_dim, inner_dim, bias=False)
-        self.q_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.q_norm = RMSNorm(self.head_dim, eps=1e-6)
 
         self.k_proj = nn.Linear(context_dim, inner_dim, bias=False)
-        self.k_norm = te.pytorch.RMSNorm(self.head_dim, eps=1e-6)
+        self.k_norm = RMSNorm(self.head_dim, eps=1e-6)
 
         self.v_proj = nn.Linear(context_dim, inner_dim, bias=False)
         self.v_norm = nn.Identity()
@@ -342,8 +342,8 @@ class Attention(nn.Module):
             k = self.k_norm(k)
             v = self.v_norm(v)
             if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
-                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
+                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=False)
+                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=False)
             return q, k, v
 
         q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)
@@ -371,7 +371,8 @@ class Attention(nn.Module):
     def set_context_parallel_group(
         self, process_group: ProcessGroup, ranks: List[int], stream: torch.cuda.Stream
     ) -> None:
-        self.attn_op.set_context_parallel_group(process_group, ranks, stream)
+        if hasattr(self.attn_op, "set_context_parallel_group"):
+            self.attn_op.set_context_parallel_group(process_group, ranks, stream)
 
 
 class VideoPositionEmb(nn.Module):
@@ -653,7 +654,11 @@ class TimestepEmbedding(nn.Module):
             adaln_lora_B_T_3D = emb
             emb_B_T_D = sample
         else:
-            adaln_lora_B_T_3D = None
+            # To make the graph static for torch.export, we return a zero tensor
+            # of the correct shape when LoRA is disabled, instead of None.
+            adaln_lora_B_T_3D = torch.zeros(
+                emb.shape[0], emb.shape[1], 3 * self.out_dim, device=emb.device, dtype=emb.dtype
+            )
             emb_B_T_D = emb
 
         return emb_B_T_D, adaln_lora_B_T_3D
@@ -1112,7 +1117,7 @@ class MiniTrainDIT(WeightTrainingStat):
         num_blocks: int = 10,
         num_heads: int = 16,
         mlp_ratio: float = 4.0,
-        atten_backend: str = "transformer_engine",
+        atten_backend: str = "torch",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
         # positional embedding settings
@@ -1195,10 +1200,11 @@ class MiniTrainDIT(WeightTrainingStat):
             adaln_lora_dim=self.adaln_lora_dim,
         )
 
-        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        self.t_embedding_norm = RMSNorm(model_channels, eps=1e-6)
         self.init_weights()
         self.enable_selective_checkpoint(sac_config)
         self._is_context_parallel_enabled = False
+        self.save_input_path: Optional[str] = None
 
     def init_weights(self) -> None:
         self.x_embedder.init_weights()
@@ -1345,6 +1351,20 @@ class MiniTrainDIT(WeightTrainingStat):
             timesteps: (B, ) tensor of timesteps
             crossattn_emb: (B, N, D) tensor of cross-attention embeddings
         """
+        if self.save_input_path:
+            inputs_to_save = {
+                "x_B_C_T_H_W": x_B_C_T_H_W.clone(),
+                "timesteps_B_T": timesteps_B_T.clone(),
+                "crossattn_emb": crossattn_emb.clone(),
+                "fps": fps.clone() if fps is not None else None,
+                "padding_mask": padding_mask.clone() if padding_mask is not None else None,
+                "data_type": data_type,
+            }
+            log.info(f"Saving actual DiT inputs to {self.save_input_path}")
+            torch.save(inputs_to_save, self.save_input_path)
+            log.success(f"Successfully saved actual DiT inputs to {self.save_input_path}")
+            self.save_input_path = None  # Reset to avoid saving multiple times
+
         assert isinstance(
             data_type, DataType
         ), f"Expected DataType, got {type(data_type)}. We need discuss this flag later."
@@ -1361,11 +1381,11 @@ class MiniTrainDIT(WeightTrainingStat):
         t_embedding_B_T_D = self.t_embedding_norm(t_embedding_B_T_D)
 
         # for logging purpose
-        affline_scale_log_info = {}
-        affline_scale_log_info["t_embedding_B_T_D"] = t_embedding_B_T_D.detach()
-        self.affline_scale_log_info = affline_scale_log_info
-        self.affline_emb = t_embedding_B_T_D
-        self.crossattn_emb = crossattn_emb
+        # affline_scale_log_info = {}
+        # affline_scale_log_info["t_embedding_B_T_D"] = t_embedding_B_T_D.detach()
+        # self.affline_scale_log_info = affline_scale_log_info
+        # self.affline_emb = t_embedding_B_T_D
+        # self.crossattn_emb = crossattn_emb
 
         if extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D is not None:
             assert (
@@ -1432,6 +1452,13 @@ class MiniTrainDIT(WeightTrainingStat):
 
         return self
 
+    def set_save_input_path(self, path: Optional[str]) -> None:
+        """
+        Sets the path to save the next forward pass's inputs.
+        The path is reset to None after saving.
+        """
+        self.save_input_path = path
+
     def fully_shard(self, mesh: DeviceMesh) -> None:
         for i, block in enumerate(self.blocks):
             reshard_after_forward = i < len(self.blocks) - 1
@@ -1474,6 +1501,53 @@ class MiniTrainDIT(WeightTrainingStat):
             )
 
         self._is_context_parallel_enabled = True
+
+    def save_io(self, path: str = "dit_inputs.pt") -> None:
+        """
+        Saves a sample set of inputs for the DiT model to a .pt file.
+
+        The sample inputs are randomly generated based on the model's configuration.
+        This is useful for debugging, testing, or creating a baseline for model execution.
+
+        Args:
+            path (str, optional): The file path to save the inputs. Defaults to "dit_inputs.pt".
+        """
+        batch_size = 1
+
+        # Shape of the main input tensor x_B_C_T_H_W for text-to-image (T=1)
+        # For text-to-image, the time dimension of the input to DiT is 1.
+        x_shape = (batch_size, self.in_channels, 1, self.max_img_h, self.max_img_w)
+        x_B_C_T_H_W = torch.randn(x_shape, device="cuda")
+
+        timesteps_shape = (batch_size, 1)  # (B, T)
+        timesteps_B_T = torch.rand(timesteps_shape, device="cuda")
+
+        crossattn_emb_shape = (batch_size, 512, self.blocks[0].cross_attn.context_dim)
+        crossattn_emb = torch.randn(crossattn_emb_shape, device="cuda")
+
+        fps_shape = (batch_size,)
+        fps = torch.randint(self.min_fps, self.max_fps + 1, fps_shape, device="cuda").float()
+
+        padding_mask_shape = (batch_size, 1, 1, self.max_img_h, self.max_img_w)
+        padding_mask = torch.zeros(padding_mask_shape, device="cuda")
+
+        sample_inputs = {
+            "x_B_C_T_H_W": x_B_C_T_H_W,
+            "timesteps_B_T": timesteps_B_T,
+            "crossattn_emb": crossattn_emb,
+            "fps": fps,
+            "padding_mask": padding_mask,
+            "data_type": DataType.IMAGE,
+        }
+
+        # convert to bfloat16
+        for k, v in sample_inputs.items():
+            if isinstance(v, torch.Tensor):
+                sample_inputs[k] = v.to(dtype=torch.bfloat16)
+
+        log.info(f"Saving sample DiT inputs to {path}")
+        torch.save(sample_inputs, path)
+        log.success(f"Successfully saved sample DiT inputs to {path}")
 
     @property
     def is_context_parallel_enabled(self) -> bool:
