@@ -193,6 +193,7 @@ class Checkpointer:
 
         # Load checkpoint.
         if latest_checkpoint_file is not None:
+            torch.cuda.empty_cache()
             state_dicts_paths = {
                 "model": model_checkpoint_path,
                 "optim": optimizer_checkpoint_path,
@@ -252,6 +253,7 @@ class Checkpointer:
                 model.pipe.apply_cp()
             else:
                 model.load_state_dict(state_dicts_to_load["model"], strict=self.strict_resume)
+            torch.cuda.empty_cache()
             if resume or only_resume_scheduler:
                 iteration = state_dicts_to_load["trainer"]["iteration"]
                 assert scheduler
