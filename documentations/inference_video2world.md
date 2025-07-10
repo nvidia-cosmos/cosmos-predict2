@@ -303,7 +303,8 @@ python -m examples.video2world \
 ```
 
 Running with NATTEN can bring you anywhere from 1.7X to 2.6X end-to-end speedup over the base model,
-depending on variant, frame rate, and hardware.
+depending on variant, frame rate, and hardware. In terms of quality, we've observed that in many
+domains the sparse attention variants are comparable with the base models.
 
 ## API Documentation
 

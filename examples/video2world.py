@@ -176,7 +176,7 @@ def parse_args() -> argparse.Namespace:
 
 def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
-    if args.natten:
+    if hasattr(args, "natten") and args.natten:
         assert args.model_size in ["2B", "14B"]
         config = (
             PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B

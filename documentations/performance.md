@@ -102,3 +102,8 @@ It is recommended to use the 14B models for
 The 14B models generally produce higher fidelity results with better coherence and detail, but come with increased computational costs. The 2B models offer a good balance of quality and performance for many practical applications while being more resource-efficient.
 
 For most development and testing scenarios, starting with the 2B models is recommended. You can then scale up to 14B models when higher quality is needed and hardware resources permit.
+
+If you have a Hopper (compute capability 9.0) or Blackwell datacenter-class
+(compute capability 10.0) GPU, you can also experiment with the Sparse Attention variants. Sparse
+variants are comparable in terms of visual quality with their base counterparts across various
+domains.
