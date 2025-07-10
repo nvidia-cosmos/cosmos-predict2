@@ -38,6 +38,12 @@ We support LoRA post-training with example datasets:
 - [post-training_video2world_gr00t](/documentations/post-training_video2world_gr00t.md)
   - Examples with GR00T-dreams datasets (can be adapted for LoRA)
 
+### Cosmos-NeMo-Assets LoRA Configurations
+
+We provide dedicated LoRA configurations for Cosmos-NeMo-Assets in `cosmos_predict2/configs/base/experiment/cosmos_nemo_assets_lora.py`:
+- `predict2_video2world_lora_training_2b_cosmos_nemo_assets` - 2B model LoRA training
+- `predict2_video2world_lora_training_14b_cosmos_nemo_assets` - 14B model LoRA training
+
 ## Post-training Guide
 
 ### 1. Preparing Data
@@ -551,3 +557,159 @@ lora_target_modules="q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2,norm
    Training loss decreases but validation loss increases
    ```
    **Solution**: Reduce LoRA rank, add data augmentation, or early stopping.
+
+## LoRA Training with Cosmos-NeMo-Assets Dataset
+
+This section provides a complete example of LoRA training using the Cosmos-NeMo-Assets dataset for physical AI applications.
+
+### Data Preparation
+
+Follow the data preparation steps from the [Cosmos-NeMo-Assets guide](post-training_video2world_cosmos_nemo_assets.md):
+
+#### 1. Download Cosmos-NeMo-Assets Dataset
+
+```bash
+mkdir -p datasets/cosmos_nemo_assets/
+
+# Download the videos for physical AI
+huggingface-cli download nvidia/Cosmos-NeMo-Assets --repo-type dataset --local-dir datasets/cosmos_nemo_assets/ --include "*.mp4*"
+
+mv datasets/cosmos_nemo_assets/nemo_diffusion_example_data datasets/cosmos_nemo_assets/videos
+```
+
+#### 2. Preprocess T5-XXL Embeddings
+
+```bash
+# Generate T5-XXL embeddings with robot-specific prompt
+PYTHONPATH=$(pwd) python scripts/get_t5_embeddings_from_cosmos_nemo_assets.py --dataset_path datasets/cosmos_nemo_assets --prompt "A video of sks teal robot."
+```
+
+This creates the required dataset structure:
+```
+datasets/cosmos_nemo_assets/
+├── metas/
+│   ├── *.txt
+├── videos/
+│   ├── *.mp4
+├── t5_xxl/
+│   ├── *.pickle
+```
+
+### LoRA Training Commands
+
+#### Video2World LoRA Training
+
+**2B Model Training:**
+```bash
+EXP=predict2_video2world_lora_training_2b_cosmos_nemo_assets
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train \
+    --config=cosmos_predict2/configs/base/config.py \
+    -- experiment=${EXP} \
+    model.config.train_architecture=lora
+```
+
+**14B Model Training (Multi-node):**
+```bash
+EXP=predict2_video2world_lora_training_14b_cosmos_nemo_assets
+torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 \
+    -m scripts.train \
+    --config=cosmos_predict2/configs/base/config.py \
+    -- experiment=${EXP} \
+    model.config.train_architecture=lora
+```
+
+
+
+### LoRA Configuration Details
+
+The Cosmos-NeMo-Assets LoRA configurations include the following optimizations:
+
+**For 2B Models:**
+- LoRA rank: 16, alpha: 16
+- Learning rate: 2^(-10) (higher than full fine-tuning)
+- Batch size: 2 (doubled due to LoRA memory efficiency)
+- Max iterations: 2000
+- Checkpoint interval: 400 iterations
+
+**For 14B Models:**
+- LoRA rank: 32, alpha: 32 (higher rank for larger model)
+- Learning rate: 2^(-11) (adjusted for model size)
+- Batch size: 2
+- Max iterations: 1500 (fewer iterations needed)
+- Checkpoint interval: 300 iterations
+
+### Checkpoint Structure
+
+LoRA checkpoints will be saved to:
+```
+checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/
+├── model/
+│   ├── iter_000000400.pt  # Contains base model + LoRA parameters
+│   ├── iter_000000800.pt
+│   ├── iter_000001200.pt
+│   └── ...
+├── optim/
+├── scheduler/
+├── trainer/
+├── latest_checkpoint.txt
+```
+
+### LoRA Inference Commands
+
+Use the LoRA-trained checkpoints for inference:
+
+**2B Video2World LoRA Inference:**
+```bash
+export NUM_GPUS=8
+export PYTHONPATH=$(pwd)
+
+torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
+    --model_size 2B \
+    --dit_path "checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/model/iter_000002000.pt" \
+    --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
+    --prompt "A video of sks teal robot performing precise manipulation tasks." \
+    --save_path output/cosmos_nemo_assets_lora/generated_video_2b_lora.mp4 \
+    --num_gpus ${NUM_GPUS} \
+    --use_lora \
+    --lora_rank 16 \
+    --lora_alpha 16 \
+    --lora_target_modules "q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2" \
+    --offload_guardrail \
+    --offload_prompt_refiner
+```
+
+**14B Video2World LoRA Inference:**
+```bash
+export NUM_GPUS=8
+export PYTHONPATH=$(pwd)
+
+torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
+    --model_size 14B \
+    --dit_path "checkpoints/posttraining/video2world_lora/14b_cosmos_nemo_assets/checkpoints/model/iter_000001500.pt" \
+    --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
+    --prompt "A video of sks teal robot performing precise manipulation tasks." \
+    --save_path output/cosmos_nemo_assets_lora/generated_video_14b_lora.mp4 \
+    --num_gpus ${NUM_GPUS} \
+    --use_lora \
+    --lora_rank 32 \
+    --lora_alpha 32 \
+    --lora_target_modules "q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2" \
+    --offload_guardrail \
+    --offload_prompt_refiner
+```
+
+### Training Progress Monitoring
+
+During LoRA training with Cosmos-NeMo-Assets, you should see logs like:
+```
+Adding LoRA adapters: rank=16, alpha=16, targets=['q_proj', 'k_proj', 'v_proj', 'output_proj', 'mlp.layer1', 'mlp.layer2']
+Total parameters: 3.96B, Frozen parameters: 3,912,826,880, Trainable parameters: 45,875,200
+```
+
+## Related Documentation
+
+- [Video2World Inference Guide](inference_video2world.md) - Standard inference without LoRA
+- [Video2World Post-Training Guide](post-training_video2world.md) - Full model post-training
+- [Cosmos-NeMo-Assets Post-Training](post-training_video2world_cosmos_nemo_assets.md) - Original dataset guide
+- [Setup Guide](setup.md) - Environment setup and checkpoint download instructions  
+- [Performance Guide](performance.md) - Hardware requirements and optimization recommendations
