@@ -47,6 +47,7 @@ python -m examples.video2world --help
 
 This is a basic example for running inference on the 2B model with a single image.
 The output is saved to `output/video2world_2b.mp4`.
+The corresponding input prompt is saved to `output/video2world_2b.txt`.
 
 ```bash
 # Set the input prompt

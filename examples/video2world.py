@@ -35,7 +35,7 @@ from cosmos_predict2.pipelines.video2world import (
     Video2WorldPipeline,
 )
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
 
@@ -282,7 +282,7 @@ def process_single_generation(
         if benchmark and i > 0:
             torch.cuda.synchronize()
             start_time = time.time()
-        video = pipe(
+        video, prompt_used = pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
             aspect_ratio=aspect_ratio,
@@ -291,6 +291,7 @@ def process_single_generation(
             guidance=guidance,
             seed=seed,
             use_cuda_graphs=use_cuda_graphs,
+            return_prompt=True,
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
@@ -306,13 +307,25 @@ def process_single_generation(
         output_dir = os.path.dirname(output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-        log.info(f"Saving generated video to: {output_path}")
+        log.info(f"Saving the generated video to: {output_path}")
         if pipe.config.state_t == 16:
             fps = 10
         else:
             fps = 16
         save_image_or_video(video, output_path, fps=fps)
         log.success(f"Successfully saved video to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = [f"[Prompt]\n{prompt}", f"[Negative prompt]\n{negative_prompt}"]
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            prompts_to_save.append(f"[Refined prompt]\n{prompt_used}")
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
+
         return True
     return False
 

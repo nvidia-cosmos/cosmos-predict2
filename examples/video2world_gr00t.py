@@ -30,11 +30,13 @@ import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
 
-from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_14B
+from cosmos_predict2.configs.base.config_video2world import (
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
+)
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, validate_input_file
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 
 def parse_args() -> argparse.Namespace:
@@ -194,7 +196,7 @@ def process_single_generation(
     full_prompt = prompt_prefix + prompt
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {full_prompt}")
 
-    video = pipe(
+    video, prompt_used = pipe(
         prompt=full_prompt,
         negative_prompt=negative_prompt,
         aspect_ratio=aspect_ratio,
@@ -202,6 +204,7 @@ def process_single_generation(
         num_conditional_frames=num_conditional_frames,
         guidance=guidance,
         seed=seed,
+        return_prompt=True,
     )
 
     if video is not None:
@@ -212,6 +215,17 @@ def process_single_generation(
         log.info(f"Saving generated video to: {output_path}")
         save_image_or_video(video, output_path, fps=16)
         log.success(f"Successfully saved video to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = [f"[Prompt]\n{prompt}", f"[Negative prompt]\n{negative_prompt}"]
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            prompts_to_save.append(f"[Refined prompt]\n{prompt_used}")
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 

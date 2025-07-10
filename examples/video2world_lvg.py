@@ -30,9 +30,13 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
+from cosmos_predict2.pipelines.video2world import (
+    _IMAGE_EXTENSIONS,
+    _VIDEO_EXTENSIONS,
+    Video2WorldPipeline,
+)
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
 
@@ -226,7 +230,7 @@ def process_single_generation(
         for chunk_id in tqdm(range(num_chunks)):
             log.info(f"Generating chunk {chunk_id + 1}/{num_chunks}...")
 
-            video = pipe(
+            video, prompt_used = pipe(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
                 aspect_ratio=aspect_ratio,
@@ -234,12 +238,15 @@ def process_single_generation(
                 num_conditional_frames=num_conditional_frames,
                 guidance=guidance,
                 seed=seed + chunk_id,  # change random seed to avoid repeat
+                return_prompt=True,
             )
             # for the first chunk, we save the whole clip
             if chunk_id == 0:
                 chunk = video
+                prompts_used = [prompt_used]
             else:
                 chunk = video[:, :, num_conditional_frames:, :, :]
+                prompts_used.append(prompt_used)
             all_chunks.append(chunk.cpu())
 
             # Prepare for next chunk: use last `num_conditional_frames` frames as new condition
@@ -263,6 +270,19 @@ def process_single_generation(
         log.info(f"Saving generated video to: {output_path}")
         save_image_or_video(video, output_path, fps=16)
         log.success(f"Successfully saved video to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = [f"[Prompt]\n{prompt}", f"[Negative prompt]\n{negative_prompt}"]
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            for chunk_id, prompt_used in enumerate(prompts_used):
+                prompts_to_save.append(f"[Refined prompt for chunk {chunk_id}]\n{prompt_used}")
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
+
         return True
     return False
 

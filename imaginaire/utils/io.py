@@ -82,3 +82,20 @@ def save_image_or_video(
             if not ext:
                 save_path = f"{base}.mp4"
         easy_io.dump(save_obj, save_path, file_format="mp4", format="mp4", fps=fps, **kwargs)
+
+
+def save_text_prompts(prompts: list[str], save_path: Union[str, IO[Any]]) -> None:
+    """
+    Save text prompts to a file.
+
+    Args:
+        prompts (list[str]): List of text prompts to save.
+        save_path (Union[str, IO[Any]]): File path (with or without extension) or file-like object.
+    """
+    if isinstance(save_path, str):
+        base, ext = os.path.splitext(save_path)
+        if not ext:
+            save_path = f"{base}.txt"
+    with open(save_path, "w") as f:
+        for prompt in prompts:
+            f.write(f"{prompt}\n")

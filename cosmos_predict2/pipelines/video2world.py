@@ -781,6 +781,7 @@ class Video2WorldPipeline(BasePipeline):
         num_sampling_step: int = 35,
         seed: int = 0,
         use_cuda_graphs: bool = False,
+        return_prompt: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
         width, height = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
@@ -958,4 +959,7 @@ class Video2WorldPipeline(BasePipeline):
             video = processed_video.to(video.device, dtype=video.dtype)
 
         log.success("Video generation completed successfully")
-        return video
+        if return_prompt:
+            return video, prompt
+        else:
+            return video
