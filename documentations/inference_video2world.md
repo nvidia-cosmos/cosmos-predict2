@@ -43,6 +43,8 @@ python -m examples.video2world --help
 
 ### Single Video Generation
 
+#### Using the 2B model
+
 This is a basic example for running inference on the 2B model with a single image.
 The output is saved to `output/video2world_2b.mp4`.
 
@@ -57,6 +59,8 @@ python -m examples.video2world \
     --prompt "${PROMPT}" \
     --save_path output/video2world_2b.mp4
 ```
+
+#### Using the 14B model
 
 The 14B model can be run similarly by changing the model size parameter. For GPUs with lower memory limit, it may also make sense to offload guardrail and prompt refiner models.
 
@@ -73,6 +77,8 @@ python -m examples.video2world \
     --offload_guardrail \
     --offload_prompt_refiner
 ```
+
+The 14B model requires significant GPU memory, so it is recommended to offload the prompt refiner or guardrail models to CPU to conserve GPU memory.
 
 ### Batch Video Generation
 
@@ -208,6 +214,8 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/video2world.py \
 
 This distributes the computation across multiple GPUs, with each GPU processing a subset of the video frames. The final video is automatically combined from the results of all GPUs.
 
+If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
+
 > **Note:** Both parameters are required: `--nproc_per_node` tells PyTorch how many processes to launch, while `--num_gpus` tells the model how to distribute the workload. Using the same environment variable for both ensures they are synchronized.
 
 Important considerations for multi-GPU inference:
@@ -229,8 +237,9 @@ python -m examples.video2world_bestofn \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
     --prompt "${PROMPT}" \
-    --num_generations 5 \
-    --num_critic_trials 3 \
+    --num_generations 4 \
+    --num_critic_trials 5 \
+    --disable_guardrail \
     --save_path output/rejection_sampling_demo
 ```
 
@@ -276,6 +285,8 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
 
 Example output is included at `assets/video2world_lvg/example_output.mp4`.
 
+If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
+
 ## API Documentation
 
 The `video2world.py` script supports the following command-line arguments:
@@ -286,13 +297,16 @@ Model selection:
 - `--fps`: FPS of the model to use for video-to-world generation (choices: 10, 16, default: 16)
 - `--resolution`: Resolution of the model to use for video-to-world generation (choices: 480, 720, default: 720)
 
-By default a 720P + 16FPS model is used for `model_size` size model. If you want to use another config, download the corresponding checkpoin tand pass either `--fps` or `--resolution` or both.
+By default a 720P + 16FPS model is used for `model_size` size model. If you want to use another config, download the corresponding checkpoint and pass either `--fps` or `--resolution` or both.
 
 Input parameters:
 - `--prompt`: Text prompt describing the video to generate (default: empty string)
 - `--negative_prompt`: Text describing what to avoid in the generated video (default: predefined negative prompt)
+- `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
 - `--input_path`: Path to input image or video for conditioning (default: "assets/video2world/input0.jpg")
 - `--num_conditional_frames`: Number of frames to condition on (choices: 1, 5, default: 1)
+
+If the shape of the input image/video is different from the target resolution & aspect ratio, first, the input will be resized to equal or larger lengths in height & width dimensions. Then, it will be center-cropped to match the predefined resolution for the corresponding aspect ratio.
 
 Output parameters:
 - `--save_path`: Path to save the generated video (default: "output/generated_video.mp4")
@@ -301,6 +315,10 @@ Generation parameters:
 - `--guidance`: Classifier-free guidance scale (default: 7.0)
 - `--seed`: Random seed for reproducibility (default: 0)
 - `--num_gpus`: Number of GPUs to use for context parallel inference in the video generation phase (default: 1)
+
+Performance parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Multi-GPU inference:
 - For multi-GPU inference, use `torchrun --nproc_per_node=$NUM_GPUS examples/video2world.py ...`
@@ -325,8 +343,8 @@ In addition to the main `video2world.py` script, there are specialized variants 
 
 The `video2world_bestofn.py` script extends the standard Video2World capabilities with rejection sampling to improve video quality. It supports all the standard Video2World parameters plus:
 
-- `--num_generations`: Number of different videos to generate from the same input (default: 5)
-- `--num_critic_trials`: Number of times to evaluate each video with the critic model (default: 3)
+- `--num_generations`: Number of different videos to generate from the same input (default: 2)
+- `--num_critic_trials`: Number of times to evaluate each video with the critic model (default: 5)
 - `--skip_generation`: Flag to run critic only on existing videos without generation
 - `--save_path`: Directory to save the generated videos and HTML reports (default: "output/best-of-n")
 

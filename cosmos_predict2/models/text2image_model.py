@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import collections
-import math
 from typing import Any, Dict, Mapping, Optional, Tuple
 
 import attrs
@@ -25,13 +24,13 @@ from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
-from cosmos_predict2.conditioner import DataType, TextCondition
-from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    Video2WorldPipelineConfig,
+from cosmos_predict2.conditioner import TextCondition
+from cosmos_predict2.configs.base.config_text2image import (
+    PREDICT2_TEXT2IMAGE_PIPELINE_2B,
+    Text2ImagePipelineConfig,
 )
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
-from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
+from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model
 from cosmos_predict2.utils.optim_instantiate import get_base_scheduler
 from cosmos_predict2.utils.torch_future import clip_grad_norm_
@@ -43,13 +42,13 @@ from imaginaire.utils import log
 @attrs.define(slots=False)
 class Predict2ModelManagerConfig:
     # Local path, use it in fast debug run
-    dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
+    dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model.pt"
     # For inference
     text_encoder_path: str = ""  # not used in training.
 
 
 @attrs.define(slots=False)
-class Predict2Video2WorldModelConfig:
+class Predict2Text2ImageModelConfig:
     train_architecture: str = "base"
     lora_rank: int = 16
     lora_alpha: int = 16
@@ -62,21 +61,17 @@ class Predict2Video2WorldModelConfig:
     loss_reduce: str = "mean"
     loss_scale: float = 10.0
 
-    adjust_video_noise: bool = True
-
     # This is used for the original way to load models
     model_manager_config: Predict2ModelManagerConfig = Predict2ModelManagerConfig()
     # This is a new way to load models
-    pipe_config: Video2WorldPipelineConfig = PREDICT2_VIDEO2WORLD_PIPELINE_2B
+    pipe_config: Text2ImagePipelineConfig = PREDICT2_TEXT2IMAGE_PIPELINE_2B
     # debug flag
     debug_without_randomness: bool = False
     fsdp_shard_size: int = 0  # 0 means not using fsdp, -1 means set to world size
-    # High sigma strategy
-    high_sigma_ratio: float = 0.0
 
 
-class Predict2Video2WorldModel(ImaginaireModel):
-    def __init__(self, config: Predict2Video2WorldModelConfig):
+class Predict2Text2ImageModel(ImaginaireModel):
+    def __init__(self, config: Predict2Text2ImageModelConfig):
         super().__init__()
 
         self.config = config
@@ -97,10 +92,6 @@ class Predict2Video2WorldModel(ImaginaireModel):
         assert self.loss_reduce in ["mean", "sum"]
         self.loss_scale = getattr(config, "loss_scale", 1.0)
         log.critical(f"Using {self.loss_reduce} loss reduce with loss scale {self.loss_scale}")
-        if self.config.adjust_video_noise:
-            self.video_noise_multiplier = math.sqrt(self.config.pipe_config.state_t)
-        else:
-            self.video_noise_multiplier = 1.0
 
         # 7. training states
         if parallel_state.is_initialized():
@@ -109,7 +100,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
             self.data_parallel_size = 1
 
         # New way to init pipe
-        self.pipe = Video2WorldPipeline.from_config(
+        self.pipe = Text2ImagePipeline.from_config(
             config.pipe_config,
             dit_path=config.model_manager_config.dit_path,
         )
@@ -265,20 +256,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
         epsilon = torch.randn(x0_size, device="cuda")
         sigma_B = self.pipe.scheduler.sample_sigma(batch_size).to(device="cuda")
         sigma_B_1 = rearrange(sigma_B, "b -> b 1")  # add a dimension for T, all frames share the same sigma
-        is_video_batch = condition.data_type == DataType.VIDEO
 
-        multiplier = self.video_noise_multiplier if is_video_batch else 1
-        sigma_B_1 = sigma_B_1 * multiplier
-        if is_video_batch and self.config.high_sigma_ratio > 0:
-            # Implement the high sigma strategy LOGUNIFORM200_100000
-            LOG_200 = math.log(200)
-            LOG_100000 = math.log(100000)
-            mask = torch.rand(sigma_B_1.shape, device=sigma_B_1.device) < self.config.high_sigma_ratio
-            log_new_sigma = (
-                torch.rand(sigma_B_1.shape, device=sigma_B_1.device).type_as(sigma_B_1) * (LOG_100000 - LOG_200)
-                + LOG_200
-            )
-            sigma_B_1 = torch.where(mask, log_new_sigma.exp(), sigma_B_1)
         return sigma_B_1, epsilon
 
     def get_per_sigma_loss_weights(self, sigma: torch.Tensor) -> torch.Tensor:

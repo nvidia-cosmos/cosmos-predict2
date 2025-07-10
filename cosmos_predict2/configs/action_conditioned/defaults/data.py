@@ -87,13 +87,13 @@ def register_training_and_val_data_action_conditioned():
 
     # for local dataset
     cs.store(
-        group="data_train",
+        group="dataloader_train",
         package="dataloader_train",
         name="bridge_train",
         node=bridge_train_dataloader,
     )
     cs.store(
-        group="data_val",
+        group="dataloader_val",
         package="dataloader_val",
         name="bridge_val",
         node=bridge_val_dataloader,

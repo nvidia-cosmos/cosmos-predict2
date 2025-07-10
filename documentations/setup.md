@@ -16,6 +16,10 @@ git clone git@github.com:nvidia-cosmos/cosmos-predict2.git
 cd cosmos-predict2
 ```
 
+### ARM installation
+When using an ARM platform, like GB200, special steps are required to install the `decord` package.
+You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
+The installation will be handled by the Conda scripts or Dockerfile.
 ### Option 1: Conda environment
 
 Please make sure you have a Conda distribution installed ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
@@ -25,17 +29,21 @@ Please make sure you have a Conda distribution installed ([instructions](https:/
 conda env create --file cosmos-predict2.yaml
 conda activate cosmos-predict2
 
+# Try to install decord when on ARM platform
+bash scripts/install_decord_arm.sh
 # Install dependencies
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
-# Patch Transformer engine linking issues
+# Transformer engine
 export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$CPLUS_INCLUDE_PATH
 export C_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$C_INCLUDE_PATH
 export CPPFLAGS="-I$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include $CPPFLAGS"
-pip install transformer-engine[pytorch]==1.13.0
+CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
+# NATTEN
+CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
 
 # Apex library for training (optional if inference only)
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
+CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
 
 # Verify setup
 CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
@@ -54,7 +62,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
    ```bash
    # Pull the Cosmos-Predict2 container
-   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0
+   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1
    ```
 
 * **Option 2B: Build container from Dockerfile**
@@ -67,7 +75,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
 * **Running the container**
 
-   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0` or `cosmos-predict2-local`:
+   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1` or `cosmos-predict2-local`:
 
    ```bash
    # Run the container with GPU support and mount necessary directories

@@ -13,7 +13,7 @@ This guide provides instructions on running post-training with Cosmos-Predict2 V
 
 Before running training:
 
-1. **Environment setup**: 
+1. **Environment setup**:
   - Follow the [Setup guide](setup.md) for installation instructions.
   - For user who want to run the command in https://github.com/nvidia/GR00T-dreams, after setup the environment, run the following command to install extra dependencies:
   ```bash
@@ -125,7 +125,7 @@ checkpoints/posttraining/video2world/2b_groot_gr1_480/checkpoints/
 ├── latest_checkpoint.txt
 ```
 
-##### Cosmos-Predict2-14B-Video2World
+#### Cosmos-Predict2-14B-Video2World
 
 Run the following command to execute an example post-training job with `GR1` data with 4 nodes with 8 GPUs.
 ```bash
@@ -182,7 +182,7 @@ huggingface-cli download nvidia/EVAL-175 --repo-type dataset --local-dir dream_g
 ```bash
 python -m scripts.prepare_batch_input_json \
   --dataset_path dream_gen_benchmark/gr1_object/ \
-  --save_path results/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
+  --save_path output/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
   --output_path dream_gen_benchmark/gr1_object/batch_input.json
 ```
 
@@ -196,3 +196,21 @@ python -m examples.video2world_gr00t \
 ```
 * Note: For full evaluation without missing videos, it's better to turn off the guardrail checks (add `--disable_guardrail` to the command) to make sure all the videos are generated.
 * See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
+
+## 5. Inference with Cosmos-Reason1 Rejection Sampling
+checkout [inference_video2world.md](inference_video2world.md) and [Cosmos-Reason1 video critic instruction](https://github.com/nvidia-cosmos/cosmos-reason1/blob/main/examples/video_critic.md) for more examples on how to improve video quality using Cosmos-Reason1's video critic capability. Refer to [API Documentation](inference_video2world.md#rejection-sampling-video2world_bestofnpy) for detailed usage of `video2world_bestofn.py`.
+
+* Inference with GR1 checkpoint and rejection sampling
+```bash
+torchrun --nproc_per_node=8 --master_port=12341 \
+  -m examples.video2world_bestofn \
+  --model_size 14B \
+  --gr00t_variant gr1 \
+  --prompt "Use the right hand to pick up rubik\'s cube from from the bottom of the three-tiered wooden shelf to to the top of the three-tiered wooden shelf." \
+  --input_path assets/sample_gr00t_dreams_gr1/8_Use_the_right_hand_to_pick_up_rubik\'s_cube_from_from_the_bottom_of_the_three-tiered_wooden_shelf_to_to_the_top_of_the_three-tiered_wooden_shelf..png \
+  --num_gpus 8 \
+  --num_generations 4 \
+  --prompt_prefix "" \
+  --disable_guardrail \
+  --save_path output/best-of-n-gr00t-gr1
+```

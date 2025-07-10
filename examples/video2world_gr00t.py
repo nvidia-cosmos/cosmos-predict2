@@ -27,14 +27,14 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import torch
+from megatron.core import parallel_state
 from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_14B
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, validate_input_file
-from imaginaire.utils.io import save_image_or_video
-from megatron.core import parallel_state
 from imaginaire.utils import distributed, log, misc
+from imaginaire.utils.io import save_image_or_video
 
 
 def parse_args() -> argparse.Namespace:
@@ -68,6 +68,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=_DEFAULT_NEGATIVE_PROMPT,
         help="Negative text prompt for video-to-world generation",
+    )
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
     )
     parser.add_argument(
         "--num_conditional_frames",
@@ -123,9 +130,7 @@ def setup_pipeline(args: argparse.Namespace):
         if args.gr00t_variant == "gr1":
             dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/model-480p-16fps.pt"
         elif args.gr00t_variant == "droid":
-            dit_path = (
-                "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-480p-16fps.pt"
-            )
+            dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-480p-16fps.pt"
     else:
         raise ValueError("Only 14B model size is supported for GR00T variants")
 
@@ -154,8 +159,6 @@ def setup_pipeline(args: argparse.Namespace):
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
 
-
-
     # Load models
     log.info(f"Initializing Video2WorldPipeline with GR00T variant: {args.gr00t_variant}")
     pipe = Video2WorldPipeline.from_config(
@@ -171,8 +174,17 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed, prompt_prefix
-):
+    pipe: Video2WorldPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    guidance: float,
+    seed: int,
+    prompt_prefix: str,
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -185,6 +197,7 @@ def process_single_generation(
     video = pipe(
         prompt=full_prompt,
         negative_prompt=negative_prompt,
+        aspect_ratio=aspect_ratio,
         input_path=input_path,
         num_conditional_frames=num_conditional_frames,
         guidance=guidance,
@@ -226,6 +239,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 prompt=prompt,
                 output_path=output_video,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 num_conditional_frames=args.num_conditional_frames,
                 guidance=args.guidance,
                 seed=args.seed,
@@ -238,6 +252,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             guidance=args.guidance,
             seed=args.seed,

@@ -15,22 +15,24 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
+from cosmos_predict2.conditioner import ActionConditioner, BooleanFlag, ReMapkey, TextAttr
+from cosmos_predict2.configs.base.config_video2world import (
+    ConditioningStrategy,
+    CosmosGuardrailConfig,
+    CosmosReason1Config,
+    SolverTimestampConfig,
+    Video2WorldPipelineConfig,
+)
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
-from cosmos_predict2.configs.action_conditioned.defaults.conditioner import ActionConditionedConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
-from cosmos_predict2.models.action_video2world_dit import ActionConditionedMinimalV1LVGDiT
+from cosmos_predict2.models.video2world_action_dit import ActionConditionedMinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
 from imaginaire.config import make_freezable
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
-from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, CosmosReason1Config, CosmosGuardrailConfig, SolverTimestampConfig
-
-
 
 # Cosmos Predict2 Video2World 2B
-ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVGDiT)(
+PREDICT2_VIDEO2WORLD_NET_2B_ACTION_CONDITIONED = L(ActionConditionedMinimalV1LVGDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,
@@ -60,12 +62,12 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVG
         mode="predict2_2b_720",
     ),
     # NOTE: add action dimension
-    action_dim=7*12,
+    action_dim=7 * 12,
 )
 
-ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED = Video2WorldPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(ActionConditionedConditioner)(
+    conditioner=L(ActionConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -98,7 +100,7 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     conditioning_strategy=str(ConditioningStrategy.FRAME_REPLACE),
     min_num_conditional_frames=1,
     max_num_conditional_frames=1,
-    net=ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B,
+    net=PREDICT2_VIDEO2WORLD_NET_2B_ACTION_CONDITIONED,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
     resize_online=True,

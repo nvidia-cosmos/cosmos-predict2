@@ -20,10 +20,11 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import tempfile
+
 import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
-import tempfile
 
 from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
@@ -97,6 +98,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=_DEFAULT_NEGATIVE_PROMPT,
         help="Negative text prompt for video-to-world generation",
+    )
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
     )
     parser.add_argument(
         "--num_conditional_frames",
@@ -193,8 +201,17 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, num_chunks, guidance, seed
-):
+    pipe: Video2WorldPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    num_chunks: int,
+    guidance: float,
+    seed: int,
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -204,7 +221,7 @@ def process_single_generation(
 
     all_chunks = []
     current_input_path = input_path
-    
+
     with tempfile.TemporaryDirectory() as tmpdir:
         for chunk_id in tqdm(range(num_chunks)):
             log.info(f"Generating chunk {chunk_id + 1}/{num_chunks}...")
@@ -212,10 +229,11 @@ def process_single_generation(
             video = pipe(
                 prompt=prompt,
                 negative_prompt=negative_prompt,
+                aspect_ratio=aspect_ratio,
                 input_path=current_input_path,
                 num_conditional_frames=num_conditional_frames,
                 guidance=guidance,
-                seed=seed+chunk_id, # change random seed to avoid repeat
+                seed=seed + chunk_id,  # change random seed to avoid repeat
             )
             # for the first chunk, we save the whole clip
             if chunk_id == 0:
@@ -223,7 +241,7 @@ def process_single_generation(
             else:
                 chunk = video[:, :, num_conditional_frames:, :, :]
             all_chunks.append(chunk.cpu())
-            
+
             # Prepare for next chunk: use last `num_conditional_frames` frames as new condition
             last_frames = video[:, :, -num_conditional_frames:, :, :]  # (1, C, num_conditional_frames, H, W)
             # if num_conditional_frames is 1, save as image temp file
@@ -272,6 +290,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 prompt=prompt,
                 output_path=output_video,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 num_conditional_frames=args.num_conditional_frames,
                 num_chunks=args.num_chunks,
                 guidance=args.guidance,
@@ -284,6 +303,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             num_chunks=args.num_chunks,
             guidance=args.guidance,

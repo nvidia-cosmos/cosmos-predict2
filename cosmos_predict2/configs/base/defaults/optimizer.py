@@ -20,8 +20,9 @@ from torch import nn
 
 from cosmos_predict2.utils.fused_adam_dtensor import FusedAdam
 from cosmos_predict2.utils.optim_instantiate_dtensor import get_base_optimizer
-from imaginaire.lazy_config import PLACEHOLDER, LazyDict
+from imaginaire.lazy_config import PLACEHOLDER
 from imaginaire.lazy_config import LazyCall as L
+from imaginaire.lazy_config import LazyDict
 from imaginaire.utils import log
 
 

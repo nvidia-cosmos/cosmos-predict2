@@ -92,37 +92,42 @@ This will generate three separate videos according to the prompts specified in t
 
 ### Multi-GPU Inference
 
-For faster inference, particularly with the 14B model, Text2World supports context parallelism for the video generation phase. This distributes the video frames across multiple GPUs, significantly reducing the time required for video generation.
+Text2World supports multi-GPU inference to significantly accelerate video generation, especially for the 14B model. The pipeline uses an optimized two-stage approach:
 
-To enable multi-GPU inference, set the `NUM_GPUS` environment variable and use `torchrun` to launch the script:
+1. **Text2Image Stage**: Runs only on GPU rank 0 to generate the first frame(s)
+2. **Video2World Stage**: Uses context parallelism across all GPUs to generate the final video
+
+To enable multi-GPU inference, use `torchrun` to launch the script:
 
 ```bash
 # Set the number of GPUs to use
 export NUM_GPUS=8
 
-# Run text2world generation with context parallelism using torchrun
-torchrun --nproc_per_node=${NUM_GPUS} examples/text2world.py \
+# Run text2world generation with multi-GPU acceleration
+torchrun --nproc_per_node=${NUM_GPUS} -m examples.text2world \
     --model_size 2B \
     --prompt "${PROMPT}" \
     --save_path output/text2world_2b_${NUM_GPUS}gpu.mp4 \
-    --num_gpus ${NUM_GPUS}
+    --num_gpus ${NUM_GPUS} \
+    --disable_guardrail \
+    --disable_prompt_refiner
 ```
 
 This distributes the computation across multiple GPUs for the video generation phase (Video2World), with each GPU processing a subset of the video frames. The image generation phase (Text2Image) still runs on a single GPU.
 
-> **Note:** Both parameters are required: `--nproc_per_node` tells PyTorch how many processes to launch, while `--num_gpus` tells the model how to distribute the workload. Using the same environment variable for both ensures they are synchronized.
 
-Important considerations for multi-GPU inference:
+> **Note:** Both parameters are required: `--nproc_per_node` tells PyTorch how many processes to launch, while `--num_gpus` tells the model how to distribute the workload.
+
+**Important considerations for multi-GPU inference:**
 - The number of GPUs should ideally be a divisor of the number of frames in the generated video
 - All GPUs should have the same model capacity and memory
-- For best results, use context parallelism with the 14B model where memory constraints are significant
+- Context parallelism works best with the 14B model where memory constraints are significant
 - Requires NCCL support and proper GPU interconnect for efficient communication
-
-This feature is particularly useful for generating higher quality videos with the 14B model, which would otherwise require significant processing time on a single GPU.
+- Significant speedup for video generation while maintaining the same quality
 
 ## API Documentation
 
-The `predict2_text2world.py` script supports the following command-line arguments:
+The `text2world.py` script supports the following command-line arguments:
 
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
@@ -130,20 +135,31 @@ Model selection:
 Input parameters:
 - `--prompt`: Text prompt describing the video to generate (default: predefined example prompt)
 - `--negative_prompt`: Text describing what to avoid in the generated video (default: predefined negative prompt)
+- `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
 
 Output parameters:
 - `--save_path`: Path to save the generated video (default: "output/generated_video.mp4")
 
 Generation parameters:
-- `--guidance`: Classifier-free guidance scale (default: 7.0)
+- `--guidance`: Classifier-free guidance scale for video generation (default: 7.0)
 - `--seed`: Random seed for reproducibility (default: 0)
-- `--use_cuda_graphs`: Use CUDA Graphs for inference acceleration (for Text2Image phase)
-- `--num_gpus`: Number of GPUs to use for context parallel inference in the video generation phase (default: 1)
+
+Performance optimization parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
+
+Text2Image phase parameters:
+- `--resolution`: Resolution for text2image generation (choices: "480", "720", default: "720")
+- `--fps`: FPS for video2world generation (choices: 10, 16, default: 16)
+
+Video2World phase parameters:
+- `--dit_path`: Custom path to the DiT model checkpoint for post-trained models
 
 Multi-GPU inference:
-- For multi-GPU inference, use `torchrun --nproc_per_node=$NUM_GPUS examples/text2world.py ...`
+- `--num_gpus`: Number of GPUs to use for context parallel inference (default: 1)
+- For multi-GPU inference, use `torchrun --nproc_per_node=$NUM_GPUS -m examples.text2world ...`
 - Both `--nproc_per_node` (for torchrun) and `--num_gpus` (for the script) must be set to the same value
-- Setting the `NUM_GPUS` environment variable and using it for both parameters ensures they stay synchronized
+- Text2Image runs only on rank 0, Video2World uses context parallelism across all GPUs
 
 Batch processing:
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_video' fields
@@ -151,6 +167,8 @@ Batch processing:
 Content safety and controls:
 - `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
 - `--disable_prompt_refiner`: Disable prompt refiner that enhances short prompts (by default, the prompt refiner is enabled)
+- `--offload_guardrail`: Offload guardrail to CPU to save GPU memory
+- `--offload_prompt_refiner`: Offload prompt refiner to CPU to save GPU memory
 
 ## Prompt Engineering Tips
 

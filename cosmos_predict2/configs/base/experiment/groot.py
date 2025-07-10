@@ -49,6 +49,12 @@ dataloader_train_gr1 = L(DataLoader)(
     pin_memory=True,
 )
 
+cs.store(
+    group="dataloader_train",
+    package="dataloader_train",
+    name="gr1",
+    node=dataloader_train_gr1,
+)
 
 # NVTE_FUSED_ATTN=0 torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_2b_groot_gr1_480
 predict2_video2world_training_2b_groot_gr1_480 = dict(
@@ -56,7 +62,8 @@ predict2_video2world_training_2b_groot_gr1_480 = dict(
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
-        {"override /data_val": "mock"},
+        {"override /dataloader_val": "mock"},
+        {"override /dataloader_train": "gr1"},
         {"override /scheduler": "lambdalinear"},
         "_self_",
     ],
@@ -83,7 +90,6 @@ predict2_video2world_training_2b_groot_gr1_480 = dict(
     model_parallel=dict(
         context_parallel_size=1,
     ),
-    dataloader_train=dataloader_train_gr1,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -101,7 +107,7 @@ predict2_video2world_training_14b_groot_gr1_480 = dict(
         {"override /model": "predict2_video2world_fsdp_14b"},
         {"override /optimizer": "fusedadamw"},
         {"override /ckpt_type": "standard"},
-        {"override /data_val": "mock"},
+        {"override /dataloader_val": "mock"},
         {"override /scheduler": "lambdalinear"},
         "_self_",
     ],

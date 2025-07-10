@@ -13,11 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from statistics import NormalDist
+
 import numpy as np
 import torch
 from diffusers.configuration_utils import register_to_config
 from diffusers.schedulers import KDPM2DiscreteScheduler
-from statistics import NormalDist
+
 from cosmos_predict2.functional.runge_kutta import reg_x0_euler_step, res_x0_rk2_step
 
 

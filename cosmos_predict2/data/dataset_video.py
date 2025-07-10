@@ -25,7 +25,12 @@ from torch.utils.data import Dataset
 from torchvision import transforms as T
 from torchvision.transforms.v2 import UniformTemporalSubsample
 
-from cosmos_predict2.data.dataset_utils import Resize_Preprocess, ToTensorVideo
+from cosmos_predict2.data.dataset_utils import (
+    _NUM_T5_TOKENS,
+    _T5_EMBED_DIM,
+    Resize_Preprocess,
+    ToTensorVideo,
+)
 from imaginaire.utils import log
 
 """
@@ -113,27 +118,28 @@ class Dataset(Dataset):
             data["video_name"] = {
                 "video_path": video_path,
                 "t5_embedding_path": t5_embedding_path,
-                # "start_frame_id": '0',
             }
+
+            _, _, h, w = video.shape
 
             # Just add these to fit the interface
             # t5_embedding = np.load(sample["t5_embedding_path"])[0]
             with open(t5_embedding_path, "rb") as f:
-                t5_embedding = pickle.load(f)[0]  # [n_tokens, 1024]
+                t5_embedding = pickle.load(f)[0]  # [n_tokens, _T5_EMBED_DIM]
             n_tokens = t5_embedding.shape[0]
-            if n_tokens < 512:
+            if n_tokens < _NUM_T5_TOKENS:
                 t5_embedding = np.concatenate(
-                    [t5_embedding, np.zeros((512 - n_tokens, 1024), dtype=np.float32)], axis=0
+                    [t5_embedding, np.zeros((_NUM_T5_TOKENS - n_tokens, _T5_EMBED_DIM), dtype=np.float32)], axis=0
                 )
-            t5_text_mask = torch.zeros(512, dtype=torch.int64)
+            t5_text_mask = torch.zeros(_NUM_T5_TOKENS, dtype=torch.int64)
             t5_text_mask[:n_tokens] = 1
 
             data["t5_text_embeddings"] = torch.from_numpy(t5_embedding)
             data["t5_text_mask"] = t5_text_mask
             data["fps"] = fps
-            data["image_size"] = torch.tensor([704, 1280, 704, 1280])
+            data["image_size"] = torch.tensor([h, w, h, w])
             data["num_frames"] = self.sequence_length
-            data["padding_mask"] = torch.zeros(1, 704, 1280)
+            data["padding_mask"] = torch.zeros(1, h, w)
 
             return data
         except Exception:

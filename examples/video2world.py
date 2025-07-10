@@ -20,15 +20,20 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import time
+
 import torch
 from megatron.core import parallel_state
-from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
+from cosmos_predict2.pipelines.video2world import (
+    _IMAGE_EXTENSIONS,
+    _VIDEO_EXTENSIONS,
+    Video2WorldPipeline,
+)
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -112,6 +117,13 @@ def parse_args() -> argparse.Namespace:
         help="Negative text prompt for video-to-world generation",
     )
     parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
+    )
+    parser.add_argument(
         "--num_conditional_frames",
         type=int,
         default=1,
@@ -146,16 +158,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
+    parser.add_argument(
+        "--benchmark",
+        action="store_true",
+        help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
+    )
+    parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the text2image inference.")
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace):
+def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
-        
+
         config.resolution = args.resolution
-        if args.fps == 10: # default is 16 so no need to change config
+        if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
@@ -163,17 +181,23 @@ def setup_pipeline(args: argparse.Namespace):
         config = PREDICT2_VIDEO2WORLD_PIPELINE_14B
 
         config.resolution = args.resolution
-        if args.fps == 10: # default is 16 so no need to change config
+        if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
-    if hasattr(args, 'dit_path') and args.dit_path:
+    if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
-    text_encoder_path = "checkpoints/google-t5/t5-11b"
     log.info(f"Using dit_path: {dit_path}")
+
+    # Only set up text encoder path if no encoder is provided
+    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
+    if text_encoder is not None:
+        log.info("Using provided text encoder")
+    else:
+        log.info(f"Using text encoder from: {text_encoder_path}")
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
@@ -184,11 +208,23 @@ def setup_pipeline(args: argparse.Namespace):
     torch.backends.cuda.matmul.allow_tf32 = True
 
     # Initialize distributed environment for multi-GPU inference
-    if hasattr(args, 'num_gpus') and args.num_gpus > 1:
+    if hasattr(args, "num_gpus") and args.num_gpus > 1:
         log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
-        distributed.init()
-        parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
-        log.info(f"Context parallel group initialized with {args.num_gpus} GPUs")
+
+        # Check if distributed environment is already initialized
+        if not parallel_state.is_initialized():
+            distributed.init()
+            parallel_state.initialize_model_parallel(context_parallel_size=args.num_gpus)
+            log.info(f"Context parallel group initialized with {args.num_gpus} GPUs")
+        else:
+            log.info("Distributed environment already initialized, skipping initialization")
+            # Check if we need to reinitialize with different context parallel size
+            current_cp_size = parallel_state.get_context_parallel_world_size()
+            if current_cp_size != args.num_gpus:
+                log.warning(f"Context parallel size mismatch: current={current_cp_size}, requested={args.num_gpus}")
+                log.warning("Using existing context parallel configuration")
+            else:
+                log.info(f"Using existing context parallel group with {current_cp_size} GPUs")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -213,12 +249,26 @@ def setup_pipeline(args: argparse.Namespace):
         load_prompt_refiner=True,
     )
 
+    # Set the provided text encoder if one was passed
+    if text_encoder is not None:
+        pipe.text_encoder = text_encoder
+
     return pipe
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed
-):
+    pipe: Video2WorldPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    guidance: float,
+    seed: int,
+    benchmark: bool = False,
+    use_cuda_graphs: bool = False,
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -226,14 +276,30 @@ def process_single_generation(
 
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {prompt}")
 
-    video = pipe(
-        prompt=prompt,
-        negative_prompt=negative_prompt,
-        input_path=input_path,
-        num_conditional_frames=num_conditional_frames,
-        guidance=guidance,
-        seed=seed,
-    )
+    num_repeats = 4 if benchmark else 1
+    time_sum = 0
+    for i in range(num_repeats):
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            start_time = time.time()
+        video = pipe(
+            prompt=prompt,
+            negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
+            input_path=input_path,
+            num_conditional_frames=num_conditional_frames,
+            guidance=guidance,
+            seed=seed,
+            use_cuda_graphs=use_cuda_graphs,
+        )
+        if benchmark and i > 0:
+            torch.cuda.synchronize()
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
+    if benchmark:
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"Average generation time for Video2WorldPipeline is {time_avg:.1f} seconds.")
 
     if video is not None:
         # save the generated video
@@ -252,6 +318,10 @@ def process_single_generation(
 
 
 def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
+    if args.benchmark:
+        log.warning(
+            "Running in benchmark mode. Each generation will be rerun a couple of times and the average generation time will be shown."
+        )
     # Video-to-World
     if args.batch_input_json is not None:
         # Process batch inputs from JSON file
@@ -259,7 +329,8 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
         with open(args.batch_input_json, "r") as f:
             batch_inputs = json.load(f)
 
-        for idx, item in enumerate(tqdm(batch_inputs)):
+        for idx, item in enumerate(batch_inputs):
+            log.info(f"Processing batch item {idx + 1}/{len(batch_inputs)}")
             input_video = item.get("input_video", "")
             prompt = item.get("prompt", "")
             output_video = item.get("output_video", f"output_{idx}.mp4")
@@ -274,9 +345,12 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 prompt=prompt,
                 output_path=output_video,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 num_conditional_frames=args.num_conditional_frames,
                 guidance=args.guidance,
                 seed=args.seed,
+                benchmark=args.benchmark,
+                use_cuda_graphs=args.use_cuda_graphs,
             )
     else:
         process_single_generation(
@@ -285,9 +359,12 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             guidance=args.guidance,
             seed=args.seed,
+            benchmark=args.benchmark,
+            use_cuda_graphs=args.use_cuda_graphs,
         )
 
     return

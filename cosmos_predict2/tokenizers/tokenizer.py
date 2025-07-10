@@ -13,7 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import time
 from contextlib import nullcontext
 
 import torch
@@ -22,7 +21,6 @@ import torch.nn.functional as F
 from einops import rearrange
 
 from cosmos_predict2.tokenizers.interface import VideoTokenizerInterface
-from cosmos_predict2.utils.tokenizer_benchmarking import BenchmarkTimes
 from imaginaire.utils import log
 from imaginaire.utils.distributed import broadcast, get_rank, sync_model_states
 from imaginaire.utils.easy_io import easy_io
@@ -153,29 +151,6 @@ class Resample(nn.Module):
                     feat_cache[idx] = cache_x
                     feat_idx[0] += 1
         return x
-
-    def init_weight(self, conv):
-        conv_weight = conv.weight
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        one_matrix = torch.eye(c1, c2)
-        init_matrix = one_matrix
-        nn.init.zeros_(conv_weight)
-        # conv_weight.data[:,:,-1,1,1] = init_matrix * 0.5
-        conv_weight.data[:, :, 1, 0, 0] = init_matrix  # * 0.5
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
-
-    def init_weight2(self, conv):
-        conv_weight = conv.weight.data
-        nn.init.zeros_(conv_weight)
-        c1, c2, t, h, w = conv_weight.size()
-        init_matrix = torch.eye(c1 // 2, c2)
-        # init_matrix = repeat(init_matrix, 'o ... -> (o 2) ...').permute(1,0,2).contiguous().reshape(c1,c2)
-        conv_weight[: c1 // 2, :, -1, 0, 0] = init_matrix
-        conv_weight[c1 // 2 :, :, -1, 0, 0] = init_matrix
-        conv.weight.data.copy_(conv_weight)
-        nn.init.zeros_(conv.bias.data)
 
 
 class ResidualBlock(nn.Module):
@@ -499,7 +474,6 @@ class VAE_(nn.Module):
         # cache
         t = x.shape[2]
         iter_ = 1 + (t - 1) // self.temporal_window
-        # 对encode输入的x，按时间拆分为1、self.temporal_stride、self.temporal_stride、self.temporal_window....
         for i in range(iter_):
             self._enc_conv_idx = [0]
             if i == 0:
@@ -661,12 +635,10 @@ class VAE:
         dtype=torch.float,
         device="cuda",
         is_amp=True,
-        benchmark: bool = False,
         temporal_window: int = 4,
     ):
         self.dtype = dtype
         self.device = device
-        self.benchmark = benchmark
         self.temporal_window = temporal_window
 
         mean = [
@@ -734,50 +706,22 @@ class VAE:
         """
         videos: A list of videos each with shape [C, T, H, W].
         """
-        if self.benchmark:
-            torch.cuda.synchronize()
-            benchmark_times = BenchmarkTimes()
-            total_time = time.perf_counter()
         in_dtype = videos.dtype
         with self.context:
             if not self.is_amp:
                 videos = videos.to(self.dtype)
-            if self.benchmark:
-                torch.cuda.synchronize()
-                model_time = time.perf_counter()
             latent = self.model.encode(videos, self.scale)
-            if self.benchmark:
-                torch.cuda.synchronize()
-                benchmark_times.model_invocation = time.perf_counter() - model_time
         latent = latent.to(in_dtype)
-        if self.benchmark:
-            torch.cuda.synchronize()
-            benchmark_times.total = time.perf_counter() - total_time
-            return latent, benchmark_times
         return latent
 
     @torch.no_grad()
     def decode(self, zs):
-        if self.benchmark:
-            torch.cuda.synchronize()
-            benchmark_times = BenchmarkTimes()
-            total_time = time.perf_counter()
         in_dtype = zs.dtype
         with self.context:
             if not self.is_amp:
                 zs = zs.to(self.dtype)
-            if self.benchmark:
-                torch.cuda.synchronize()
-                model_time = time.perf_counter()
             video_recon = self.model.decode(zs, self.scale)
-            if self.benchmark:
-                torch.cuda.synchronize()
-                benchmark_times.model_invocation = time.perf_counter() - model_time
         video_recon = video_recon.to(in_dtype)
-        if self.benchmark:
-            torch.cuda.synchronize()
-            benchmark_times.total = time.perf_counter() - total_time
-            return video_recon, benchmark_times
         return video_recon
 
 

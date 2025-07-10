@@ -101,7 +101,6 @@ def rotm2euler(R):
     return np.array([x, y, z])
 
 
-
 class Resize_Preprocess:
     def __init__(self, size):
         """

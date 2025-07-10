@@ -17,23 +17,18 @@ from typing import Any
 
 import numpy as np
 import torch
-
 from megatron.core import parallel_state
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
-
-from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
 from cosmos_predict2.models.utils import load_state_dict
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
+from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import (
     RectifiedFlowAB2Scheduler,
 )
-from cosmos_predict2.utils.context_parallel import (
-    cat_outputs_cp,
-    split_inputs_cp,
-)
+from cosmos_predict2.utils.context_parallel import cat_outputs_cp, split_inputs_cp
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.ema import FastEmaModelUpdater
@@ -44,7 +39,7 @@ _VIDEO_EXTENSIONS = [".mp4"]
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
-class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
+class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         super().__init__(device=device, torch_dtype=torch_dtype)
 
@@ -58,7 +53,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
-        pipe = ActionConditionedVideo2WorldPipeline(device=device, torch_dtype=torch_dtype)
+        pipe = Video2WorldActionConditionedPipeline(device=device, torch_dtype=torch_dtype)
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,
@@ -111,9 +106,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
             )
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -173,7 +166,12 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         return pipe
 
     def _get_data_batch_input(
-        self, video: torch.Tensor, actions: np.ndarray, prompt: str, negative_prompt: str = "", num_latent_conditional_frames: int = 1
+        self,
+        video: torch.Tensor,
+        actions: np.ndarray,
+        prompt: str,
+        negative_prompt: str = "",
+        num_latent_conditional_frames: int = 1,
     ):
         """
         Prepares the input data batch for the diffusion model.
@@ -221,8 +219,8 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         self,
         first_frame: np.ndarray,
         actions: np.ndarray,
-        prompt: str= '',
-        negative_prompt: str = '',
+        prompt: str = "",
+        negative_prompt: str = "",
         num_conditional_frames: int = 1,
         guidance: float = 7.0,
         num_sampling_step: int = 35,
@@ -230,7 +228,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         solver_option: str = "2ab",
     ) -> torch.Tensor | None:
         # Parameter check
-        # height, width = VIDEO_RES_SIZE_INFO[self.config.resolution]["9,16"]  # type: ignore
+        # width, height = VIDEO_RES_SIZE_INFO[self.config.resolution]["16:9"]  # type: ignore
         # height, width = self.check_resize_height_width(height, width)
         assert num_conditional_frames in [1, 5], "num_conditional_frames must be 1 or 5"
         num_latent_conditional_frames = self.tokenizer.get_latent_num_frames(num_conditional_frames)
@@ -238,19 +236,23 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         # num_video_frames = self.tokenizer.get_pixel_num_frames(self.config.state_t)
 
         # transform first frame and actions to tensor
-        vid_input = torch.from_numpy(first_frame).permute(2, 0, 1)[None,:, None,...]
-        actions_tensor = torch.from_numpy(actions).to(dtype=torch.bfloat16)[None,...]
+        vid_input = torch.from_numpy(first_frame).permute(2, 0, 1)[None, :, None, ...]
+        actions_tensor = torch.from_numpy(actions).to(dtype=torch.bfloat16)[None, ...]
 
         # Prepare the data batch with text embeddings
         data_batch = self._get_data_batch_input(
-            vid_input, actions_tensor, prompt, negative_prompt, num_latent_conditional_frames=num_latent_conditional_frames
+            vid_input,
+            actions_tensor,
+            prompt,
+            negative_prompt,
+            num_latent_conditional_frames=num_latent_conditional_frames,
         )
 
         # preprocess
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [

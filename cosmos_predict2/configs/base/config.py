@@ -17,6 +17,8 @@ from typing import Any, List
 
 import attrs
 
+from cosmos_predict2.configs.action_conditioned.defaults.data import register_training_and_val_data_action_conditioned
+from cosmos_predict2.configs.action_conditioned.defaults.model import register_model_action_conditioned
 from cosmos_predict2.configs.base.defaults.callbacks import register_callbacks
 from cosmos_predict2.configs.base.defaults.checkpoint import register_checkpoint
 from cosmos_predict2.configs.base.defaults.data import register_training_and_val_data
@@ -24,8 +26,6 @@ from cosmos_predict2.configs.base.defaults.ema import register_ema
 from cosmos_predict2.configs.base.defaults.model import register_model
 from cosmos_predict2.configs.base.defaults.optimizer import register_optimizer
 from cosmos_predict2.configs.base.defaults.scheduler import register_scheduler
-from cosmos_predict2.configs.action_conditioned.defaults.data import register_training_and_val_data_action_conditioned
-from cosmos_predict2.configs.action_conditioned.defaults.model import register_model_action_conditioned
 from imaginaire import config
 from imaginaire.trainer import ImaginaireTrainer as Trainer
 from imaginaire.utils.config_helper import import_all_modules_from_package
@@ -38,8 +38,8 @@ class Config(config.Config):
     defaults: List[Any] = attrs.field(
         factory=lambda: [
             "_self_",
-            {"data_train": None},
-            {"data_val": None},
+            {"dataloader_train": None},
+            {"dataloader_val": None},
             {"optimizer": "fusedadamw"},
             {"scheduler": "constant"},
             {"model": "predict2_video2world_fsdp_2b"},
