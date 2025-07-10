@@ -31,7 +31,7 @@ from cosmos_predict2.configs.base.config_text2image import (
 )
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 
@@ -223,6 +223,11 @@ def process_single_generation(
         log.info(f"Saving generated image to: {output_path}")
         save_image_or_video(image, output_path)
         log.success(f"Successfully saved image to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = [f"[Prompt]\n{prompt}", f"[Negative prompt]\n{negative_prompt}"]
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 
