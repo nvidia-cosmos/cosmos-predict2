@@ -35,17 +35,17 @@ cs = ConfigStore.instance()
 
 
 
-# Cosmos-NeMo-Assets LoRA video2world example
-example_video_dataset_cosmos_nemo_assets_lora = L(Dataset)(
+# Cosmos-NeMo-Assets LoRA video2world example (use same dataloader as working config)
+example_video_dataset_cosmos_nemo_assets = L(Dataset)(
     dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=93,
     video_size=(704, 1280),
 )
 
-dataloader_train_cosmos_nemo_assets_lora = L(DataLoader)(
-    dataset=example_video_dataset_cosmos_nemo_assets_lora,
-    sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets_lora),
-    batch_size=2,  # Can use larger batch size due to LoRA memory efficiency
+dataloader_train_cosmos_nemo_assets = L(DataLoader)(
+    dataset=example_video_dataset_cosmos_nemo_assets,
+    sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets),
+    batch_size=1,  # Use same batch size as working config
     drop_last=True,
     num_workers=8,
     pin_memory=True,
@@ -85,23 +85,23 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
     model_parallel=dict(
         context_parallel_size=2,
     ),
-    dataloader_train=dataloader_train_cosmos_nemo_assets_lora,
+    dataloader_train=dataloader_train_cosmos_nemo_assets,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=2000,  # LoRA typically needs more iterations but trains faster
+        max_iter=1000,  
     ),
     checkpoint=dict(
-        save_iter=100,  # More frequent checkpoints for LoRA
+        save_iter=200, 
     ),
     optimizer=dict(
-        lr=2 ** (-10),  # Higher learning rate for LoRA
+        lr=2 ** (-14.5),  
     ),
     scheduler=dict(
         warm_up_steps=[0],
-        cycle_lengths=[2_000],
+        cycle_lengths=[1_000],
         f_max=[0.6],
         f_min=[0.0],
     ),
@@ -141,28 +141,29 @@ predict2_video2world_lora_training_14b_cosmos_nemo_assets = dict(
     model_parallel=dict(
         context_parallel_size=8,
     ),
-    dataloader_train=dataloader_train_cosmos_nemo_assets_lora,
+    dataloader_train=dataloader_train_cosmos_nemo_assets,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=1500,  # Fewer iterations for larger model
+        max_iter=1000,  # Use same as working config
     ),
     checkpoint=dict(
-        save_iter=300,  # More frequent checkpoints
+        save_iter=200,  # Use same as working config
     ),
     optimizer=dict(
-        lr=2 ** (-11),  # Lower learning rate for larger model
+        lr=2 ** (-14.5),  # Use same as working config
         weight_decay=0.2,
     ),
     scheduler=dict(
         warm_up_steps=[0],
-        cycle_lengths=[1_500],
+        cycle_lengths=[1_000],
         f_max=[0.25],
         f_min=[0.0],
     ),
 )
+
 
 for _item in [
     # 2b, cosmos_nemo_assets video2world LoRA
