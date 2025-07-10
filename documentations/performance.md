@@ -49,9 +49,9 @@ This feature is only available for 720p inference, and only on NVIDIA GPUs with 
 9.0 or 10.0.
 
 Since many concurrent works in sparse attention for video generation report performance numbers with
-Flash Attention V2, We note that the baseline models run with the state of the art attention kernels
-for those architectures, namely [Flash Attention V3](https://arxiv.org/abs/2407.08608) for Hopper,
-and cuDNN Attention for Blackwell.
+Flash Attention V2 as baseline, we note that our baseline models run with SOTA attention kernels
+for the Hopper ([Flash Attention V3](https://arxiv.org/abs/2407.08608)) and Blackwell (cuDNN
+Attention) architectures.
 
 NATTEN's [Hopper](https://natten.org/backends/#hopper-fna-fmha) and
 [Blackwell FNA](https://natten.org/backends/#blackwell-fna-fmha) kernels can deliver speedups

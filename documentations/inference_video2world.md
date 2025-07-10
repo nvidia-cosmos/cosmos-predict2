@@ -287,6 +287,24 @@ Example output is included at `assets/video2world_lvg/example_output.mp4`.
 
 If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
 
+### Faster inference with Sparse Attention
+If you're targeting 720p generation, and you're using a Hopper (compute capability 9.0) or
+Blackwell datacenter-class (compute capability 10.0) GPU, you can optionally run
+[Video2World + NATTEN](performance.md#sparse-attention-powered-by-natten) by using the `--natten`
+flag.
+
+```bash
+python -m examples.video2world \
+    --model_size 2B \
+    --input_path $INPUT_PATH \
+    --prompt "${PROMPT}" \
+    --natten \
+    --save_path output/video2world_2b_with_natten.mp4
+```
+
+Running with NATTEN can bring you anywhere from 1.7X to 2.6X end-to-end speedup over the base model,
+depending on variant, frame rate, and hardware.
+
 ## API Documentation
 
 The `video2world.py` script supports the following command-line arguments:
