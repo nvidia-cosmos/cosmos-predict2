@@ -16,6 +16,7 @@
 from hydra.core.config_store import ConfigStore
 
 from cosmos_predict2.callbacks.device_monitor import DeviceMonitor
+from cosmos_predict2.callbacks.grad_clip import GradClip
 from cosmos_predict2.callbacks.iter_speed import IterSpeed
 from cosmos_predict2.callbacks.loss_log import LossLog
 from imaginaire.callbacks.manual_gc import ManualGarbageCollection
@@ -33,6 +34,7 @@ BASIC_CALLBACKS = dict(
     ),
     manual_gc=L(ManualGarbageCollection)(every_n=5),
     loss_log=L(LossLog)(),
+    grad_clip=L(GradClip)(clip_norm=1.0),
 )
 
 

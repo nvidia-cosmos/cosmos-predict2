@@ -16,6 +16,10 @@ git clone git@github.com:nvidia-cosmos/cosmos-predict2.git
 cd cosmos-predict2
 ```
 
+### ARM installation
+When using an ARM platform, like GB200, special steps are required to install the `decord` package.
+You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
+The installation will be handled by the Conda scripts or Dockerfile.
 ### Option 1: Conda environment
 
 Please make sure you have a Conda distribution installed ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
@@ -25,16 +29,20 @@ Please make sure you have a Conda distribution installed ([instructions](https:/
 conda env create --file cosmos-predict2.yaml
 conda activate cosmos-predict2
 
+# Try to install decord when on ARM platform
+bash scripts/install_decord_arm.sh
 # Install dependencies
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
-# Patch Transformer engine linking issues
+# Transformer engine
 ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
 ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
-pip install transformer-engine[pytorch]==1.13.0
+CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
+# NATTEN
+CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
 
 # Apex library for training (optional if inference only)
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
+CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
 
 # Verify setup
 CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
@@ -53,7 +61,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
    ```bash
    # Pull the Cosmos-Predict2 container
-   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0
+   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1
    ```
 
 * **Option 2B: Build container from Dockerfile**
@@ -66,7 +74,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
 * **Running the container**
 
-   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0` or `cosmos-predict2-local`:
+   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.1` or `cosmos-predict2-local`:
 
    ```bash
    # Run the container with GPU support and mount necessary directories
@@ -88,14 +96,30 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 2. Login: `huggingface-cli login`
 3. The [Llama-Guard-3-8B terms](https://huggingface.co/meta-llama/Llama-Guard-3-8B) must be accepted. Approval will be required before Llama Guard 3 can be downloaded.
 4. Download models:
-   ```bash
-   # Download Text2Image models (2B and 14B)
-   python -m scripts.download_checkpoints --model_sizes 2B 14B --model_types text2image --checkpoint_dir checkpoints
 
-   # Download Video2World models (2B and 14B)
-   python -m scripts.download_checkpoints --model_sizes 2B 14B --model_types video2world --checkpoint_dir checkpoints
-   ```
-   Add `--verify_md5` flag to verify MD5 checksums of downloaded files. If checksums don't match, models will be automatically redownloaded.
+| Models | Link | Download Command | Notes |
+|--------|------|------------------|-------|
+| Cosmos-Predict2-2B-Text2Image | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Text2Image) | `python -m scripts.download_checkpoints --model_types text2image --model_sizes 2B` | N/A |
+| Cosmos-Predict2-14B-Text2Image | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Text2Image) | `python -m scripts.download_checkpoints --model_types text2image --model_sizes 14B` | N/A |
+| Cosmos-Predict2-2B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World) | `python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
+| Cosmos-Predict2-14B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Video2World) | `python -m scripts.download_checkpoints --model_types video2world --model_sizes 14B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
+| Cosmos-Predict2-2B-Sample-Action-Conditioned | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned) | `python -m scripts.download_checkpoints --model_types sample_action_conditioned` | Supports 480P and 4FPS. |
+| Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1 | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_gr1` | Supports 480P and 16FPS. |
+| Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID) | `python -m scripts.download_checkpoints --model_types sample_gr00t_dreams_droid` | Supports 480P and 16FPS. |
+
+
+For Video2World model with different resolution and FPS, you can pass `resolution` and `fps` flag to control which model checkpoint to download. For example, if you want a 2B model with 480P and 10FPS, you can do
+```bash
+python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B --resolution 480 --fps 10
+```
+
+Tips: `model_types`, `model_sizes`, `fps` and `resolution` supports multiple values. So if you want a mega command to download {2,14}B Video2World models with {10,16} FPS and {480,720}P, you can download 2x2x2=8 models via
+```bash
+python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B 14B --resolution 480 720 --fps 10 16
+```
+
+You can pass `--checkpoint_dir <path to ckpt>` if you want to control where to put the checkpoints.
+You can also add `--verify_md5` flag to verify MD5 checksums of downloaded files. If checksums don't match, models will be automatically redownloaded.
 
 ## Troubleshooting
 

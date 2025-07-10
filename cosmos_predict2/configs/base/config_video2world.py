@@ -13,13 +13,22 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from copy import deepcopy
 from enum import Enum
 
 import attrs
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
+from cosmos_predict2.conditioner import (
+    BooleanFlag,
+    ReMapkey,
+    TextAttr,
+    VideoConditioner,
+)
+from cosmos_predict2.configs.base.config_text2image import (
+    CosmosGuardrailConfig,
+    SolverTimestampConfig,
+)
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
-from cosmos_predict2.configs.vid2vid.defaults.conditioner import Vid2VidConditioner
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
@@ -38,25 +47,7 @@ class ConditioningStrategy(str, Enum):
 
 @make_freezable
 @attrs.define(slots=False)
-class SolverTimestampConfig:
-    nfe: int = 35
-    t_min: float = 0.002
-    t_max: float = 80.0
-    order: float = 7.0
-    is_forward: bool = False  # whether generate forward or backward timestamps
-
-
-@make_freezable
-@attrs.define(slots=False)
 class CosmosReason1Config:
-    checkpoint_dir: str
-    offload_model_to_cpu: bool = True
-    enabled: bool = True
-
-
-@make_freezable
-@attrs.define(slots=False)
-class CosmosGuardrailConfig:
     checkpoint_dir: str
     offload_model_to_cpu: bool = True
     enabled: bool = True
@@ -84,7 +75,7 @@ class Video2WorldPipelineConfig:
     state_ch: int = 16
     state_t: int = 24
     text_encoder_class: str = "T5"
-    input_data_key: str = "video"
+    input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)
 
@@ -123,7 +114,7 @@ PREDICT2_VIDEO2WORLD_NET_2B = L(MinimalV1LVGDiT)(
 
 PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(Vid2VidConditioner)(
+    conditioner=L(VideoConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -162,6 +153,7 @@ PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
+        temporal_window=16,
         load_mean_std=False,
         name="tokenizer",
         vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth",
@@ -212,7 +204,7 @@ PREDICT2_VIDEO2WORLD_NET_14B = L(MinimalV1LVGDiT)(
 
 PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(Vid2VidConditioner)(
+    conditioner=L(VideoConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -251,6 +243,7 @@ PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
     text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
+        temporal_window=16,
         load_mean_std=False,
         name="tokenizer",
         vae_pth="checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth",
@@ -266,3 +259,31 @@ PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
         enabled=True,
     ),
 )
+
+# Cosmos Predict2 Video2World 2B pipeline config variants - resolution ["480", "720"] and fps [10, 16]
+# 2B, resolution 480p, fps 10
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_10FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_2B)
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_10FPS.resolution = "480"
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_10FPS.state_t = 16
+# 2B, resolution 480p, fps 16
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_16FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_2B)
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_480P_16FPS.resolution = "480"
+# 2B, resolution 720p, fps 10
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_10FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_2B)
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_10FPS.state_t = 16
+# 2B, resolution 720p, fps 16
+PREDICT2_VIDEO2WORLD_PIPELINE_2B_720P_16FPS = PREDICT2_VIDEO2WORLD_PIPELINE_2B
+
+# Cosmos Predict2 Video2World 14B pipeline config variants - resolution ["480", "720"] and fps [10, 16}]
+# 14B, resolution 480p, fps 10
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_10FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_14B)
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_10FPS.resolution = "480"
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_10FPS.state_t = 16
+# 14B, resolution 480p, fps 16
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_16FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_14B)
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_480P_16FPS.resolution = "480"
+# 14B, resolution 720p, fps 10
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS = deepcopy(PREDICT2_VIDEO2WORLD_PIPELINE_14B)
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS.state_t = 16
+# 14B, resolution 720p, fps 16
+PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS = PREDICT2_VIDEO2WORLD_PIPELINE_14B

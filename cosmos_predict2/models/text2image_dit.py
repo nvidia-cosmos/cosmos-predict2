@@ -34,7 +34,7 @@ from torchvision import transforms
 from transformer_engine.pytorch.attention import DotProductAttention, apply_rotary_pos_emb
 
 from cosmos_predict2.conditioner import DataType
-from cosmos_predict2.networks.a2a_cp import MinimalA2AAttnOp
+from cosmos_predict2.module.a2a_cp import MinimalA2AAttnOp
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
 from cosmos_predict2.utils.context_parallel import split_inputs_cp

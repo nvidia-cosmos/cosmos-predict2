@@ -29,7 +29,7 @@ import torch.nn as nn
 from torch.distributed import ProcessGroup
 
 from cosmos_predict2.functional.batch_ops import batch_mul
-from cosmos_predict2.utils.context_parallel import broadcast
+from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor
 from cosmos_predict2.utils.misc import count_params, disabled_train
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log
@@ -61,97 +61,7 @@ def broadcast_condition(condition: BaseCondition, process_group: Optional[Proces
     return type(condition)(**kwargs)
 
 
-@dataclass(frozen=True)
-class BaseCondition(ABC):
-    """
-    Attributes:
-        _is_broadcasted: Flag indicating if parallel broadcast splitting
-            has been performed. This is an internal implementation detail.
-    """
-
-    _is_broadcasted: bool = False
-
-    def to_dict(self, skip_underscore: bool = True) -> Dict[str, Any]:
-        """Converts the condition to a dictionary.
-
-        Returns:
-            Dictionary containing the condition's fields and values.
-        """
-        # return {f.name: getattr(self, f.name) for f in fields(self) if not f.name.startswith("_")}
-        return {f.name: getattr(self, f.name) for f in fields(self) if not (f.name.startswith("_") and skip_underscore)}
-
-    @property
-    def is_broadcasted(self) -> bool:
-        return self._is_broadcasted
-
-    def broadcast(self, process_group: torch.distributed.ProcessGroup) -> BaseCondition:
-        """Broadcasts and splits the condition across the checkpoint parallelism group.
-        For most condition, such asT2VCondition, we do not need split.
-
-        Args:
-            process_group: The process group for broadcast and split
-
-        Returns:
-            A new BaseCondition instance with the broadcasted and split condition.
-        """
-        if self.is_broadcasted:
-            return self
-        return broadcast_condition(self, process_group)
-
-
-@dataclass(frozen=True)
-class T2VCondition(BaseCondition):
-    crossattn_emb: Optional[torch.Tensor] = None
-    data_type: DataType = DataType.VIDEO
-    padding_mask: Optional[torch.Tensor] = None
-    fps: Optional[torch.Tensor] = None
-
-    def edit_data_type(self, data_type: DataType) -> T2VCondition:
-        """Edit the data type of the condition.
-
-        Args:
-            data_type: The new data type.
-
-        Returns:
-            A new T2VCondition instance with the new data type.
-        """
-        kwargs = self.to_dict(skip_underscore=False)
-        kwargs["data_type"] = data_type
-        return type(self)(**kwargs)
-
-    @property
-    def is_video(self) -> bool:
-        return self.data_type == DataType.VIDEO
-
-
-@dataclass(frozen=True)
-class GR00TV1Img2VidCondition(T2VCondition):
-    gt_first_frame: Optional[torch.Tensor] = None
-    use_image_condition: bool = False
-    condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
-
-    def edit_video_condition(
-        self, x0_B_C_T_H_W, process_group: Optional[ProcessGroup] = None
-    ) -> GR00TV1Img2VidCondition:
-        """Edit the video condition to include the video mask information.
-
-        Args:
-            x0_B_C_T_H_W: The first frame of the video.
-
-        Returns:
-            A new GR00TV1Img2VidCondition instance with the video mask information.
-        """
-        pg_size = 1 if process_group is None else process_group.size()
-        kwargs = self.to_dict(skip_underscore=False)
-        B, _, T, H, W = x0_B_C_T_H_W.shape
-        condition_video_input_mask = torch.zeros((B, 1, T, H, W), dtype=x0_B_C_T_H_W.dtype, device=x0_B_C_T_H_W.device)
-        if pg_size == 1 or process_group.rank() == 0:
-            kwargs["gt_first_frame"] = x0_B_C_T_H_W[:, :, 0].detach()
-            condition_video_input_mask[:, :, 0] += 1
-        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask
-        return type(self)(**kwargs)
-
-
+# AbstractEmbModel and its children
 class AbstractEmbModel(nn.Module):
     def __init__(self):
         super().__init__()
@@ -311,8 +221,231 @@ class BooleanFlag(AbstractEmbModel):
         return f"Output key: {key} \n\t This is a boolean flag"
 
 
+# ------------------- condition classes -------------------
+
+
+# BaseCondition and its children
+@dataclass(frozen=True)
+class BaseCondition(ABC):
+    """
+    Base class for condition data structures that hold conditioning information for generation models.
+
+    Attributes:
+        _is_broadcasted: Flag indicating if parallel broadcast splitting
+            has been performed. This is an internal implementation detail.
+    """
+
+    _is_broadcasted: bool = False
+
+    def to_dict(self, skip_underscore: bool = True) -> Dict[str, Any]:
+        """Converts the condition to a dictionary.
+
+        Returns:
+            Dictionary containing the condition's fields and values.
+        """
+        # return {f.name: getattr(self, f.name) for f in fields(self) if not f.name.startswith("_")}
+        return {f.name: getattr(self, f.name) for f in fields(self) if not (f.name.startswith("_") and skip_underscore)}
+
+    @property
+    def is_broadcasted(self) -> bool:
+        return self._is_broadcasted
+
+    def broadcast(self, process_group: torch.distributed.ProcessGroup) -> BaseCondition:
+        """Broadcasts and splits the condition across the checkpoint parallelism group.
+        For most condition, such asTextCondition, we do not need split.
+
+        Args:
+            process_group: The process group for broadcast and split
+
+        Returns:
+            A new BaseCondition instance with the broadcasted and split condition.
+        """
+        if self.is_broadcasted:
+            return self
+        return broadcast_condition(self, process_group)
+
+
+@dataclass(frozen=True)
+class TextCondition(BaseCondition):
+    crossattn_emb: Optional[torch.Tensor] = None
+    data_type: DataType = DataType.VIDEO
+    padding_mask: Optional[torch.Tensor] = None
+    fps: Optional[torch.Tensor] = None
+
+    def edit_data_type(self, data_type: DataType) -> TextCondition:
+        """Edit the data type of the condition.
+
+        Args:
+            data_type: The new data type.
+
+        Returns:
+            A new TextCondition instance with the new data type.
+        """
+        kwargs = self.to_dict(skip_underscore=False)
+        kwargs["data_type"] = data_type
+        return type(self)(**kwargs)
+
+    @property
+    def is_video(self) -> bool:
+        return self.data_type == DataType.VIDEO
+
+
+@dataclass(frozen=True)
+class VideoCondition(TextCondition):
+    use_video_condition: bool = False
+    # the following two attributes are used to set the video condition; during training, inference
+    gt_frames: Optional[torch.Tensor] = None
+    condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
+
+    def set_video_condition(
+        self,
+        gt_frames: torch.Tensor,
+        random_min_num_conditional_frames: int,
+        random_max_num_conditional_frames: int,
+        num_conditional_frames: Optional[int] = None,
+    ) -> VideoCondition:
+        """
+        Sets the video conditioning frames for video-to-video generation.
+
+        This method creates a conditioning mask for the input video frames that determines
+        which frames will be used as context frames for generating new frames. The method
+        handles both image batches (T=1) and video batches (T>1) differently.
+
+        Args:
+            gt_frames: A tensor of ground truth frames with shape [B, C, T, H, W], where:
+                B = batch size
+                C = number of channels
+                T = number of frames
+                H = height
+                W = width
+
+            random_min_num_conditional_frames: Minimum number of frames to use for conditioning
+                when randomly selecting a number of conditioning frames.
+
+            random_max_num_conditional_frames: Maximum number of frames to use for conditioning
+                when randomly selecting a number of conditioning frames.
+
+            num_conditional_frames: Optional; If provided, all examples in the batch will use
+                exactly this many frames for conditioning. If None, a random number of frames
+                between random_min_num_conditional_frames and random_max_num_conditional_frames
+                will be selected for each example in the batch.
+
+        Returns:
+            A new VideoCondition object with the gt_frames and conditioning mask set.
+            The conditioning mask (condition_video_input_mask_B_C_T_H_W) is a binary tensor
+            of shape [B, 1, T, H, W] where 1 indicates frames used for conditioning and 0
+            indicates frames to be generated.
+
+        Notes:
+            - For image batches (T=1), no conditioning frames are used (num_conditional_frames_B = 0).
+            - For video batches:
+                - If num_conditional_frames is provided, all examples use that fixed number of frames.
+                - Otherwise, each example randomly uses between random_min_num_conditional_frames and
+                random_max_num_conditional_frames frames.
+            - The mask marks the first N frames as conditioning frames (set to 1) for each example.
+        """
+        kwargs = self.to_dict(skip_underscore=False)
+        kwargs["gt_frames"] = gt_frames
+
+        # condition_video_input_mask_B_C_T_H_W
+        B, _, T, H, W = gt_frames.shape
+        condition_video_input_mask_B_C_T_H_W = torch.zeros(
+            B, 1, T, H, W, dtype=gt_frames.dtype, device=gt_frames.device
+        )
+        if T == 1:  # handle image batch
+            num_conditional_frames_B = torch.zeros(B, dtype=torch.int32)
+        else:  # handle video batch
+            if num_conditional_frames is not None:
+                num_conditional_frames_B = torch.ones(B, dtype=torch.int32) * num_conditional_frames
+            else:
+                num_conditional_frames_B = torch.randint(
+                    random_min_num_conditional_frames, random_max_num_conditional_frames + 1, size=(B,)
+                )
+        for idx in range(B):
+            condition_video_input_mask_B_C_T_H_W[idx, :, : num_conditional_frames_B[idx], :, :] += 1
+
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask_B_C_T_H_W
+        return type(self)(**kwargs)
+
+    def edit_for_inference(self, is_cfg_conditional: bool = True, num_conditional_frames: int = 1) -> VideoCondition:
+        _condition = self.set_video_condition(
+            gt_frames=self.gt_frames,
+            random_min_num_conditional_frames=0,
+            random_max_num_conditional_frames=0,
+            num_conditional_frames=num_conditional_frames,
+        )
+        if not is_cfg_conditional:
+            # Do not use classifier free guidance on conditional frames.
+            # YB found that it leads to worse results.
+            _condition.use_video_condition.fill_(True)
+        return _condition
+
+    def broadcast(self, process_group: torch.distributed.ProcessGroup) -> VideoCondition:
+        if self.is_broadcasted:
+            return self
+        # extra efforts
+        gt_frames = self.gt_frames
+        condition_video_input_mask_B_C_T_H_W = self.condition_video_input_mask_B_C_T_H_W
+        kwargs = self.to_dict(skip_underscore=False)
+        kwargs["gt_frames"] = None
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = None
+        new_condition = TextCondition.broadcast(
+            type(self)(**kwargs),
+            process_group,
+        )
+
+        kwargs = new_condition.to_dict(skip_underscore=False)
+        _, _, T, _, _ = gt_frames.shape
+        if process_group is not None:
+            if T > 1 and process_group.size() > 1:
+                gt_frames = broadcast_split_tensor(gt_frames, seq_dim=2, process_group=process_group)
+                condition_video_input_mask_B_C_T_H_W = broadcast_split_tensor(
+                    condition_video_input_mask_B_C_T_H_W, seq_dim=2, process_group=process_group
+                )
+        kwargs["gt_frames"] = gt_frames
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask_B_C_T_H_W
+        return type(self)(**kwargs)
+
+
+@dataclass(frozen=True)
+class GR00TV1VideoCondition(TextCondition):
+    gt_first_frame: Optional[torch.Tensor] = None
+    use_image_condition: bool = False
+    condition_video_input_mask_B_C_T_H_W: Optional[torch.Tensor] = None
+
+    def edit_video_condition(self, x0_B_C_T_H_W, process_group: Optional[ProcessGroup] = None) -> GR00TV1VideoCondition:
+        """Edit the video condition to include the video mask information.
+
+        Args:
+            x0_B_C_T_H_W: The first frame of the video.
+
+        Returns:
+            A new GR00TV1VideoCondition instance with the video mask information.
+        """
+        pg_size = 1 if process_group is None else process_group.size()
+        kwargs = self.to_dict(skip_underscore=False)
+        B, _, T, H, W = x0_B_C_T_H_W.shape
+        condition_video_input_mask = torch.zeros((B, 1, T, H, W), dtype=x0_B_C_T_H_W.dtype, device=x0_B_C_T_H_W.device)
+        if pg_size == 1 or process_group.rank() == 0:
+            kwargs["gt_first_frame"] = x0_B_C_T_H_W[:, :, 0].detach()
+            condition_video_input_mask[:, :, 0] += 1
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask
+        return type(self)(**kwargs)
+
+
+@dataclass(frozen=True)
+class ActionCondition(VideoCondition):
+    action: Optional[torch.Tensor] = None
+
+
+# ------------------- conditioner classes -------------------
+
+
+# Conditioners
 class GeneralConditioner(nn.Module, ABC):
     """
+    Base class for processing modules that transform input data into BaseCondition objects using embedders.
+
     An abstract module designed to handle various embedding models with conditional and unconditional configurations.
     This abstract base class initializes and manages a collection of embedders that can dynamically adjust
     their dropout rates based on conditioning.
@@ -469,21 +602,43 @@ class GeneralConditioner(nn.Module, ABC):
         return condition, un_condition
 
 
+class TextConditioner(GeneralConditioner):
+    def forward(
+        self,
+        batch: Dict,
+        override_dropout_rate: Optional[Dict[str, float]] = None,
+    ) -> TextCondition:
+        output = super()._forward(batch, override_dropout_rate)
+        return TextCondition(**output)
+
+
 class VideoConditioner(GeneralConditioner):
     def forward(
         self,
         batch: Dict,
         override_dropout_rate: Optional[Dict[str, float]] = None,
-    ) -> T2VCondition:
+    ) -> VideoCondition:
         output = super()._forward(batch, override_dropout_rate)
-        return T2VCondition(**output)
+        return VideoCondition(**output)
 
 
-class GR00TV1Img2VidConditioner(GeneralConditioner):
+class GR00TV1VideoConditioner(GeneralConditioner):
     def forward(
         self,
         batch: Dict,
         override_dropout_rate: Optional[Dict[str, float]] = None,
-    ) -> GR00TV1Img2VidCondition:
+    ) -> GR00TV1VideoCondition:
         output = super()._forward(batch, override_dropout_rate)
-        return GR00TV1Img2VidCondition(**output)
+        return GR00TV1VideoCondition(**output)
+
+
+class ActionConditioner(VideoConditioner):
+    def forward(
+        self,
+        batch: Dict,
+        override_dropout_rate: Optional[Dict[str, float]] = None,
+    ) -> ActionCondition:
+        output = super()._forward(batch, override_dropout_rate)
+        assert "action" in batch, "ActionConditioner requires 'action' in batch"
+        output["action"] = batch["action"]
+        return ActionCondition(**output)

@@ -15,7 +15,7 @@
 
 import collections
 import math
-from typing import Any, Dict, Mapping, Tuple
+from typing import Any, Dict, Mapping, Optional, Tuple
 
 import attrs
 import torch
@@ -25,7 +25,7 @@ from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
-from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     Video2WorldPipelineConfig,
@@ -34,6 +34,7 @@ from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model
 from cosmos_predict2.utils.optim_instantiate import get_base_scheduler
+from cosmos_predict2.utils.torch_future import clip_grad_norm_
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.model import ImaginaireModel
 from imaginaire.utils import log
@@ -43,28 +44,20 @@ from imaginaire.utils import log
 class Predict2ModelManagerConfig:
     # Local path, use it in fast debug run
     dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
-    dit_ema_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
     # For inference
     text_encoder_path: str = ""  # not used in training.
 
 
 @attrs.define(slots=False)
 class Predict2Video2WorldModelConfig:
-    learning_rate: float = 2 ** (-14.5)
     train_architecture: str = "base"
     lora_rank: int = 16
     lora_alpha: int = 16
     lora_target_modules: str = "q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2"
     init_lora_weights: bool = True
-    use_gradient_checkpointing: bool = True
-    use_gradient_checkpointing_offload: bool = False
-    use_selective_activation_checkpointing: bool = False
-    compute_latents_online: bool = False
-    num_video_frames: int = 81
-    resolution: str = "720"
 
     precision: str = "bfloat16"
-    input_data_key: str = "video"
+    input_video_key: str = "video"
     input_image_key: str = "images"
     loss_reduce: str = "mean"
     loss_scale: float = 10.0
@@ -85,10 +78,6 @@ class Predict2Video2WorldModelConfig:
 class Predict2Video2WorldModel(ImaginaireModel):
     def __init__(self, config: Predict2Video2WorldModelConfig):
         super().__init__()
-        # New code, added for i4 adaption
-        learning_rate = config.learning_rate
-        use_gradient_checkpointing = config.use_gradient_checkpointing
-        use_gradient_checkpointing_offload = config.use_gradient_checkpointing_offload
 
         self.config = config
 
@@ -166,10 +155,6 @@ class Predict2Video2WorldModel(ImaginaireModel):
             self.pipe.apply_fsdp(dp_mesh)
         else:
             log.info("FSDP (Fully Sharded Data Parallel) is disabled.")
-
-        self.learning_rate = learning_rate
-        self.use_gradient_checkpointing = use_gradient_checkpointing
-        self.use_gradient_checkpointing_offload = use_gradient_checkpointing_offload
 
     # New function, added for i4 adaption
     @property
@@ -252,7 +237,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
                 param.data = param.to(torch.float32)
 
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
         self.input_image_key = self.config.input_image_key
 
     def is_image_batch(self, data_batch: dict[str, torch.Tensor]) -> bool:
@@ -260,15 +245,15 @@ class Predict2Video2WorldModel(ImaginaireModel):
         Another comes from a dataloader which we by default assumes as video_data for video model training.
         """
         is_image = self.input_image_key in data_batch
-        is_video = self.input_data_key in data_batch
+        is_video = self.input_video_key in data_batch
         assert (
             is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        ), "Only one of the input_image_key or input_video_key should be present in the data_batch."
         return is_image
 
     def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
         is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
+        input_key = self.input_image_key if is_image else self.input_video_key
         if isinstance(self.pipe.dit, WeightTrainingStat):
             if is_image:
                 self.pipe.dit.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
@@ -309,7 +294,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
     def compute_loss_with_epsilon_and_sigma(
         self,
         x0_B_C_T_H_W: torch.Tensor,
-        condition: T2VCondition,
+        condition: TextCondition,
         epsilon_B_C_T_H_W: torch.Tensor,
         sigma_B_T: torch.Tensor,
     ) -> Tuple[dict, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -486,3 +471,18 @@ class Predict2Video2WorldModel(ImaginaireModel):
         if iteration < 1:
             return 0.0
         return (1 - 1 / (iteration + 1)) ** (self.pipe.ema_exp_coefficient + 1)
+
+    def clip_grad_norm_(
+        self,
+        max_norm: float,
+        norm_type: float = 2.0,
+        error_if_nonfinite: bool = False,
+        foreach: Optional[bool] = None,
+    ) -> torch.Tensor:
+        return clip_grad_norm_(
+            self.net.parameters(),
+            max_norm,
+            norm_type=norm_type,
+            error_if_nonfinite=error_if_nonfinite,
+            foreach=foreach,
+        )

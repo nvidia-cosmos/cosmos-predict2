@@ -37,10 +37,15 @@ def main():
     output_json = []
     for input_file in input_files:
         print(input_file)
+        prompt_file = input_file.replace(".jpg", ".txt").replace(".png", ".txt")
+        if not os.path.exists(prompt_file):
+            # The "dream_gen_benchmark/gr1_object/12_Use the right hand to pick up bok choy from top black shelf to paper bag.png" is missing a . before .png
+            prompt_file = input_file.replace(".jpg", "..txt").replace(".png", "..txt")
+
         output_json.append(
             {
                 "input_video": input_file,
-                "prompt": open(os.path.join(input_file.replace(".jpg", ".txt").replace(".png", ".txt"))).read(),
+                "prompt": open(prompt_file).read(),
                 "output_video": os.path.join(
                     save_path, os.path.basename(input_file.replace(".jpg", ".mp4").replace(".png", ".mp4"))
                 ),

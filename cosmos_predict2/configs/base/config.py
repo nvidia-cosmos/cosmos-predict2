@@ -17,6 +17,8 @@ from typing import Any, List
 
 import attrs
 
+from cosmos_predict2.configs.action_conditioned.defaults.data import register_training_and_val_data_action_conditioned
+from cosmos_predict2.configs.action_conditioned.defaults.model import register_model_action_conditioned
 from cosmos_predict2.configs.base.defaults.callbacks import register_callbacks
 from cosmos_predict2.configs.base.defaults.checkpoint import register_checkpoint
 from cosmos_predict2.configs.base.defaults.data import register_training_and_val_data
@@ -36,8 +38,8 @@ class Config(config.Config):
     defaults: List[Any] = attrs.field(
         factory=lambda: [
             "_self_",
-            {"data_train": None},
-            {"data_val": None},
+            {"dataloader_train": None},
+            {"dataloader_val": None},
             {"optimizer": "fusedadamw"},
             {"scheduler": "constant"},
             {"model": "predict2_video2world_fsdp_2b"},
@@ -83,7 +85,12 @@ def make_config() -> Config:
     register_checkpoint()
     register_callbacks()
 
+    # action conditional post-training config
+    register_training_and_val_data_action_conditioned()
+    register_model_action_conditioned()
+
     # experiment config are defined in the experiment folder
     # call import_all_modules_from_package to register them
     import_all_modules_from_package("cosmos_predict2.configs.base.experiment", reload=True)
+    import_all_modules_from_package("cosmos_predict2.configs.action_conditioned.experiment", reload=True)
     return c

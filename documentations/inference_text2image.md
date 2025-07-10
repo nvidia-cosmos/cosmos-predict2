@@ -35,7 +35,7 @@ python -m examples.text2image --help
 ### Single Image Generation
 
 This is a basic example for running inference on the 2B model with a single prompt.
-The output is saved to `outputs/text2image_2b.jpg`.
+The output is saved to `output/text2image_2b.jpg`.
 ```bash
 # Set the input prompt
 PROMPT="A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
@@ -43,7 +43,7 @@ PROMPT="A well-worn broom sweeps across a dusty wooden floor, its bristles gathe
 python -m examples.text2image \
     --prompt "${PROMPT}" \
     --model_size 2B \
-    --save_path outputs/text2image_2b.jpg
+    --save_path output/text2image_2b.jpg
 ```
 The 14B model can be run similarly by changing the model size parameter.
 
@@ -82,23 +82,29 @@ This will generate three separate images according to the prompts specified in t
 
 ## API Documentation
 
-The `predict2_text2image.py` script supports the following command-line arguments:
+The `text2image.py` script supports the following command-line arguments:
 
 Input and output parameters:
 - `--prompt`: Text prompt describing the image to generate (default: predefined example prompt)
 - `--negative_prompt`: Text describing what to avoid in the generated image (default: empty)
-- `--save_path`: Path to save the generated image (default: "generated_image.jpg")
+- `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
+- `--save_path`: Path to save the generated image (default: "output/generated_image.jpg")
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_image' fields
 
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
 
-Performance optimization:
+Generation parameters:
 - `--seed`: Random seed for reproducible results (default: 0)
-- `--use_cuda_graphs`: Use CUDA Graphs for inference acceleration
+
+Performance optimization parameters:
+- `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Content safety:
 - `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
+
+> **Note**: Text2Image runs on a single GPU and does not support multi-GPU inference. For multi-GPU video generation, use [Text2World](inference_text2world.md) or [Video2World](inference_video2world.md) pipelines.
 
 ## Prompt Engineering Tips
 

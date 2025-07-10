@@ -1,4 +1,4 @@
-# Predict2 Post-Training Guide
+# Predict2 Video2World Post-Training Guide
 
 This guide provides instructions on running post-training with Cosmos-Predict2 Video2World models.
 
@@ -20,9 +20,13 @@ Before running training:
 Cosmos-Predict2 provides two models for generating videos from a combination of text and visual inputs: `Cosmos-Predict2-2B-Video2World` and `Cosmos-Predict2-14B-Video2World`. These models can transform a still image or video clip into a longer, animated sequence guided by the text description.
 
 We support post-training the models with example datasets.
-- [training_cosmos_nemo_assets](/documentations/training_cosmos_nemo_assets.md)
-
-
+- [post-training_video2world_cosmos_nemo_assets](/documentations/post-training_video2world_cosmos_nemo_assets.md)
+  - Basic examples with a small 4 videos dataset
+- [post-training_video2world_agibot_fisheye](/documentations/post-training_video2world_agibot_fisheye.md)
+  - Examples with fisheye-view dataset
+  - Post-training from checkpoints with resolution & fps choices
+- [post-training_video2world_gr00t](/documentations/post-training_video2world_gr00t.md)
+  - Examples with GR00T-dreams datasets
 ## Post-training Guide
 
 ### 1. Preparing Data
@@ -32,7 +36,7 @@ For example, a custom dataset can be saved in a following structure.
 
 Dataset folder format:
 ```
-datasets/benchmark_train/custom_dataset/
+datasets/custom_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -44,11 +48,11 @@ datasets/benchmark_train/custom_dataset/
 
 After preparing `metas` and `videos` folders, run the following command to pre-compute T5-XXL embeddings.
 ```bash
-python -m scripts.get_t5_embeddings --dataset_path datasets/benchmark_train/custom_dataset/
+python -m scripts.get_t5_embeddings --dataset_path datasets/custom_video2world_dataset/
 ```
 This script will create `t5_xxl` folder under the dataset root where the T5-XXL embeddings are saved as `.pickle` files.
 ```
-datasets/benchmark_train/custom_dataset/
+datasets/custom_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -65,12 +69,12 @@ For example,
 ```python
 # custom dataset example
 example_video_dataset = L(Dataset)(
-    dataset_dir="datasets/benchmark_train/custom_dataset",
-    num_frames=77,
-    video_size=(720, 1280),
+    dataset_dir="datasets/custom_video2world_dataset",
+    num_frames=93,
+    video_size=(704, 1280),  # 720 resolution, 16:9 aspect ratio
 )
 
-dataloader_train = L(DataLoader)(
+dataloader_video_train = L(DataLoader)(
     dataset=example_video_dataset,
     sampler=L(get_sampler)(dataset=example_video_dataset),
     batch_size=1,
@@ -80,15 +84,16 @@ dataloader_train = L(DataLoader)(
 )
 ```
 
-With the `dataloader_train`, create a config for a training job.
+With the `dataloader_video_train`, create a config for a training job.
 Here's a post-training example for video2world 2B model.
 ```python
 predict2_video2world_training_2b_custom_data = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
+        {"override /scheduler": "lambdalinear"},
         {"override /ckpt_type": "standard"},
-        {"override /data_val": "mock"},
+        {"override /dataloader_val": "mock"},
         "_self_",
     ],
     job=dict(
@@ -98,11 +103,9 @@ predict2_video2world_training_2b_custom_data = dict(
     ),
     model=dict(
         config=dict(
-            num_video_frames=77,            # the number of video frames used for training
-            resolution="720",
-            fsdp_shard_size=8,              # FSDP size
             pipe_config=dict(
                 ema=dict(enabled=True),     # enable EMA during training
+                prompt_refiner_config=dict(enabled=False),  # disable prompt refiner during training
                 guardrail_config=dict(enabled=False),   # disable guardrail during training
             ),
         )
@@ -110,7 +113,7 @@ predict2_video2world_training_2b_custom_data = dict(
     model_parallel=dict(
         context_parallel_size=2,            # context parallelism size
     ),
-    dataloader_train=dataloader_train,
+    dataloader_train=dataloader_video_train,
     trainer=dict(
         distributed_parallelism="fsdp",
         callbacks=dict(
@@ -119,7 +122,16 @@ predict2_video2world_training_2b_custom_data = dict(
         max_iter=1000,                      # maximum number of iterations
     ),
     checkpoint=dict(
-        save_iter=200,                      # checkpoints will be saved every 200 iterations.
+        save_iter=500,                      # checkpoints will be saved every 500 iterations.
+    ),
+    optimizer=dict(
+        lr=2 ** (-14.5),
+    ),
+    scheduler=dict(
+        warm_up_steps=[0],
+        cycle_lengths=[1_000],              # adjust considering max_iter
+        f_max=[0.6],
+        f_min=[0.0],
     ),
 )
 ```
@@ -147,8 +159,9 @@ In the above config example, it starts by overriding from the registered configs
 ```python
     {"override /model": "predict2_video2world_fsdp_2b"},
     {"override /optimizer": "fusedadamw"},
+    {"override /scheduler": "lambdalinear"},
     {"override /ckpt_type": "standard"},
-    {"override /data_val": "mock"},
+    {"override /dataloader_val": "mock"},
 ```
 
 The configuration system is organized as follows:
@@ -166,6 +179,8 @@ cosmos_predict2/configs/base/
 │   └── scheduler.py            # Learning rate scheduler configurations
 └── experiment/                 # Experiment-specific configurations
     ├── cosmos_nemo_assets.py   # Experiments with cosmos_nemo_assets
+    ├── agibot_head_center_fisheye_color.py  # Experiments with agibot_head_center_fisheye_color
+    ├── groot.py                # Experiments with groot
     └── utils.py                # Utility functions for experiments
 ```
 
@@ -182,6 +197,7 @@ The system provides several pre-defined configuration groups that can be mixed a
 
 #### Scheduler Configurations (`defaults/scheduler.py`)
 - `constant`: Constant learning rate
+- `lambdalinear`: Linearly warming-up learning rate
 - Various learning rate scheduling strategies
 
 #### Data Configurations (`defaults/data.py`)
@@ -230,10 +246,10 @@ Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 ```bash
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/predict2_video2world_training_2b_custom_data/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/2b_custom_data/checkpoints/model/iter_000001000.pt" \
   --prompt "A descriptive prompt for physical AI." \
   --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
-  --save_path results/cosmos_nemo_assets/generated_video_from_post-training.mp4
+  --save_path output/cosmos_nemo_assets/generated_video_from_post-training.mp4
 ```
 
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
