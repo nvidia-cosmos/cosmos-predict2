@@ -225,7 +225,7 @@ def process_single_generation(
         log.success(f"Successfully saved image to: {output_path}")
         # save the prompts used to generate the video
         output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
-        prompts_to_save = [f"[Prompt]\n{prompt}", f"[Negative prompt]\n{negative_prompt}"]
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
         save_text_prompts(prompts_to_save, output_prompt_path)
         log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
