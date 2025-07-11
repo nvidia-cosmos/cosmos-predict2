@@ -873,6 +873,7 @@ class Video2WorldPipeline(BasePipeline):
             guidance=guidance,
             seed=seed,
             num_sampling_step=num_sampling_step,
+            use_cuda_graphs=use_cuda_graphs,
         )
 
     @torch.no_grad()
@@ -882,6 +883,7 @@ class Video2WorldPipeline(BasePipeline):
         guidance: float = 7.0,
         seed: int = 0,
         num_sampling_step: int = 35,
+        use_cuda_graphs: bool = False,
     ):
         # preprocess
         self._normalize_video_databatch_inplace(data_batch)

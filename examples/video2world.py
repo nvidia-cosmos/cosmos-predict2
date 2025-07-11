@@ -38,6 +38,7 @@ from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
+_CKPT_BASE_PATH = os.getenv("COSMOS_CKPT_BASE_PATH", ".")
 
 
 def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
@@ -176,7 +177,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
-        dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
+        dit_path = (
+            f"{_CKPT_BASE_PATH}/"
+            f"nvidia/Cosmos-Predict2-2B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
+        )
+        config.tokenizer["vae_pth"] = os.path.join(
+            f"{_CKPT_BASE_PATH/nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth"
+        )
     elif args.model_size == "14B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_14B
 
@@ -184,7 +191,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
 
-        dit_path = f"checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
+        dit_path = (
+            f"{_CKPT_BASE_PATH}"
+            f"nvidia/Cosmos-Predict2-14B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
+        )
+        config.tokenizer["vae_pth"] = os.path.join(
+            f"{_CKPT_BASE_PATH/nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth"
+        )
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
     if hasattr(args, "dit_path") and args.dit_path:
@@ -193,7 +206,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using dit_path: {dit_path}")
 
     # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
+    text_encoder_path = None if text_encoder is not None else f"{_CKPT_BASE_PATH}/google-t5/t5-11b"
     if text_encoder is not None:
         log.info("Using provided text encoder")
     else:
@@ -246,7 +259,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
-        load_prompt_refiner=True,
+        load_prompt_refiner=(not args.disable_prompt_refiner),
     )
 
     # Set the provided text encoder if one was passed

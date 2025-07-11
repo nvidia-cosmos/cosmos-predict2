@@ -1445,6 +1445,8 @@ class MiniTrainDIT(WeightTrainingStat):
             trt_engine_file = f"{prefix}{iblock}.engine"
             self.blocks[iblock] = MiniTrainDIT.TensorRTBlock(trt_engine_file)
 
+        torch.cuda.empty_cache()
+
     def forward(
         self,
         x_B_C_T_H_W: torch.Tensor,
