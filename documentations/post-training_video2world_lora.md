@@ -195,7 +195,7 @@ predict2_video2world_lora_training_14b_custom_data = dict(
         )
     ),
     model_parallel=dict(
-        context_parallel_size=4,            # Higher context parallelism for larger model
+        context_parallel_size=4,
     ),
     dataloader_train=dataloader_video_train_lora,
     trainer=dict(
@@ -203,13 +203,13 @@ predict2_video2world_lora_training_14b_custom_data = dict(
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=1500,                      # Fewer iterations for larger model
+        max_iter=1500,
     ),
     checkpoint=dict(
-        save_iter=300,                      # More frequent checkpoints
+        save_iter=300,
     ),
     optimizer=dict(
-        lr=2 ** (-11),                      # Lower learning rate for larger model
+        lr=2 ** (-11),
     ),
     scheduler=dict(
         warm_up_steps=[0],
@@ -353,9 +353,9 @@ The `model.config.train_architecture=lora` parameter explicitly enables LoRA tra
 
 During LoRA training, you'll see parameter statistics like:
 ```
-Total parameters: 2,345,678,901
-Trainable LoRA parameters: 1,234,567
-LoRA parameter ratio: 0.05%
+Total parameters: 3.96B, 
+Frozen parameters: 3,912,826,880, 
+Trainable parameters: 45,875,200
 ```
 
 This confirms that only a small fraction of parameters are being trained.
@@ -431,7 +431,6 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
 2. **Match LoRA parameters**: `--lora_rank`, `--lora_alpha`, and `--lora_target_modules` must match training config
 3. **Use the LoRA inference script**: Use `video2world_lora.py` instead of `video2world.py`
 
-See [documentations/inference_video2world_lora.md](documentations/inference_video2world_lora.md) for detailed inference run instructions.
 
 ### 5. Advanced LoRA Training Configurations
 
@@ -523,11 +522,6 @@ lora_target_modules="q_proj,k_proj,v_proj,output_proj"
 **Attention + MLP (Recommended):**
 ```python
 lora_target_modules="q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2"
-```
-
-**Comprehensive (Maximum Adaptation):**
-```python
-lora_target_modules="q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2,norm1,norm2"
 ```
 
 ### 6. Troubleshooting LoRA Training
@@ -654,6 +648,14 @@ checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/
 ├── latest_checkpoint.txt
 ```
 
+For a Succesful training, you should see the logs like this:
+
+```
+[07-10 22:14:27|SUCCESS|imaginaire/trainer.py:232:train] Done with training.   
+```
+
+
+
 ### LoRA Inference Commands
 
 Use the LoRA-trained checkpoints for inference:
@@ -665,9 +667,9 @@ export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 2B \
-    --dit_path "checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/model/iter_000002000.pt" \
+    --dit_path "checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
     --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
-    --prompt "A video of sks teal robot performing precise manipulation tasks." \
+    --prompt "A video of sks teal robot." \
     --save_path output/cosmos_nemo_assets_lora/generated_video_2b_lora.mp4 \
     --num_gpus ${NUM_GPUS} \
     --use_lora \
@@ -685,9 +687,9 @@ export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 14B \
-    --dit_path "checkpoints/posttraining/video2world_lora/14b_cosmos_nemo_assets/checkpoints/model/iter_000001500.pt" \
+    --dit_path "checkpoints/posttraining/video2world_lora/14b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
     --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
-    --prompt "A video of sks teal robot performing precise manipulation tasks." \
+    --prompt "A video of sks teal robot." \
     --save_path output/cosmos_nemo_assets_lora/generated_video_14b_lora.mp4 \
     --num_gpus ${NUM_GPUS} \
     --use_lora \
@@ -705,6 +707,7 @@ During LoRA training with Cosmos-NeMo-Assets, you should see logs like:
 Adding LoRA adapters: rank=16, alpha=16, targets=['q_proj', 'k_proj', 'v_proj', 'output_proj', 'mlp.layer1', 'mlp.layer2']
 Total parameters: 3.96B, Frozen parameters: 3,912,826,880, Trainable parameters: 45,875,200
 ```
+
 
 ## Related Documentation
 
