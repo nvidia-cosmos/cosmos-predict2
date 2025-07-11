@@ -44,7 +44,7 @@ Note: Video2World was run with 480p resolution and at 16 FPS.
 
 ### Sparse Attention powered by [NATTEN](https://natten.org)
 Video2World offers variants trained with sparse attention, which can accelerate inference up to 2.5X
-on the Hopper and Blackwell architectures.
+on the Hopper and Blackwell architectures with comparable quality.
 This feature is only available for 720p inference, and only on NVIDIA GPUs with compute capability
 9.0 or 10.0.
 
