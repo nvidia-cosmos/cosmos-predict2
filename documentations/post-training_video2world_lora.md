@@ -709,6 +709,34 @@ Total parameters: 3.96B, Frozen parameters: 3,912,826,880, Trainable parameters:
 ```
 
 
+## Results Comparison: Full Fine-tuning vs LoRA
+
+The following comparison demonstrates the effectiveness of LoRA post-training compared to traditional full fine-tuning using the Cosmos-Predict2-2B-Video2World model on the Cosmos-NeMo-Assets dataset.
+
+### Training Comparison
+
+| Aspect | Full Fine-tuning | LoRA Fine-tuning |
+|--------|------------------|------------------|
+| **Video Output** | <video width="320" height="240" controls><source src="../assets/video2world_lora/video2world_nemo_2b.mp4" type="video/mp4">Full fine-tuning result</video> | <video width="320" height="240" controls><source src="../assets/video2world_lora/video2world_nemo_2b_lora.mp4" type="video/mp4">LoRA fine-tuning result</video> |
+| **Trainable Parameters** | 100% | 1.2% |
+| **Checkpoint Size** | Large | Small |
+| **Learning Rate** | 2^(-14.5) | 2^(-10) |
+| **Convergence** | 3000 iterations | 1000 iterations |
+
+### Quality Analysis
+
+**LoRA Fine-tuning:**
+- Maintains base model capabilities
+- Faster adaptation to domain-specific tasks
+- More parameter-efficient
+- Better for preserving general knowledge
+
+**Full Fine-tuning:**
+- Comprehensive model adaptation
+- Potentially better fine-grained control
+- Risk of catastrophic forgetting
+- Requires higher computational resources
+
 ## Related Documentation
 
 - [Video2World Inference Guide](inference_video2world.md) - Standard inference without LoRA
