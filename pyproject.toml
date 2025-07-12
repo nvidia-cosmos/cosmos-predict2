@@ -1,3 +1,7 @@
+# [build-system]
+# requires = ["setuptools>=61.0", "wheel", "torch>=2.1"]
+# build-backend = "setuptools.build_meta"
+
 [project]
 name = "nvidia-cosmos"
 version = "1.0.3"
@@ -47,16 +51,40 @@ dependencies = [
     "torch",
     "torchvision",
     "tqdm==4.66.5",
-    "transformer-engine",
+    "transformer-engine-cu12==2.4.0",
     "transformers==4.51.3",
     "webdataset==0.2.111",
+]
+
+[project.optional-dependencies]
+build = [
+    "setuptools>=61.0",
+    "cmake>=3.21",
+    "wheel",
+    "pybind11[global]",
+    "ninja",
+    "pip",
+    "torch>=2.1",
+    "jax[cuda12]",
+    "flax>=0.7.1",
+]
+compile = [
+    "transformer-engine",
+    # "transformer-engine-torch==2.4.0",
+]
+
+[tool.uv]
+no-build-isolation-package = [
+    "transformer-engine",
+    "transformer-engine-torch",
 ]
 
 [tool.uv.sources]
 # Manually specify CUDA-specific wheel urls
 flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.8.1/flash_attn-2.8.1+cu12torch2.7cxx11abiFALSE-cp312-cp312-linux_x86_64.whl" }
 natten = { url = "https://github.com/SHI-Labs/NATTEN/releases/download/v0.20.1/natten-0.20.1%2Btorch270cu126-cp312-cp312-linux_x86_64.whl" }
-transformer-engine = { path = "../TransformerEngine/dist/transformer_engine-2.6.0.dev0+ac76d55c-cp312-cp312-linux_x86_64.whl" }
+# transformer-engine = { path = "../TransformerEngine/dist/transformer_engine-2.6.0.dev0-cp312-cp312-linux_x86_64.whl" }
+transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", tag = "v2.4" } # , branch = "stable"
 
 [project.urls]
 homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"
