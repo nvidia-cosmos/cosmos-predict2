@@ -17,7 +17,7 @@ dependencies = [
     "decord==0.6.0",
     "diffusers==0.33.1",
     "einops==0.8.1",
-    "flash-attn >=2.7.3,<=2.7.4.post1", # transformer-engine requirement: https://github.com/NVIDIA/TransformerEngine/blob/37da2d3b14e19a7d42f7948efd765833241c375f/transformer_engine/pytorch/attention/dot_product_attention/utils.py#L106-L108
+    "flash-attn >=2.7.3,<=2.7.4.post1",                                 # transformer-engine requirement: https://github.com/NVIDIA/TransformerEngine/blob/37da2d3b14e19a7d42f7948efd765833241c375f/transformer_engine/pytorch/attention/dot_product_attention/utils.py#L106-L108
     "ftfy==6.3.1",
     "fvcore==0.1.5.post20221221",
     "huggingface-hub==0.32.4",
@@ -46,19 +46,27 @@ dependencies = [
     "retinaface-py==0.0.2",
     "safetensors==0.5.3",
     "scikit-image==0.25.2",
+    "numpy",
+    "einops",
     "sentencepiece==0.2.0",
     "termcolor==2.5.0",
-    "nvidia-cuda-runtime-cu12 >=12.6,<12.7", # GCC cxx11 ABI required by transformer-engine
-    "torch>=2.6", # GCC cxx11 ABI required by transformer-engine
+    "nvidia-cuda-runtime-cu12 >=12.6,<12.7",                            # GCC cxx11 ABI required by transformer-engine
+    "torch>=2.6",                                                       # GCC cxx11 ABI required by transformer-engine
     "torchvision",
     "tqdm==4.66.5",
-    "transformer-engine-cu12==2.4.0",
     "transformers==4.51.3",
     "webdataset==0.2.111",
+    "transformer-engine==2.4.0",
+    "transformer-engine-cu12",
 ]
 
 [project.optional-dependencies]
-build = [
+compile = ["transformer-engine-torch"]
+
+[dependency-groups]
+# This can be removed once transformer-engine>=2.6
+# Copied from https://github.com/NVIDIA/TransformerEngine/blob/main/pyproject.toml
+transformer_engine_build = [
     "setuptools>=61.0",
     "cmake>=3.21",
     "wheel",
@@ -69,26 +77,18 @@ build = [
     "jax[cuda12]",
     "flax>=0.7.1",
 ]
-compile = [
-    # https://docs.nvidia.com/deeplearning/transformer-engine/user-guide/installation.html#installation-stable-release
-    # "transformer-engine",
-    "transformer-engine-torch==2.4.0",
-]
 
 [tool.uv]
 no-build-isolation-package = [
     # https://github.com/astral-sh/uv/blob/84b195306b239eaad98ea06c8bbd9e4b7c55c99c/docs/concepts/projects.md
     "flash-attn",
     "natten",
-    "transformer-engine",
     "transformer-engine-torch",
 ]
 
 [tool.uv.sources]
 flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
 natten = { url = "https://github.com/SHI-Labs/NATTEN/releases/download/v0.20.1/natten-0.20.1%2Btorch270cu126-cp312-cp312-linux_x86_64.whl" }
-# transformer-engine = { path = "../TransformerEngine/dist/transformer_engine-2.6.0.dev0-cp312-cp312-linux_x86_64.whl" }
-# transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", tag = "v2.4" } # , branch = "stable"
 
 [project.urls]
 homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"

@@ -1374,13 +1374,19 @@ dependencies = [
     { name = "torch" },
     { name = "torchvision" },
     { name = "tqdm" },
+    { name = "transformer-engine" },
     { name = "transformer-engine-cu12" },
     { name = "transformers" },
     { name = "webdataset" },
 ]
 
 [package.optional-dependencies]
-build = [
+compile = [
+    { name = "transformer-engine-torch" },
+]
+
+[package.dev-dependencies]
+transformer-engine-build = [
     { name = "cmake" },
     { name = "flax", version = "0.10.6", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine != 'aarch64' and sys_platform == 'linux'" },
     { name = "flax", version = "0.10.7", source = { registry = "https://pypi.org/simple" }, marker = "platform_machine == 'aarch64' or sys_platform != 'linux'" },
@@ -1393,21 +1399,17 @@ build = [
     { name = "torch" },
     { name = "wheel" },
 ]
-compile = [
-    { name = "transformer-engine-torch" },
-]
 
 [package.metadata]
 requires-dist = [
     { name = "attrs", specifier = "==25.1.0" },
     { name = "better-profanity", specifier = "==0.7.0" },
     { name = "boto3", specifier = "==1.35.99" },
-    { name = "cmake", marker = "extra == 'build'", specifier = ">=3.21" },
     { name = "decord", specifier = "==0.6.0" },
     { name = "diffusers", specifier = "==0.33.1" },
+    { name = "einops" },
     { name = "einops", specifier = "==0.8.1" },
     { name = "flash-attn", url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" },
-    { name = "flax", marker = "extra == 'build'", specifier = ">=0.7.1" },
     { name = "ftfy", specifier = "==6.3.1" },
     { name = "fvcore", specifier = "==0.1.5.post20221221" },
     { name = "huggingface-hub", specifier = "==0.32.4" },
@@ -1415,14 +1417,13 @@ requires-dist = [
     { name = "imageio", extras = ["pyav", "ffmpeg"], specifier = "==2.37.0" },
     { name = "iopath", specifier = "==0.1.10" },
     { name = "ipdb", specifier = "==0.13.13" },
-    { name = "jax", extras = ["cuda12"], marker = "extra == 'build'" },
     { name = "loguru", specifier = "==0.7.2" },
     { name = "mediapy", specifier = "==1.2.2" },
     { name = "megatron-core", specifier = "==0.10.0" },
     { name = "modelscope", specifier = "==1.26.0" },
     { name = "natten", marker = "platform_machine == 'x86_64' and sys_platform == 'linux'", url = "https://github.com/SHI-Labs/NATTEN/releases/download/v0.20.1/natten-0.20.1%2Btorch270cu126-cp312-cp312-linux_x86_64.whl" },
-    { name = "ninja", marker = "extra == 'build'" },
     { name = "nltk", specifier = "==3.9.1" },
+    { name = "numpy" },
     { name = "numpy", specifier = "==1.26.4" },
     { name = "nvidia-cuda-runtime-cu12", specifier = ">=12.6,<12.7" },
     { name = "nvidia-ml-py", specifier = "==12.535.133" },
@@ -1431,9 +1432,7 @@ requires-dist = [
     { name = "pandas", specifier = "==2.2.3" },
     { name = "peft", specifier = "==0.14.0" },
     { name = "pillow", specifier = "==11.1.0" },
-    { name = "pip", marker = "extra == 'build'" },
     { name = "protobuf", specifier = "==4.25.3" },
-    { name = "pybind11", extras = ["global"], marker = "extra == 'build'" },
     { name = "pycocotools", specifier = "==2.0.10" },
     { name = "pynvml", specifier = "==12.0.0" },
     { name = "pyyaml", specifier = "==6.0.2" },
@@ -1442,19 +1441,30 @@ requires-dist = [
     { name = "safetensors", specifier = "==0.5.3" },
     { name = "scikit-image", specifier = "==0.25.2" },
     { name = "sentencepiece", specifier = "==0.2.0" },
-    { name = "setuptools", marker = "extra == 'build'", specifier = ">=61.0" },
     { name = "termcolor", specifier = "==2.5.0" },
     { name = "torch", specifier = ">=2.6" },
-    { name = "torch", marker = "extra == 'build'", specifier = ">=2.1" },
     { name = "torchvision" },
     { name = "tqdm", specifier = "==4.66.5" },
-    { name = "transformer-engine-cu12", specifier = "==2.4.0" },
-    { name = "transformer-engine-torch", marker = "extra == 'compile'", specifier = "==2.4.0" },
+    { name = "transformer-engine", specifier = "==2.4.0" },
+    { name = "transformer-engine-cu12" },
+    { name = "transformer-engine-torch", marker = "extra == 'compile'" },
     { name = "transformers", specifier = "==4.51.3" },
     { name = "webdataset", specifier = "==0.2.111" },
-    { name = "wheel", marker = "extra == 'build'" },
 ]
-provides-extras = ["build", "compile"]
+provides-extras = ["compile"]
+
+[package.metadata.requires-dev]
+transformer-engine-build = [
+    { name = "cmake", specifier = ">=3.21" },
+    { name = "flax", specifier = ">=0.7.1" },
+    { name = "jax", extras = ["cuda12"] },
+    { name = "ninja" },
+    { name = "pip" },
+    { name = "pybind11", extras = ["global"] },
+    { name = "setuptools", specifier = ">=61.0" },
+    { name = "torch", specifier = ">=2.1" },
+    { name = "wheel" },
+]
 
 [[package]]
 name = "nvidia-cublas-cu12"
@@ -2756,6 +2766,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/eb/79/72064e6a701c2183016abbbfedaba506d81e30e232a68c9f0d6f6fcd1574/traitlets-5.14.3.tar.gz", hash = "sha256:9ed0579d3502c94b4b3732ac120375cda96f923114522847de4b3bb98b96b6b7", size = 161621, upload-time = "2024-04-19T11:11:49.746Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/00/c0/8f5d070730d7836adc9c9b6408dec68c6ced86b304a9b26a14df072a6e8c/traitlets-5.14.3-py3-none-any.whl", hash = "sha256:b74e89e397b1ed28cc831db7aea759ba6640cb3de13090ca145426688ff1ac4f", size = 85359, upload-time = "2024-04-19T11:11:46.763Z" },
+]
+
+[[package]]
+name = "transformer-engine"
+version = "2.4.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "transformer-engine-cu12" },
+]
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/9a/51/858766e10b825937153427e2101bf1006be30602c60b700b8493732f20af/transformer_engine-2.4.0-py3-none-any.whl", hash = "sha256:c2a845e433fcf81497cbc53334c99725bd2faa361e7548342e95398acb06e8ce", size = 515181, upload-time = "2025-06-06T17:50:22.965Z" },
 ]
 
 [[package]]
