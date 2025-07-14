@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
     )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
+    )
     parser.add_argument("--prompt", type=str, default=_DEFAULT_POSITIVE_PROMPT, help="Text prompt for image generation")
     parser.add_argument(
         "--batch_input_json",
@@ -136,6 +141,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
                 dit_path=dit_path,
                 device="cuda",
                 torch_dtype=torch.bfloat16,
+                load_ema_to_reg=args.load_ema,
             )
             return pipe
         else:
@@ -170,6 +176,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
             text_encoder_path=text_encoder_path,
             device="cuda",
             torch_dtype=torch.bfloat16,
+            load_ema_to_reg=args.load_ema,
         )
 
         # Set the provided text encoder if one was passed

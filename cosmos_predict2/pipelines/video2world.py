@@ -283,6 +283,7 @@ class Video2WorldPipeline(BasePipeline):
         text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
+        load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
@@ -364,11 +365,12 @@ class Video2WorldPipeline(BasePipeline):
 
         if dit_path:
             state_dict = load_state_dict(dit_path)
+            prefix_to_load = "net_ema." if load_ema_to_reg else "net."
             # drop net. prefix
             state_dict_dit_compatible = dict()
             for k, v in state_dict.items():
-                if k.startswith("net."):
-                    state_dict_dit_compatible[k[4:]] = v
+                if k.startswith(prefix_to_load):
+                    state_dict_dit_compatible[k[len(prefix_to_load) :]] = v
                 else:
                     state_dict_dit_compatible[k] = v
             pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
