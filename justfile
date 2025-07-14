@@ -3,11 +3,8 @@ default:
 
 install:
     #!/usr/bin/env bash
-    set -euxo pipefail
+    set -euo pipefail
 
-    uv sync --group transformer_engine_build
-
-    # `transformer-engine-torch` requires compiling
     if [ ! -d "/usr/local/cuda-12.6" ]; then
         echo "Error: CUDA 12.6 not installed. Please install https://developer.nvidia.com/cuda-12-6-0-download-archive" >&2
         exit 1
@@ -20,7 +17,11 @@ install:
         exit 1
     fi
     export CXX=clang
+
+    uv sync --group transformer_engine_build -v
+
+    # `transformer-engine-torch` requires compiling
     source .venv/bin/activate
-    pip install transformer-engine-torch --no-deps --no-build-isolation -v
+    pip install "transformer-engine-torch==1.13.0" --no-deps --no-build-isolation -v
 
     uv sync --all-extras

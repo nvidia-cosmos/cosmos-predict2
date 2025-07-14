@@ -417,21 +417,13 @@ wheels = [
 
 [[package]]
 name = "flash-attn"
-version = "2.7.4.post1"
-source = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
+version = "2.6.3"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "einops" },
     { name = "torch" },
 ]
-wheels = [
-    { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl", hash = "sha256:8cb78ca2176735d7d7d867a8b355d728341be1928b912ce0b9df10591c9b9f7c" },
-]
-
-[package.metadata]
-requires-dist = [
-    { name = "einops" },
-    { name = "torch" },
-]
+sdist = { url = "https://files.pythonhosted.org/packages/cd/1e/21321670cd3c2f225026d9fd89272cae661529238850e79f48ccf2f9e4e3/flash_attn-2.6.3.tar.gz", hash = "sha256:5bfae9500ad8e7d2937ebccb4906f3bc464d1bf66eedd0e4adabd520811c7b52", size = 2631958, upload-time = "2024-07-25T23:45:52.283Z" }
 
 [[package]]
 name = "flask"
@@ -1409,7 +1401,7 @@ requires-dist = [
     { name = "diffusers", specifier = "==0.33.1" },
     { name = "einops" },
     { name = "einops", specifier = "==0.8.1" },
-    { name = "flash-attn", url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" },
+    { name = "flash-attn", specifier = ">=2.1.1,<=2.6.3" },
     { name = "ftfy", specifier = "==6.3.1" },
     { name = "fvcore", specifier = "==0.1.5.post20221221" },
     { name = "huggingface-hub", specifier = "==0.32.4" },
@@ -1425,7 +1417,7 @@ requires-dist = [
     { name = "nltk", specifier = "==3.9.1" },
     { name = "numpy" },
     { name = "numpy", specifier = "==1.26.4" },
-    { name = "nvidia-cuda-runtime-cu12", specifier = ">=12.6,<12.7" },
+    { name = "nvidia-cuda-runtime-cu12", specifier = ">=12.6" },
     { name = "nvidia-ml-py", specifier = "==12.535.133" },
     { name = "omegaconf", specifier = "==2.3.0" },
     { name = "opencv-python", specifier = "==4.10.0.84" },
@@ -1445,9 +1437,9 @@ requires-dist = [
     { name = "torch", specifier = ">=2.6" },
     { name = "torchvision" },
     { name = "tqdm", specifier = "==4.66.5" },
-    { name = "transformer-engine", specifier = "==2.4.0" },
-    { name = "transformer-engine-cu12" },
-    { name = "transformer-engine-torch", marker = "extra == 'compile'" },
+    { name = "transformer-engine", specifier = "==1.13.0" },
+    { name = "transformer-engine-cu12", specifier = "==1.13.0" },
+    { name = "transformer-engine-torch", marker = "extra == 'compile'", specifier = "==1.13.0" },
     { name = "transformers", specifier = "==4.51.3" },
     { name = "webdataset", specifier = "==0.2.111" },
 ]
@@ -2770,18 +2762,18 @@ wheels = [
 
 [[package]]
 name = "transformer-engine"
-version = "2.4.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "transformer-engine-cu12" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/9a/51/858766e10b825937153427e2101bf1006be30602c60b700b8493732f20af/transformer_engine-2.4.0-py3-none-any.whl", hash = "sha256:c2a845e433fcf81497cbc53334c99725bd2faa361e7548342e95398acb06e8ce", size = 515181, upload-time = "2025-06-06T17:50:22.965Z" },
+    { url = "https://files.pythonhosted.org/packages/0e/70/28bf837cc909c09a209876b73a1e4b5475c0a7b0bfc2025c233d53b918da/transformer_engine-1.13.0-py3-none-any.whl", hash = "sha256:9a7482ed47512e888fded3361153a60846ad0dd6a98d86b77f69dd60194dab05", size = 459968, upload-time = "2024-12-08T16:41:15.68Z" },
 ]
 
 [[package]]
 name = "transformer-engine-cu12"
-version = "2.4.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "importlib-metadata" },
@@ -2789,18 +2781,18 @@ dependencies = [
     { name = "pydantic" },
 ]
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/f9/e5/008f377a3675f79625744d9d50cafd06c3983ec9cd158a6d1eea029e18dc/transformer_engine_cu12-2.4.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:5a11faa4b7caa54bc5562cf430f8dd232addf0130696a823eade02048d56e2c1", size = 269999074, upload-time = "2025-06-06T17:48:55.49Z" },
-    { url = "https://files.pythonhosted.org/packages/ad/6a/c650f4afe791162e68b8e446ba4583aa47acf0c30eb135998353ee2f3845/transformer_engine_cu12-2.4.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:7fcf40db5782bf51370b93aec0ff74397982f2fd68c3b3d793783fc9c9888bf8", size = 270364240, upload-time = "2025-06-06T17:49:53.216Z" },
+    { url = "https://files.pythonhosted.org/packages/24/ee/bdf8678c5d9bca43ca43e6f50fc2a7758ef7bcf281f3197579e18c60019c/transformer_engine_cu12-1.13.0-py3-none-manylinux_2_28_aarch64.whl", hash = "sha256:d81cfcd003a678491eb6618c9636db612693bbbaf9aadd9d935cf90ce1cb6e3f", size = 125046460, upload-time = "2024-12-08T16:29:29.689Z" },
+    { url = "https://files.pythonhosted.org/packages/11/9d/821af2d3055b60da268a2b942de87e25314ae8d50f3f86b20a6177b377dc/transformer_engine_cu12-1.13.0-py3-none-manylinux_2_28_x86_64.whl", hash = "sha256:e166b1c7006f7d33fc80e5411579a8ca34ee665dd9bc37ec713ce0e05b270ecf", size = 125242791, upload-time = "2024-12-10T15:29:17.736Z" },
 ]
 
 [[package]]
 name = "transformer-engine-torch"
-version = "2.4.0"
+version = "1.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "torch" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/06/ed/3428af305ea9c5756b94300f0b00fbc7e8f0b85833b00607697aa8f3e371/transformer_engine_torch-2.4.0.tar.gz", hash = "sha256:026b133737e3434dc4e9218aedd03d77f240e351347af5a7af45601c300bf3e6", size = 156462, upload-time = "2025-06-06T17:50:57.64Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/98/48/b3bfa95400166510703f839845c73729f2dbc8a97e854b0179882f82c67b/transformer_engine_torch-1.13.0.tar.gz", hash = "sha256:0c844091c45b64e8c257833d8e568ad183f935b8de7b0e252e2bbe4110c9c2f1", size = 121404, upload-time = "2024-12-08T16:28:43.831Z" }
 
 [[package]]
 name = "transformers"
