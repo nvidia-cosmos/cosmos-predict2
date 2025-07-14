@@ -43,4 +43,10 @@ RUN pip install --no-cache-dir -r /requirements.txt
 RUN mkdir -p /workspace
 WORKDIR /workspace
 
+ADD datasets /workspace/datasets
+ADD assets /workspace/assets
+ADD imaginaire /workspace/imaginaire
+ADD scripts /workspace/scripts
+ADD cosmos_predict2 /workspace/cosmos_predict2
+
 CMD ["/bin/bash"]
