@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from contextlib import contextmanager
 from typing import Any, List, Tuple, Union
 
 import numpy as np
@@ -20,7 +21,7 @@ import torch
 from einops import rearrange
 from megatron.core import parallel_state
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.fsdp import fully_shard
+from torch.distributed.fsdp import FSDPModule, fully_shard
 from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
@@ -140,7 +141,9 @@ class Text2ImagePipeline(BasePipeline):
         ), "conditioner should not have learnable parameters"
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+            from cosmos_predict2.auxiliary.guardrail.common import (
+                presets as guardrail_presets,
+            )
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -341,7 +344,9 @@ class Text2ImagePipeline(BasePipeline):
 
         # Run text guardrail on the prompt
         if self.text_guardrail_runner is not None:
-            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+            from cosmos_predict2.auxiliary.guardrail.common import (
+                presets as guardrail_presets,
+            )
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
@@ -440,3 +445,25 @@ class Text2ImagePipeline(BasePipeline):
 
         log.success("Image generation completed successfully")
         return image
+
+    @contextmanager
+    def ema_scope(self, context: Any = None, is_cpu: bool = False):
+        if self.config.ema.enabled:
+            # https://github.com/pytorch/pytorch/issues/144289
+            for module in self.dit.modules():
+                if isinstance(module, FSDPModule):
+                    module.reshard()
+            self.dit_ema_worker.cache(self.dit.parameters(), is_cpu=is_cpu)
+            self.dit_ema_worker.copy_to(src_model=self.dit_ema, tgt_model=self.dit)
+            if context is not None:
+                log.info(f"{context}: Switched to EMA weights")
+        try:
+            yield None
+        finally:
+            if self.config.ema.enabled:
+                for module in self.dit.modules():
+                    if isinstance(module, FSDPModule):
+                        module.reshard()
+                self.dit_ema_worker.restore(self.dit.parameters())
+                if context is not None:
+                    log.info(f"{context}: Restored training weights")

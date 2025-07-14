@@ -363,6 +363,10 @@ class Predict2Text2ImageModel(ImaginaireModel):
 
         return output_batch, kendall_loss
 
+    @torch.no_grad()
+    def validation_step(self, data_batch: dict, data_batch_idx: int) -> tuple[dict, torch.Tensor]:
+        return self.training_step(data_batch, data_batch_idx)
+
     # ------------------ Checkpointing ------------------
 
     def state_dict(self) -> Dict[str, Any]:
