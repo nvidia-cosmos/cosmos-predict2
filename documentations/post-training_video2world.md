@@ -252,6 +252,17 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --save_path output/cosmos_nemo_assets/generated_video_from_post-training.mp4
 ```
 
+To load EMA weights from the post-trained checkpoint, add argument `--load_ema`.
+```bash
+CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
+  --model_size 2B \
+  --dit_path "checkpoints/posttraining/video2world/2b_custom_data/checkpoints/model/iter_000001000.pt" \
+  --load_ema \
+  --prompt "A descriptive prompt for physical AI." \
+  --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
+  --save_path output/cosmos_nemo_assets/generated_video_from_post-training.mp4
+```
+
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.
 
 ##### Cosmos-Predict2-14B-Video2World

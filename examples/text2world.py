@@ -27,10 +27,17 @@ from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 
 # Import functionality from other example scripts
-from examples.text2image import process_single_generation as process_single_image_generation
+from examples.text2image import (
+    process_single_generation as process_single_image_generation,
+)
 from examples.text2image import setup_pipeline as setup_text2image_pipeline
-from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
-from examples.video2world import process_single_generation as process_single_video_generation
+from examples.video2world import (
+    _DEFAULT_NEGATIVE_PROMPT,
+    cleanup_distributed,
+)
+from examples.video2world import (
+    process_single_generation as process_single_video_generation,
+)
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
 from imaginaire.utils import log
 
@@ -105,10 +112,21 @@ def parse_args() -> argparse.Namespace:
         help="FPS of the model to use for video-to-world generation",
     )
     parser.add_argument(
-        "--dit_path",
+        "--dit_path_text2image",
         type=str,
         default="",
-        help="Custom path to the DiT model checkpoint for post-trained models.",
+        help="Custom path to the DiT model checkpoint for post-trained text2image models.",
+    )
+    parser.add_argument(
+        "--dit_path_video2world",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained video2world models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value for video generation")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
@@ -277,6 +295,7 @@ if __name__ == "__main__":
         text_encoder = None
 
         log.info("Step 1: Initializing text2image pipeline...")
+        args.dit_path = args.dit_path_text2image
         text2image_pipe = setup_text2image_pipeline(args)
 
         # Handle the case where setup_text2image_pipeline returns None for non-rank-0 processes
@@ -309,6 +328,7 @@ if __name__ == "__main__":
             log.info(f"Rank {rank}: Will create new text encoder for video2world pipeline")
 
         # Pass all video2world relevant arguments and the text encoder
+        args.dit_path = args.dit_path_video2world
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
 
         # Generate videos

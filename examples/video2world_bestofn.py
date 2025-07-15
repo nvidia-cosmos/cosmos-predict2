@@ -222,6 +222,11 @@ def parse_args():
         help="Custom path to the DiT model checkpoint for post-trained models.",
     )
     parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
+    )
+    parser.add_argument(
         "--prompt",
         type=str,
         default="",

@@ -244,6 +244,16 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/text2image.py \
   --save_path output/cosmos_nemo_assets/generated_image_from_post-training.mp4
 ```
 
+To load EMA weights from the post-trained checkpoint, add argument `--load_ema`.
+```bash
+CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/text2image.py \
+  --model_size 2B \
+  --dit_path "checkpoints/posttraining/text2image/2b_custom_data/checkpoints/model/iter_000001000.pt" \
+  --load_ema \
+  --prompt "A descriptive prompt for physical AI." \
+  --save_path output/cosmos_nemo_assets/generated_image_from_post-training.mp4
+```
+
 See [documentations/inference_text2image.md](documentations/inference_text2image.md) for inference run details.
 
 ##### Cosmos-Predict2-14B-Text2Image

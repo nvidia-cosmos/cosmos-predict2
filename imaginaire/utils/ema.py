@@ -15,8 +15,7 @@
 
 from __future__ import annotations
 
-from contextlib import contextmanager
-from typing import TYPE_CHECKING, Any, Generator, List, Optional, Union
+from typing import TYPE_CHECKING, Any, List, Optional, Union
 
 import numpy as np
 import torch
@@ -314,24 +313,3 @@ class PowerEMATracker(EMAModelTracker):
         if cur_dp_rank < num:
             print(f"PowerEMATracker: rank {cur_dp_rank}, rate {rate / divider}")
         return cls(model, rate / divider)
-
-
-@contextmanager
-def ema_scope(model: ImaginaireModel, enabled: bool = False) -> Generator[None, None, None]:
-    """Context manager for switching between regular and EMA model weights.
-
-    Args:
-        model (ImaginaireModel): The PyTorch model.
-        enabled (bool): Whether switching to EMA weights is enabled (default: False).
-    """
-    if enabled:
-        assert hasattr(model, "ema") and isinstance(model.ema, (FastEmaModelUpdater, EMAModelTracker, PowerEMATracker))
-        model.ema.cache(model.parameters())
-        model.ema.copy_to(model)
-        log.info("EMA: switched to EMA weights.")
-    try:
-        yield None
-    finally:
-        if enabled:
-            model.ema.restore(model.parameters())
-            log.info("EMA: restored regular weights.")

@@ -314,6 +314,7 @@ The `video2world.py` script supports the following command-line arguments:
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
 - `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
+- `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
 - `--fps`: FPS of the model to use for video-to-world generation (choices: 10, 16, default: 16)
 - `--resolution`: Resolution of the model to use for video-to-world generation (choices: 480, 720, default: 720)
 

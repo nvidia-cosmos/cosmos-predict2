@@ -15,6 +15,7 @@
 
 import math
 import os
+from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
@@ -24,35 +25,22 @@ from einops import rearrange
 from megatron.core import parallel_state
 from PIL import Image
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.fsdp import fully_shard
+from torch.distributed.fsdp import FSDPModule, fully_shard
 from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.conditioner import DataType, TextCondition
-from cosmos_predict2.configs.base.config_video2world import (
-    ConditioningStrategy,
-    Video2WorldPipelineConfig,
-)
+from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
 from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
 from cosmos_predict2.module.denoise_prediction import DenoisePrediction
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.base import BasePipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import (
-    RectifiedFlowAB2Scheduler,
-)
+from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
-from cosmos_predict2.utils.context_parallel import (
-    broadcast,
-    broadcast_split_tensor,
-    cat_outputs_cp,
-    split_inputs_cp,
-)
-from cosmos_predict2.utils.dtensor_helper import (
-    DTensorFastEmaModelUpdater,
-    broadcast_dtensor_model_states,
-)
+from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
+from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -282,6 +270,7 @@ class Video2WorldPipeline(BasePipeline):
         text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
+        load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
@@ -361,11 +350,12 @@ class Video2WorldPipeline(BasePipeline):
 
         if dit_path:
             state_dict = load_state_dict(dit_path)
+            prefix_to_load = "net_ema." if load_ema_to_reg else "net."
             # drop net. prefix
             state_dict_dit_compatible = dict()
             for k, v in state_dict.items():
-                if k.startswith("net."):
-                    state_dict_dit_compatible[k[4:]] = v
+                if k.startswith(prefix_to_load):
+                    state_dict_dit_compatible[k[len(prefix_to_load) :]] = v
                 else:
                     state_dict_dit_compatible[k] = v
             pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
@@ -972,3 +962,25 @@ class Video2WorldPipeline(BasePipeline):
             return video, prompt
         else:
             return video
+
+    @contextmanager
+    def ema_scope(self, context: Any = None, is_cpu: bool = False):
+        if self.config.ema.enabled:
+            # https://github.com/pytorch/pytorch/issues/144289
+            for module in self.dit.modules():
+                if isinstance(module, FSDPModule):
+                    module.reshard()
+            self.dit_ema_worker.cache(self.dit.parameters(), is_cpu=is_cpu)
+            self.dit_ema_worker.copy_to(src_model=self.dit_ema, tgt_model=self.dit)
+            if context is not None:
+                log.info(f"{context}: Switched to EMA weights")
+        try:
+            yield None
+        finally:
+            if self.config.ema.enabled:
+                for module in self.dit.modules():
+                    if isinstance(module, FSDPModule):
+                        module.reshard()
+                self.dit_ema_worker.restore(self.dit.parameters())
+                if context is not None:
+                    log.info(f"{context}: Restored training weights")

@@ -23,7 +23,6 @@ from imaginaire.model import ImaginaireModel
 from imaginaire.trainer import ImaginaireTrainer
 from imaginaire.utils import log
 from imaginaire.utils.distributed import rank0_only
-from imaginaire.utils.easy_io import easy_io
 
 
 class IterSpeed(EveryN):
