@@ -19,15 +19,20 @@ install:
     export CXX=clang
 
     uv venv --allow-existing
-    source .venv/bin/activate
+    requirements_file=$(mktemp)
+
+    # Install build dependencies
+    uv export -q --only-group build > $requirements_file
+    uv pip install -r $requirements_file --no-deps
 
     # Compile packages
-    uv export -q --only-group build --format requirements.txt -o requirements-build.txt
-    uv export -q --only-group compile --format requirements.txt -o requirements-compile.txt
-    pip install -r requirements-build.txt
-    export _GLIBCXX_USE_CXX11_ABI=$(python -c "import torch; print(1 if torch.compiled_with_cxx11_abi() else 0)")
-    # export MAX_JOBS=4 # Avoid out of memory: https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features
     echo "Compiling packages. This may take a while..."
-    pip install -v -r requirements-compile.txt --no-build-isolation
+    export _GLIBCXX_USE_CXX11_ABI=$(python -c "import torch; print(1 if torch.compiled_with_cxx11_abi() else 0)")
+    uv export -q --only-group compile > $requirements_file
+    uv pip install -v -r $requirements_file --no-build-isolation --no-cache --no-deps
 
-    # uv sync --all-extras
+    # Install all dependencies
+    uv sync
+
+    # Check installation
+    uv run scripts/test_environment.py

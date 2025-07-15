@@ -17,14 +17,13 @@ cd cosmos-predict2
 ```
 
 ### ARM installation
-
 When using an ARM platform, like GB200, special steps are required to install the `decord` package.
 You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
 The installation will be handled by the Conda scripts or Dockerfile.
 
 ### Option 1: UV
 
-Note: This has only been tested on Linux x86_64.
+Note: Has only been tested on Linux x86_64.
 
 ```sh
 # Install uv/just
@@ -34,9 +33,6 @@ uv tool install rust-just
 
 # Install the package
 just install
-
-# Verify setup
-uv run scripts/test_environment.py
 ```
 
 ### Option 2: Conda environment
