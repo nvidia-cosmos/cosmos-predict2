@@ -245,11 +245,23 @@ PROMPT="The video captures a humanoid robot positioned in front of a fruit stand
 
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/predict2_video2world_training_2b_agibot_head_center_fisheye_color/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/2b_agibot_head_center_fisheye_color/checkpoints/model/iter_000001000.pt" \
   --prompt "${PROMPT}" \
-  --input_path "datasets/agibot_head_center_fisheye_color/val/task_327_episode_685393_window_0_frame_0-149.mp4" \
-  --num_conditional_frmaes 1 \
-  --save_path output/agibot_head_center_fisheye_color/generated_video_2b.mp4
+  --input_path "datasets/agibot_head_center_fisheye_color/val/videos/task_327_episode_685393_window_0_frame_0-149.mp4" \
+  --num_conditional_frames 1 \
+  --save_path output/generated_video_2b_agibot_fisheye.mp4
+```
+
+To load EMA weights from the post-trained checkpoint, add argument `--load_ema`.
+```bash
+CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
+  --model_size 2B \
+  --dit_path "checkpoints/posttraining/video2world/2b_agibot_head_center_fisheye_color/checkpoints/model/iter_000001000.pt" \
+  --prompt "${PROMPT}" \
+  --input_path "datasets/agibot_head_center_fisheye_color/val/videos/task_327_episode_685393_window_0_frame_0-149.mp4" \
+  --num_conditional_frames 1 \
+  --load_ema \
+  --save_path output/generated_video_2b_agibot_fisheye_ema.mp4
 ```
 
 See [documentations/inference_video2world.md](documentations/inference_video2world.md) for inference run details.

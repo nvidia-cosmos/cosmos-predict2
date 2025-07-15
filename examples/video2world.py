@@ -101,6 +101,11 @@ def parse_args() -> argparse.Namespace:
         help="Custom path to the DiT model checkpoint for post-trained models.",
     )
     parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
+    )
+    parser.add_argument(
         "--prompt",
         type=str,
         default="",
@@ -195,7 +200,9 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         if args.aspect_ratio != "16:9":
             raise NotImplementedError("Cosmos-Predict2 + NATTEN only supports 16:9 aspect ratio at the moment.")
 
-        dit_path = f"checkpoints/nvidia/Cosmos-Predict2-{args.model_size}-Video2World/model-720p-{args.fps}fps-natten.pt"
+        dit_path = (
+            f"checkpoints/nvidia/Cosmos-Predict2-{args.model_size}-Video2World/model-720p-{args.fps}fps-natten.pt"
+        )
 
     elif args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
@@ -274,6 +281,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
     )
 
