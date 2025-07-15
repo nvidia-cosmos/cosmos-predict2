@@ -24,19 +24,20 @@ The installation will be handled by the Conda scripts or Dockerfile.
 
 ### Option 1: UV
 
-Install UV (https://docs.astral.sh/uv/getting-started/installation)
+Note: This has only been tested on Linux x86_64.
 
 ```sh
+# Install uv/just
 curl -LsSf https://astral.sh/uv/install.sh | sh
-```
+source $HOME/.local/bin/env
+uv tool install rust-just
 
-Verify setup
+# Install the package
+just install
 
-```sh
+# Verify setup
 uv run scripts/test_environment.py
 ```
-
-For general usage, see https://docs.astral.sh/uv/guides/projects.
 
 ### Option 2: Conda environment
 

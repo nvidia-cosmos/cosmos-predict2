@@ -16,9 +16,8 @@ dependencies = [
     "boto3==1.35.99",
     "decord==0.6.0",
     "diffusers==0.33.1",
-    "einops",
     "einops==0.8.1",
-    "flash-attn>=2.1.1,<=2.6.3",                                 # transformer-engine requirement:https://github.com/NVIDIA/TransformerEngine/blob/e5edd6cc3d5a868bb3fe4e81088d22aab505a30d/transformer_engine/pytorch/attention.py#L118-L119
+    "flash-attn>=2.1.1,<=2.6.3",                                                # transformer-engine requirement:https://github.com/NVIDIA/TransformerEngine/blob/e5edd6cc3d5a868bb3fe4e81088d22aab505a30d/transformer_engine/pytorch/attention.py#L118-L119
     "ftfy==6.3.1",
     "fvcore==0.1.5.post20221221",
     "huggingface-hub==0.32.4",
@@ -30,11 +29,9 @@ dependencies = [
     "mediapy==1.2.2",
     "megatron-core==0.10.0",
     "modelscope==1.26.0",
-    "natten; sys_platform == 'linux' and platform_machine == 'x86_64'",
+    "natten==0.20.1; sys_platform == 'linux' and platform_machine == 'x86_64'",
     "nltk==3.9.1",
-    "numpy",
     "numpy==1.26.4",
-    "nvidia-cuda-runtime-cu12>=12.6",                            # Minimum version for cxx11 ABI
     "nvidia-ml-py==12.535.133",
     "omegaconf==2.3.0",
     "opencv-python==4.10.0.84",
@@ -51,45 +48,44 @@ dependencies = [
     "scikit-image==0.25.2",
     "sentencepiece==0.2.0",
     "termcolor==2.5.0",
-    "torch>=2.6",                                                       # Minimum version for cxx11 ABI
-    "torchvision",
+    "torch==2.6.0",
+    "torchvision==0.21.0",
     "tqdm==4.66.5",
-    "transformer-engine-cu12==1.13.0",
-    "transformer-engine==1.13.0",
+    "transformer-engine[pytorch]==1.13.0",
     "transformers==4.51.3",
     "webdataset==0.2.111",
 ]
 
-[project.optional-dependencies]
-compile = ["transformer-engine-torch==1.13.0"]
-
 [dependency-groups]
-# This can be removed once transformer-engine>=2.6
-# Copied from https://github.com/NVIDIA/TransformerEngine/blob/main/pyproject.toml
-transformer_engine_build = [
-    "setuptools>=61.0",
+# https://github.com/NVIDIA/TransformerEngine/blob/main/pyproject.toml
+# https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features
+build = [
     "cmake>=3.21",
-    "wheel",
-    "pybind11[global]",
-    "ninja",
-    "pip",
-    "torch>=2.1",
-    "jax[cuda12]",
     "flax>=0.7.1",
+    "jax[cuda12]",
+    "ninja",
+    "packaging",
+    "pip>=25.1",
+    "psutil",
+    "pybind11[global]",
+    "setuptools>=61.0",
+    "torch>=2.1",
+    "wheel",
 ]
+compile = ["flash-attn", "natten", "transformer-engine-torch"]
+training = ["apex"]
 
 [tool.uv]
 no-build-isolation-package = [
+    "apex",
     "flash-attn",
     "natten",
+    "transformer-engine",
     "transformer-engine-torch",
 ]
 
 [tool.uv.sources]
-# Manually specify wheels to avoid compiling source packages
-# Also, we need to ensure they have cxx11 ABI
-# flash-attn = { url = "https://github.com/Dao-AILab/flash-attention/releases/download/v2.7.4.post1/flash_attn-2.7.4.post1+cu12torch2.6cxx11abiTRUE-cp312-cp312-linux_x86_64.whl" }
-natten = { url = "https://github.com/SHI-Labs/NATTEN/releases/download/v0.20.1/natten-0.20.1%2Btorch270cu126-cp312-cp312-linux_x86_64.whl" }
+apex = { git = "https://github.com/NVIDIA/apex.git" }
 
 [project.urls]
 homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"

@@ -18,10 +18,16 @@ install:
     fi
     export CXX=clang
 
-    uv sync --group transformer_engine_build -v
-
-    # `transformer-engine-torch` requires compiling
+    uv venv --allow-existing
     source .venv/bin/activate
-    pip install "transformer-engine-torch==1.13.0" --no-deps --no-build-isolation -v
 
-    uv sync --all-extras
+    # Compile packages
+    uv export -q --only-group build --format requirements.txt -o requirements-build.txt
+    uv export -q --only-group compile --format requirements.txt -o requirements-compile.txt
+    pip install -r requirements-build.txt
+    export _GLIBCXX_USE_CXX11_ABI=$(python -c "import torch; print(1 if torch.compiled_with_cxx11_abi() else 0)")
+    # export MAX_JOBS=4 # Avoid out of memory: https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features
+    echo "Compiling packages. This may take a while..."
+    pip install -v -r requirements-compile.txt --no-build-isolation
+
+    # uv sync --all-extras

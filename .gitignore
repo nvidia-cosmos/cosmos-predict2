@@ -197,3 +197,6 @@ cython_debug/
 checkpoints/
 output/
 datasets/
+
+requirements-build.txt
+requirements-compile.txt
