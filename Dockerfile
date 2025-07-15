@@ -9,11 +9,37 @@ RUN if [[ ${TARGETPLATFORM} == 'linux/amd64' ]]; then ln -s /lib64/libcuda.so.1 
 RUN apt-get install -y libglib2.0-0
 RUN sed -i -e 's/h11==0.14.0/h11==0.16.0/g' /etc/pip/constraint.txt
 
-# Install Flash Attention 3
-RUN MAX_JOBS=$(( $(nproc) / 4 )) pip install git+https://github.com/Dao-AILab/flash-attention.git@27f501d#subdirectory=hopper
-COPY cosmos_predict2/utils/flash_attn_3/flash_attn_interface.py /usr/local/lib/python3.12/dist-packages/flash_attn_3/flash_attn_interface.py
-COPY cosmos_predict2/utils/flash_attn_3/te_attn.diff /tmp/te_attn.diff
-RUN patch /usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention.py /tmp/te_attn.diff
+# ------------------------------------------------------------------
+# Install latest Flash-Attention (Blackwell) without the NGC pin
+# ------------------------------------------------------------------
+RUN pip uninstall -y flash-attn || true && \
+    printf '' > /tmp/empty-constraints.txt && \
+    PIP_CONSTRAINT=/tmp/empty-constraints.txt \
+    MAX_JOBS=$(( $(nproc) / 4 )) \
+    pip install --no-deps git+https://github.com/Dao-AILab/flash-attention.git@main
+
+# Copy the entire cosmos_predict2 directory for conditional file operations
+COPY . /tmp/cosmos_build/
+
+# Conditionally copy Flash Attention interface files if they exist
+RUN if [ -f /tmp/cosmos_build/cosmos_predict2/utils/flash_attn_3/flash_attn_interface.py ]; then \
+        cp /tmp/cosmos_build/cosmos_predict2/utils/flash_attn_3/flash_attn_interface.py /usr/local/lib/python3.12/dist-packages/flash_attn_3/flash_attn_interface.py; \
+        echo "Copied Flash Attention interface"; \
+    else \
+        echo "Flash Attention interface file not found, skipping"; \
+    fi
+
+# Conditionally apply Transformer Engine patch if available
+RUN if [ -f /tmp/cosmos_build/cosmos_predict2/utils/flash_attn_3/te_attn.diff ]; then \
+        cp /tmp/cosmos_build/cosmos_predict2/utils/flash_attn_3/te_attn.diff /tmp/te_attn.diff && \
+        patch /usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/attention.py /tmp/te_attn.diff && \
+        echo "Applied Transformer Engine patch"; \
+    else \
+        echo "Transformer Engine patch not found, skipping"; \
+    fi
+
+# Clean up temporary build files
+RUN rm -rf /tmp/cosmos_build
 
 # Installing decord from source on ARM
 COPY Video_Codec_SDK_13.0.19.zip* /workspace/Video_Codec_SDK_13.0.19.zip
