@@ -795,7 +795,10 @@ class Video2WorldPipeline(BasePipeline):
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                return None
+                if return_prompt:
+                    return None, prompt
+                else:
+                    return None
             else:
                 log.success("Passed guardrail on prompt")
         elif self.text_guardrail_runner is None:
@@ -816,7 +819,10 @@ class Video2WorldPipeline(BasePipeline):
             if self.text_guardrail_runner is not None:
                 log.info("Running guardrail check on refined prompt...")
                 if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                    return None
+                    if return_prompt:
+                        return None, prompt
+                    else:
+                        return None
                 else:
                     log.success("Passed guardrail on refined prompt")
             elif self.text_guardrail_runner is None:
@@ -947,7 +953,10 @@ class Video2WorldPipeline(BasePipeline):
             # Run guardrail
             processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)
             if processed_frames is None:
-                return None
+                if return_prompt:
+                    return None, prompt
+                else:
+                    return None
             else:
                 log.success("Passed guardrail on generated video")
 
