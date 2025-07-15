@@ -160,7 +160,7 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/text2image.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/text2image/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
   --prompt "An image of sks teal robot." \
-  --save_path output/generated_image_teal_robot.jpg
+  --save_path output/generated_image_2b_teal_robot.jpg
 ```
 
 To load EMA weights from the post-trained checkpoint, add argument `--load_ema`.
@@ -170,7 +170,7 @@ CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/text2image.py \
   --dit_path "checkpoints/posttraining/text2image/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
   --prompt "An image of sks teal robot." \
   --load_ema \
-  --save_path output/generated_image_teal_robot_ema.jpg
+  --save_path output/generated_image_2b_teal_robot_ema.jpg
 ```
 
 See [documentations/inference_text2image.md](documentations/inference_text2image.md) for inference run details.
