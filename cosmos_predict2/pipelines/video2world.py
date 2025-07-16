@@ -340,9 +340,7 @@ class Video2WorldPipeline(BasePipeline):
             )
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -513,14 +511,21 @@ class Video2WorldPipeline(BasePipeline):
                 data_batch[IS_PREPROCESSED_KEY] = True
 
             if self.config.resize_online:
-                from torchvision.transforms.v2 import UniformTemporalSubsample
+
+                def temporal_sample(video: torch.Tensor, expected_length: int) -> torch.Tensor:
+                    # sample consecutive video frames to match expected_length
+                    original_length = video.shape[2]
+                    if original_length != expected_length:
+                        # video in [B C T H W] format
+                        start_frame = np.random.randint(0, original_length - expected_length)
+                        end_frame = start_frame + expected_length
+                        video = video[:, :, start_frame:end_frame, :, :]
+                    return video
 
                 expected_length = self.tokenizer.get_pixel_num_frames(self.config.state_t)
                 original_length = data_batch[input_key].shape[2]
                 if original_length != expected_length:
-                    video = rearrange(data_batch[input_key], "b c t h w -> b t c h w")
-                    video = UniformTemporalSubsample(expected_length)(video)
-                    data_batch[input_key] = rearrange(video, "b t c h w -> b c t h w")
+                    data_batch[input_key] = temporal_sample(data_batch[input_key], expected_length)
 
     def _augment_image_dim_inplace(self, data_batch: dict[str, torch.Tensor], input_key: str = None) -> None:
         input_key = self.input_image_key if input_key is None else input_key
@@ -796,9 +801,7 @@ class Video2WorldPipeline(BasePipeline):
 
         # Run text guardrail on the prompt
         if self.text_guardrail_runner is not None:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):

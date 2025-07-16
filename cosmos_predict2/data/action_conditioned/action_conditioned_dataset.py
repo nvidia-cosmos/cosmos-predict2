@@ -214,7 +214,7 @@ class ActionConditionedDataset(Dataset):
             video_path = os.path.join(self.video_path, video_path)
             frames = self._load_video(video_path, frame_ids)
             frames = frames.astype(np.uint8)
-            frames = torch.from_numpy(frames).permute(0, 3, 1, 2)  # (l, c, h, w)
+            frames = torch.from_numpy(frames).permute(0, 3, 1, 2)  # [T, C, H, W]
 
             def printvideo(videos, filename):
                 t_videos = rearrange(videos, "f c h w -> f h w c")
@@ -222,7 +222,7 @@ class ActionConditionedDataset(Dataset):
                     ((t_videos / 2.0 + 0.5).clamp(0, 1) * 255).detach().to(dtype=torch.uint8).cpu().contiguous().numpy()
                 )
                 print(t_videos.shape)
-                writer = imageio.get_writer(filename, fps=4)  # fps 是帧率
+                writer = imageio.get_writer(filename, fps=4)  # fps
                 for frame in t_videos:
                     writer.append_data(frame)  # 1 4 13 23 # fp16 24 76 456 688
 

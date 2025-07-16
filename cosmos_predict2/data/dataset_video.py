@@ -17,13 +17,13 @@ import os
 import pickle
 import traceback
 import warnings
+from typing import Any, Tuple
 
 import numpy as np
 import torch
 from decord import VideoReader, cpu
 from torch.utils.data import Dataset
 from torchvision import transforms as T
-from torchvision.transforms.v2 import UniformTemporalSubsample
 
 from cosmos_predict2.data.dataset_utils import (
     _NUM_T5_TOKENS,
@@ -45,7 +45,7 @@ class Dataset(Dataset):
         dataset_dir,
         num_frames,
         video_size,
-    ):
+    ) -> None:
         """Dataset class for loading image-text-to-video generation data.
 
         Args:
@@ -78,33 +78,48 @@ class Dataset(Dataset):
         self.wrong_number = 0
         self.preprocess = T.Compose([ToTensorVideo(), Resize_Preprocess(tuple(video_size))])
 
-    def __str__(self):
+    def __str__(self) -> str:
         return f"{len(self.video_paths)} samples from {self.dataset_dir}"
 
-    def __len__(self):
+    def __len__(self) -> int:
         return len(self.video_paths)
 
-    def _load_video(self, video_path):
+    def _load_video(self, video_path) -> Tuple[np.ndarray, float]:
         vr = VideoReader(video_path, ctx=cpu(0), num_threads=2)
-        frame_ids = np.linspace(0, len(vr) - 1).astype(np.int32)
-        vr.seek(0)
+        total_frames = len(vr)
+        if total_frames < self.sequence_length:
+            # If there are not enough frames, let it fail
+            warnings.warn(
+                f"Video {video_path} has only {total_frames} frames, "
+                f"at least {self.sequence_length} frames are required."
+            )
+            raise ValueError(f"Video {video_path} has insufficient frames.")
+
+        # randomly sample a sequence of frames
+        max_start_idx = total_frames - self.sequence_length
+        start_frame = np.random.randint(0, max_start_idx)
+        end_frame = start_frame + self.sequence_length
+        frame_ids = np.arange(start_frame, end_frame).tolist()
+
         frame_data = vr.get_batch(frame_ids).asnumpy()
+        vr.seek(0)  # set video reader point back to 0 to clean up cache
+
         try:
             fps = vr.get_avg_fps()
-        except Exception:  # failed to read FPS
-            fps = 24
+        except Exception:  # failed to read FPS, assume it is 16
+            fps = 16
+        del vr  # delete the reader to avoid memory leak
         return frame_data, fps
 
-    def _get_frames(self, video_path):
+    def _get_frames(self, video_path: str) -> Tuple[torch.Tensor, float]:
         frames, fps = self._load_video(video_path)
         frames = frames.astype(np.uint8)
-        frames = torch.from_numpy(frames).permute(0, 3, 1, 2)  # (l, c, h, w)
-        frames = UniformTemporalSubsample(self.sequence_length)(frames)
+        frames = torch.from_numpy(frames).permute(0, 3, 1, 2)  # [T, C, H, W]
         frames = self.preprocess(frames)
         frames = torch.clamp(frames * 255.0, 0, 255).to(torch.uint8)
         return frames, fps
 
-    def __getitem__(self, index):
+    def __getitem__(self, index) -> dict | Any:
         try:
             data = dict()
             video, fps = self._get_frames(self.video_paths[index])
@@ -123,7 +138,6 @@ class Dataset(Dataset):
             _, _, h, w = video.shape
 
             # Just add these to fit the interface
-            # t5_embedding = np.load(sample["t5_embedding_path"])[0]
             with open(t5_embedding_path, "rb") as f:
                 t5_embedding = pickle.load(f)[0]  # [n_tokens, _T5_EMBED_DIM]
             n_tokens = t5_embedding.shape[0]
