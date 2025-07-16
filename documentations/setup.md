@@ -23,6 +23,11 @@ The installation will be handled by the Conda scripts or Dockerfile.
 
 ### Option 1: UV
 
+Dependencies:
+
+* clang
+* CUDA 12.4: https://developer.nvidia.com/cuda-12-4-0-download-archive
+
 Note: Has only been tested on Linux x86_64.
 
 ```sh
@@ -60,7 +65,7 @@ CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
 CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
 
 # Verify setup
-CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
+CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py --training
 ```
 
 Make sure the `CUDA_HOME` environment variable points to your Conda installation directory by running:
