@@ -30,11 +30,13 @@ import torch
 from megatron.core import parallel_state
 from tqdm import tqdm
 
-from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_14B
+from cosmos_predict2.configs.base.config_video2world import (
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
+)
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, validate_input_file
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,6 +52,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument(
         "--prompt",
@@ -167,6 +174,7 @@ def setup_pipeline(args: argparse.Namespace):
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=False,  # Disable prompt refiner for GR00T
     )
 
@@ -194,7 +202,7 @@ def process_single_generation(
     full_prompt = prompt_prefix + prompt
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {full_prompt}")
 
-    video = pipe(
+    video, prompt_used = pipe(
         prompt=full_prompt,
         negative_prompt=negative_prompt,
         aspect_ratio=aspect_ratio,
@@ -202,6 +210,7 @@ def process_single_generation(
         num_conditional_frames=num_conditional_frames,
         guidance=guidance,
         seed=seed,
+        return_prompt=True,
     )
 
     if video is not None:
@@ -212,6 +221,17 @@ def process_single_generation(
         log.info(f"Saving generated video to: {output_path}")
         save_image_or_video(video, output_path, fps=16)
         log.success(f"Successfully saved video to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            prompts_to_save["refined_prompt"] = prompt_used
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 

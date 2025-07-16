@@ -82,3 +82,30 @@ def save_image_or_video(
             if not ext:
                 save_path = f"{base}.mp4"
         easy_io.dump(save_obj, save_path, file_format="mp4", format="mp4", fps=fps, **kwargs)
+
+
+def save_text_prompts(prompts: dict[str | list], save_path: Union[str, IO[Any]]) -> None:
+    """
+    Save text prompts to a file.
+
+    Args:
+        prompts (dict[str]): Dictionary of text prompts to save. Expected keys: "prompt", "negative_prompt", "refined_prompt".
+        save_path (Union[str, IO[Any]]): File path (with or without extension) or file-like object.
+    """
+    if isinstance(save_path, str):
+        base, ext = os.path.splitext(save_path)
+        if not ext:
+            save_path = f"{base}.txt"
+    with open(save_path, "w") as f:
+        f.write(f"[Prompt]\n{prompts['prompt']}\n")
+        if "negative_prompt" in prompts and prompts["negative_prompt"]:
+            f.write(f"[Negative Prompt]\n{prompts['negative_prompt']}\n")
+
+        if "refined_prompt" in prompts and prompts["refined_prompt"]:
+            if isinstance(prompts["refined_prompt"], str):
+                f.write(f"[Refined Prompt]\n{prompts['refined_prompt']}\n")
+            elif isinstance(prompts["refined_prompt"], list):
+                for chunk_id, refined_prompt in enumerate(prompts["refined_prompt"]):
+                    f.write(f"[Refined Prompt for chunk {chunk_id}]\n{refined_prompt}\n")
+            else:
+                raise ValueError("refined_prompt must be a string or a list of strings")

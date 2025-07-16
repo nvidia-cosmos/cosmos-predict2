@@ -28,6 +28,7 @@ from megatron.core import parallel_state
 
 from cosmos_predict2.configs.action_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
 from cosmos_predict2.pipelines.video2world_action import Video2WorldActionConditionedPipeline
+
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -58,6 +59,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument(
         "--input_video",
@@ -152,6 +158,7 @@ def setup_pipeline(args: argparse.Namespace):
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
     )
 

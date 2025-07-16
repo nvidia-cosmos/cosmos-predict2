@@ -69,6 +69,9 @@ def parse_args():
     parser.add_argument(
         "--verify_md5", action="store_true", default=False, help="Verify MD5 checksums of existing files."
     )
+    parser.add_argument(
+        "--natten", action="store_true", default=False, help="Download Video2World + NATTEN (sparse attention) checkpoints."
+    )
     args = parser.parse_args()
     return args
 
@@ -90,6 +93,11 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    # Video2World Sparse Variants
+    "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps-natten.pt": "91355cc9979f47aeb7ee991193e88305",
+    "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps-natten.pt": "4ef2b03da1ca0888e3a4054dc8b4b2f0",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps-natten.pt": "09167672edf4bcd456318d8498cb6f36",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps-natten.pt": "86d5e27ac75021798ab594f257600e50",
     # Cosmos-Reason1-7B
     "nvidia/Cosmos-Reason1-7B/model-00001-of-00004.safetensors": "90198d3b3dab5a00b7b9288cecffa5e9",
     "nvidia/Cosmos-Reason1-7B/model-00002-of-00004.safetensors": "6bde197d212f2a83ae19585b87de500e",
@@ -188,6 +196,15 @@ def main(args):
                     download_model(
                         args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns=allow_patterns
                     )
+                    # Sparse variant (if any)
+                    if args.natten and res == "720":
+                        download_model(
+                            args.checkpoint_dir,
+                            repo_id,
+                            verify_md5=args.verify_md5,
+                            allow_patterns=f"model-{res}p-{fps}fps-natten.pt"
+                        )
+
             # donwload the remaining
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['video2world']}"
             download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="tokenizer/*")

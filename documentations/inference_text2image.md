@@ -93,6 +93,8 @@ Input and output parameters:
 
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
+- `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
+- `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
 
 Generation parameters:
 - `--seed`: Random seed for reproducible results (default: 0)

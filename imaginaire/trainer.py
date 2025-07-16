@@ -22,7 +22,10 @@ import torch
 import torch.distributed as dist
 import torch.utils.data
 
-from imaginaire.utils.profiling import maybe_enable_memory_snapshot, maybe_enable_profiling
+from imaginaire.utils.profiling import (
+    maybe_enable_memory_snapshot,
+    maybe_enable_profiling,
+)
 
 try:
     from megatron.core import parallel_state
@@ -35,7 +38,7 @@ except ImportError:
 
 from imaginaire.lazy_config import LazyConfig, instantiate
 from imaginaire.model import ImaginaireModel
-from imaginaire.utils import callback, distributed, ema, log, misc
+from imaginaire.utils import callback, distributed, log, misc
 from imaginaire.utils.checkpointer import Checkpointer
 
 
@@ -169,10 +172,12 @@ class ImaginaireTrainer:
         # Initial validation.
         if self.config.trainer.run_validation and iteration == 0:
             self.validate(model, dataloader_val, iteration=iteration)
+            log.info("Initial validation done.")
         _end_training = False
-        with maybe_enable_profiling(self.config, global_step=iteration) as torch_profiler, maybe_enable_memory_snapshot(
-            self.config, global_step=iteration
-        ) as memory_profiler:
+        with (
+            maybe_enable_profiling(self.config, global_step=iteration) as torch_profiler,
+            maybe_enable_memory_snapshot(self.config, global_step=iteration) as memory_profiler,
+        ):
             while True:
                 dataloader_train_iter = iter(dataloader_train)
                 while True:
@@ -305,10 +310,11 @@ class ImaginaireTrainer:
             dataloader_val (torch.utils.data.DataLoader): The validation data loader.
             iteration (int): Current iteration number.
         """
+        log.info(f"Validating at iteration {iteration}...")
         self.callbacks.on_validation_start(model, dataloader_val, iteration=iteration)
         model.eval()
         # Evaluate on the full validation set.
-        with ema.ema_scope(model, enabled=model.config.ema.enabled):
+        with model.pipe.ema_scope(context="Validation", is_cpu=False):
             for val_iter, data_batch in enumerate(dataloader_val):
                 if self.config.trainer.max_val_iter is not None and val_iter >= self.config.trainer.max_val_iter:
                     break

@@ -47,6 +47,7 @@ python -m examples.video2world --help
 
 This is a basic example for running inference on the 2B model with a single image.
 The output is saved to `output/video2world_2b.mp4`.
+The corresponding input prompt is saved to `output/video2world_2b.txt`.
 
 ```bash
 # Set the input prompt
@@ -287,6 +288,25 @@ Example output is included at `assets/video2world_lvg/example_output.mp4`.
 
 If using the 14B model, it is recommended to offload the prompt refiner model or guardrail models to CPU to save GPU memory (see [Using the 14B Model](#using-the-14b-model) for reference).
 
+### Faster inference with Sparse Attention
+If you're targeting 720p generation, and you're using a Hopper (compute capability 9.0) or
+Blackwell datacenter-class (compute capability 10.0) GPU, you can optionally run
+[Video2World + NATTEN](performance.md#sparse-attention-powered-by-natten) by using the `--natten`
+flag.
+
+```bash
+python -m examples.video2world \
+    --model_size 2B \
+    --input_path $INPUT_PATH \
+    --prompt "${PROMPT}" \
+    --natten \
+    --save_path output/video2world_2b_with_natten.mp4
+```
+
+Running with NATTEN can bring you anywhere from 1.7X to 2.6X end-to-end speedup over the base model,
+depending on variant, frame rate, and hardware. In terms of quality, we've observed that in many
+domains the sparse attention variants are comparable with the base models.
+
 ## API Documentation
 
 The `video2world.py` script supports the following command-line arguments:
@@ -294,6 +314,7 @@ The `video2world.py` script supports the following command-line arguments:
 Model selection:
 - `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
 - `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
+- `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
 - `--fps`: FPS of the model to use for video-to-world generation (choices: 10, 16, default: 16)
 - `--resolution`: Resolution of the model to use for video-to-world generation (choices: 480, 720, default: 720)
 
@@ -318,6 +339,9 @@ Generation parameters:
 
 Performance parameters:
 - `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
+- `--natten`: Use sparse attention variants built with [NATTEN](https://natten.org). This feature is
+    only available with 720p resolution, and on Hopper and specific Blackwell datacenter cards
+    (B200 and GB200) for now. [Learn more](performance.md).
 - `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Multi-GPU inference:
