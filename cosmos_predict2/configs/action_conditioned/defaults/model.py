@@ -15,9 +15,7 @@
 
 from hydra.core.config_store import ConfigStore
 
-from cosmos_predict2.configs.action_conditioned.config import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED,
-)
+from cosmos_predict2.configs.action_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
 from cosmos_predict2.models.video2world_action_model import Predict2Video2WorldActionConditionedModel
 from cosmos_predict2.models.video2world_model import Predict2ModelManagerConfig, Predict2Video2WorldModelConfig
 from imaginaire.lazy_config import LazyCall as L

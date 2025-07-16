@@ -13,12 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import gc
 import math
 import os
 
 import pynvml
-from loguru import logger as logging
 
 
 class Device:

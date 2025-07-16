@@ -31,10 +31,7 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS,
 )
-from cosmos_predict2.models.text2image_model import (
-    Predict2Text2ImageModel,
-    Predict2Text2ImageModelConfig,
-)
+from cosmos_predict2.models.text2image_model import Predict2Text2ImageModel, Predict2Text2ImageModelConfig
 from cosmos_predict2.models.video2world_model import (
     Predict2ModelManagerConfig,
     Predict2Video2WorldModel,

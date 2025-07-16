@@ -70,7 +70,10 @@ def parse_args():
         "--verify_md5", action="store_true", default=False, help="Verify MD5 checksums of existing files."
     )
     parser.add_argument(
-        "--natten", action="store_true", default=False, help="Download Video2World + NATTEN (sparse attention) checkpoints."
+        "--natten",
+        action="store_true",
+        default=False,
+        help="Download Video2World + NATTEN (sparse attention) checkpoints.",
     )
     args = parser.parse_args()
     return args
@@ -202,7 +205,7 @@ def main(args):
                             args.checkpoint_dir,
                             repo_id,
                             verify_md5=args.verify_md5,
-                            allow_patterns=f"model-{res}p-{fps}fps-natten.pt"
+                            allow_patterns=f"model-{res}p-{fps}fps-natten.pt",
                         )
 
             # donwload the remaining

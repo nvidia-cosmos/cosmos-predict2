@@ -22,10 +22,7 @@ import torch
 import torch.distributed as dist
 import torch.utils.data
 
-from imaginaire.utils.profiling import (
-    maybe_enable_memory_snapshot,
-    maybe_enable_profiling,
-)
+from imaginaire.utils.profiling import maybe_enable_memory_snapshot, maybe_enable_profiling
 
 try:
     from megatron.core import parallel_state

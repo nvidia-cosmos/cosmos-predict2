@@ -14,7 +14,6 @@
 # limitations under the License.
 
 import importlib
-import os
 import sys
 
 
@@ -49,7 +48,7 @@ def check_packages(package_list, success_status=True):
                 version = getattr(module, "__version__", None)
                 print_success(package, version)
                 try:
-                    from apex import multi_tensor_apply
+                    from apex import multi_tensor_apply  # noqa: F401
 
                     print_success("apex.multi_tensor_apply")
                 except ImportError:
@@ -64,7 +63,7 @@ def check_packages(package_list, success_status=True):
                 version = getattr(module, "__version__", None)
                 print_success(package, version)
                 try:
-                    import transformer_engine.pytorch
+                    import transformer_engine.pytorch  # noqa: F401
 
                     print_success("transformer_engine.pytorch")
                 except ImportError:

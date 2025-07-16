@@ -25,12 +25,7 @@ from decord import VideoReader, cpu
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 
-from cosmos_predict2.data.dataset_utils import (
-    _NUM_T5_TOKENS,
-    _T5_EMBED_DIM,
-    Resize_Preprocess,
-    ToTensorVideo,
-)
+from cosmos_predict2.data.dataset_utils import _NUM_T5_TOKENS, _T5_EMBED_DIM, Resize_Preprocess, ToTensorVideo
 from imaginaire.utils import log
 
 """

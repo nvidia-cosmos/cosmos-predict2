@@ -80,7 +80,6 @@ PREDICT2_VIDEO2WORLD_NET_2B_NATTEN_PARAMETERS = [
 ]
 
 
-
 # 14B Configuration:
 # Layers 0-10: 98% sparsity, sparse global (max dilation) along H and W
 # Layers 11, 12: 95% sparsity, sparse global (max dilation) along W

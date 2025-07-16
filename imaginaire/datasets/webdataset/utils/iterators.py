@@ -15,9 +15,7 @@
 
 import io
 import os
-import random
 import sys
-import time
 from typing import IO, Any, BinaryIO, Callable, Dict, Iterable, Iterator, Optional, Tuple, Union
 from urllib.parse import urlparse
 

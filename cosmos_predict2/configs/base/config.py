@@ -17,12 +17,8 @@ from typing import Any, List
 
 import attrs
 
-from cosmos_predict2.configs.action_conditioned.defaults.data import (
-    register_training_and_val_data_action_conditioned,
-)
-from cosmos_predict2.configs.action_conditioned.defaults.model import (
-    register_model_action_conditioned,
-)
+from cosmos_predict2.configs.action_conditioned.defaults.data import register_training_and_val_data_action_conditioned
+from cosmos_predict2.configs.action_conditioned.defaults.model import register_model_action_conditioned
 from cosmos_predict2.configs.base.defaults.callbacks import register_callbacks
 from cosmos_predict2.configs.base.defaults.checkpoint import register_checkpoint
 from cosmos_predict2.configs.base.defaults.data import register_training_and_val_data

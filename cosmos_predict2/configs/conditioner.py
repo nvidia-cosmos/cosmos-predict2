@@ -13,8 +13,6 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
-
 from hydra.core.config_store import ConfigStore
 
 from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, VideoConditioner

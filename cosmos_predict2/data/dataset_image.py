@@ -24,12 +24,7 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 
-from cosmos_predict2.data.dataset_utils import (
-    _NUM_T5_TOKENS,
-    _T5_EMBED_DIM,
-    Resize_Preprocess,
-    ToTensorImage,
-)
+from cosmos_predict2.data.dataset_utils import _NUM_T5_TOKENS, _T5_EMBED_DIM, Resize_Preprocess, ToTensorImage
 from imaginaire.utils import log
 
 """

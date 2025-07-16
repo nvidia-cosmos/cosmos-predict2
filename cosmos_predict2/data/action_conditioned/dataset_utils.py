@@ -19,7 +19,6 @@ https://github.com/bytedance/IRASim/blob/main/dataset/dataset_util.py
 """
 
 import math
-import os
 
 import numpy as np
 import torch
