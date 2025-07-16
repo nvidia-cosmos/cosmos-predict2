@@ -25,10 +25,7 @@ from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
 from cosmos_predict2.conditioner import TextCondition
-from cosmos_predict2.configs.base.config_text2image import (
-    PREDICT2_TEXT2IMAGE_PIPELINE_2B,
-    Text2ImagePipelineConfig,
-)
+from cosmos_predict2.configs.base.config_text2image import PREDICT2_TEXT2IMAGE_PIPELINE_2B, Text2ImagePipelineConfig
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model

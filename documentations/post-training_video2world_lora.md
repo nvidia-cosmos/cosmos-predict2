@@ -255,7 +255,7 @@ The key LoRA-specific parameters in the config are:
 
 **For 2B Model:**
 - **Conservative**: rank=8, alpha=8, lr=2^(-12)
-- **Balanced**: rank=16, alpha=16, lr=2^(-10) 
+- **Balanced**: rank=16, alpha=16, lr=2^(-10)
 - **Aggressive**: rank=32, alpha=32, lr=2^(-9)
 
 **For 14B Model:**
@@ -353,8 +353,8 @@ The `model.config.train_architecture=lora` parameter explicitly enables LoRA tra
 
 During LoRA training, you'll see parameter statistics like:
 ```
-Total parameters: 3.96B, 
-Frozen parameters: 3,912,826,880, 
+Total parameters: 3.96B,
+Frozen parameters: 3,912,826,880,
 Trainable parameters: 45,875,200
 ```
 
@@ -651,7 +651,7 @@ checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/
 For a Succesful training, you should see the logs like this:
 
 ```
-[07-10 22:14:27|SUCCESS|imaginaire/trainer.py:232:train] Done with training.   
+[07-10 22:14:27|SUCCESS|imaginaire/trainer.py:232:train] Done with training.  
 ```
 
 

@@ -16,7 +16,6 @@
 import argparse
 import json
 import os
-import pdb
 
 import mediapy as mp
 import numpy as np
@@ -27,9 +26,7 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 from megatron.core import parallel_state
 
-from cosmos_predict2.configs.action_conditioned.config import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED,
-)
+from cosmos_predict2.configs.action_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
 from cosmos_predict2.pipelines.video2world_action import Video2WorldActionConditionedPipeline
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video

@@ -19,7 +19,6 @@ import os
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 import time
 
 import torch
@@ -46,7 +45,6 @@ def add_lora_to_model(
 ):
     """
     Add LoRA to a model using PEFT library.
-    
     Args:
         model: The model to add LoRA to
         lora_rank: Rank of the LoRA adaptation
@@ -63,12 +61,10 @@ def add_lora_to_model(
         target_modules=lora_target_modules.split(","),
     )
     model = inject_adapter_in_model(lora_config, model)
-    
     # Upcast LoRA parameters to fp32 for better stability
     for param in model.parameters():
         if param.requires_grad:
             param.data = param.to(torch.float32)
-    
     return model
 
 
@@ -77,6 +73,8 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     Set up a pipeline with LoRA support.
     This function creates the pipeline, adds LoRA, then loads the checkpoint.
     """
+    import numpy as np
+
     from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
     from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
     from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
@@ -84,8 +82,7 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
     from imaginaire.lazy_config import instantiate
     from imaginaire.utils.ema import FastEmaModelUpdater
-    import numpy as np
-    
+
     # Create a pipe
     pipe = Video2WorldPipeline(device="cuda", torch_dtype=torch.bfloat16)
     pipe.config = config
@@ -96,11 +93,9 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     }[config.precision]
     pipe.tensor_kwargs = {"device": "cuda", "dtype": pipe.precision}
     log.warning(f"precision {pipe.precision}")
-
     # 1. set data keys and data information
     pipe.sigma_data = config.sigma_data
     pipe.setup_data_key()
-
     # 2. setup up diffusion processing and scaling~(pre-condition)
     pipe.scheduler = RectifiedFlowAB2Scheduler(
         sigma_min=config.timestamps.t_min,
@@ -108,15 +103,12 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
         order=config.timestamps.order,
         t_scaling_factor=config.rectified_flow_t_scaling_factor,
     )
-
     pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
-
     # 3. Set up tokenizer
     pipe.tokenizer = instantiate(config.tokenizer)
     assert (
         pipe.tokenizer.latent_ch == pipe.config.state_ch
     ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
-
     # 4. Load text encoder
     if text_encoder_path:
         # inference
@@ -125,20 +117,17 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     else:
         # training
         pipe.text_encoder = None
-
     # 5. Initialize conditioner
     pipe.conditioner = instantiate(config.conditioner)
     assert (
         sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0
     ), "conditioner should not have learnable parameters"
-
     # Load prompt refiner
     pipe.prompt_refiner = CosmosReason1(
         checkpoint_dir=config.prompt_refiner_config.checkpoint_dir,
         offload_model_to_cpu=config.prompt_refiner_config.offload_model_to_cpu,
         enabled=config.prompt_refiner_config.enabled,
     )
-
     if config.guardrail_config.enabled:
         from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
@@ -151,17 +140,16 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     else:
         pipe.text_guardrail_runner = None
         pipe.video_guardrail_runner = None
-
     # 6. Set up DiT WITHOUT loading checkpoint first
     log.info("Initializing DiT model...")
     with init_weights_on_device():
         dit_config = config.net
         pipe.dit = instantiate(dit_config).eval()  # inference
-
     # 7. Add LoRA to the DiT model BEFORE loading checkpoint
     log.info("Adding LoRA to the DiT model...")
-    log.info(f"LoRA parameters: rank={args.lora_rank}, alpha={args.lora_alpha}, target_modules={args.lora_target_modules}")
-    
+    log.info(
+        f"LoRA parameters: rank={args.lora_rank}, alpha={args.lora_alpha}, target_modules={args.lora_target_modules}"
+    )
     pipe.dit = add_lora_to_model(
         pipe.dit,
         lora_rank=args.lora_rank,
@@ -169,13 +157,11 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
         lora_target_modules=args.lora_target_modules,
         init_lora_weights=args.init_lora_weights,
     )
-
     # 8. Handle EMA model if enabled
     if config.ema.enabled:
         log.info("Setting up EMA model...")
         pipe.dit_ema = instantiate(dit_config).eval()
         pipe.dit_ema.requires_grad_(False)
-        
         # Add LoRA to EMA model
         log.info("Adding LoRA to the EMA DiT model...")
         pipe.dit_ema = add_lora_to_model(
@@ -185,30 +171,24 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
             lora_target_modules=args.lora_target_modules,
             init_lora_weights=args.init_lora_weights,
         )
-
         pipe.dit_ema_worker = FastEmaModelUpdater()  # default when not using FSDP
-
         s = config.ema.rate
         pipe.ema_exp_coefficient = np.roots([1, 7, 16 - s**-2, 12 - s**-2]).real.max()
         # copying is only necessary when starting the training at iteration 0.
         # Actual state_dict should be loaded after the pipe is created.
         pipe.dit_ema_worker.copy_to(src_model=pipe.dit, tgt_model=pipe.dit_ema)
-
     # 9. NOW load the LoRA checkpoint with strict=False
     if dit_path:
         log.info(f"Loading LoRA checkpoint from {dit_path}")
         state_dict = load_state_dict(dit_path)
-        
         # Split state dict for regular and EMA models
         state_dict_dit_regular = dict()
         state_dict_dit_ema = dict()
-        
         for k, v in state_dict.items():
             if k.startswith("net."):
                 state_dict_dit_regular[k[4:]] = v
             elif k.startswith("net_ema."):
                 state_dict_dit_ema[k[4:]] = v
-        
         # Load regular model with strict=False to allow LoRA weights
         log.info("Loading regular DiT model weights...")
         missing_keys = pipe.dit.load_state_dict(state_dict_dit_regular, strict=False, assign=True)
@@ -216,7 +196,6 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
             log.warning(f"Missing keys in regular model: {missing_keys.missing_keys}")
         if missing_keys.unexpected_keys:
             log.warning(f"Unexpected keys in regular model: {missing_keys.unexpected_keys}")
-        
         # Load EMA model if enabled
         if config.ema.enabled and state_dict_dit_ema:
             log.info("Loading EMA DiT model weights...")
@@ -225,32 +204,26 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
                 log.warning(f"Missing keys in EMA model: {missing_keys_ema.missing_keys}")
             if missing_keys_ema.unexpected_keys:
                 log.warning(f"Unexpected keys in EMA model: {missing_keys_ema.unexpected_keys}")
-        
         del state_dict, state_dict_dit_regular, state_dict_dit_ema
         log.success(f"Successfully loaded LoRA checkpoint from {dit_path}")
     else:
         log.warning("No checkpoint path provided, using random weights")
-
     # 10. Move models to device
     pipe.dit = pipe.dit.to(device="cuda", dtype=torch.bfloat16)
     if config.ema.enabled:
         pipe.dit_ema = pipe.dit_ema.to(device="cuda", dtype=torch.bfloat16)
-    
     torch.cuda.empty_cache()
-
     # 11. Set up training states
     if parallel_state.is_initialized():
         pipe.data_parallel_size = parallel_state.get_data_parallel_world_size()
     else:
         pipe.data_parallel_size = 1
-
     # Print parameter counts
     total_params = sum(p.numel() for p in pipe.dit.parameters())
     trainable_params = sum(p.numel() for p in pipe.dit.parameters() if p.requires_grad)
     log.info(f"Total parameters: {total_params:,}")
     log.info(f"Trainable LoRA parameters: {trainable_params:,}")
     log.info(f"LoRA parameter ratio: {trainable_params/total_params*100:.2f}%")
-
     return pipe
 
 
@@ -258,9 +231,7 @@ def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
     if not os.path.exists(input_path):
         log.warning(f"Input file does not exist, skipping: {input_path}")
         return False
-
     ext = os.path.splitext(input_path)[1].lower()
-
     if num_conditional_frames == 1:
         # Single frame conditioning: accept both images and videos
         if ext not in _IMAGE_EXTENSIONS and ext not in _VIDEO_EXTENSIONS:
@@ -280,7 +251,6 @@ def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
     else:
         log.error(f"Invalid num_conditional_frames: {num_conditional_frames} (must be 1 or 5)")
         return False
-
     return True
 
 
@@ -312,7 +282,6 @@ def parse_args() -> argparse.Namespace:
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
     )
-    
     # LoRA-specific arguments
     parser.add_argument(
         "--use_lora",
@@ -343,7 +312,6 @@ def parse_args() -> argparse.Namespace:
         default=True,
         help="Whether to initialize LoRA weights",
     )
-    
     parser.add_argument(
         "--prompt",
         type=str,
@@ -409,26 +377,20 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
-
         config.resolution = args.resolution
         if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
-
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
     elif args.model_size == "14B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_14B
-
         config.resolution = args.resolution
         if args.fps == 10:  # default is 16 so no need to change config
             config.state_t = 16
-
         dit_path = f"checkpoints/nvidia/Cosmos-Predict2-14B-Video2World/model-{args.resolution}p-{args.fps}fps.pt"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
-    
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
-
     # Only set up text encoder path if no encoder is provided
     text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
     log.info(f"Using dit_path: {dit_path}")
@@ -436,7 +398,6 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         log.info("Using provided text encoder")
     else:
         log.info(f"Using text encoder from: {text_encoder_path}")
-
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
     torch.backends.cudnn.deterministic = False
@@ -444,11 +405,9 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     # Floating-point precision settings.
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cuda.matmul.allow_tf32 = True
-
     # Initialize distributed environment for multi-GPU inference
     if hasattr(args, "num_gpus") and args.num_gpus > 1:
         log.info(f"Initializing distributed environment with {args.num_gpus} GPUs for context parallelism")
-
         # Check if distributed environment is already initialized
         if not parallel_state.is_initialized():
             distributed.init()
@@ -463,22 +422,18 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
                 log.warning("Using existing context parallel configuration")
             else:
                 log.info(f"Using existing context parallel group with {current_cp_size} GPUs")
-
     # Disable guardrail if requested
     if args.disable_guardrail:
         log.warning("Guardrail checks are disabled")
         config.guardrail_config.enabled = False
     config.guardrail_config.offload_model_to_cpu = args.offload_guardrail
-
     # Disable prompt refiner if requested
     if args.disable_prompt_refiner:
         log.warning("Prompt refiner is disabled")
         config.prompt_refiner_config.enabled = False
     config.prompt_refiner_config.offload_model_to_cpu = args.offload_prompt_refiner
-
     # Load models - for LoRA, we need to handle this differently
     log.info(f"Initializing Video2WorldPipeline with model size: {args.model_size}")
-    
     if args.use_lora:
         # For LoRA inference, we need to add LoRA before loading the checkpoint
         log.info("LoRA inference mode detected - using custom pipeline loading")
@@ -493,11 +448,9 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
             torch_dtype=torch.bfloat16,
             load_prompt_refiner=True,
         )
-
     # Set the provided text encoder if one was passed
     if text_encoder is not None:
         pipe.text_encoder = text_encoder
-
     return pipe
 
 
@@ -508,9 +461,7 @@ def process_single_generation(
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
         return False
-
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {prompt}")
-
     num_repeats = 4 if benchmark else 1
     time_sum = 0
     for i in range(num_repeats):
@@ -530,7 +481,6 @@ def process_single_generation(
             time_sum += time.time() - start_time
     if benchmark:
         log.critical(f"The benchmarked generation time for Video2WorldPipeline is {time_sum / 3} seconds.")
-
     if video is not None:
         # save the generated video
         output_dir = os.path.dirname(output_path)
@@ -558,16 +508,13 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
         log.info(f"Loading batch inputs from JSON file: {args.batch_input_json}")
         with open(args.batch_input_json, "r") as f:
             batch_inputs = json.load(f)
-
         for idx, item in enumerate(tqdm(batch_inputs)):
             input_video = item.get("input_video", "")
             prompt = item.get("prompt", "")
             output_video = item.get("output_video", f"output_{idx}.mp4")
-
             if not input_video or not prompt:
                 log.warning(f"Skipping item {idx}: Missing input_video or prompt")
                 continue
-
             process_single_generation(
                 pipe=pipe,
                 input_path=input_video,
@@ -591,7 +538,6 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             seed=args.seed,
             benchmark=args.benchmark,
         )
-
     return
 
 
@@ -610,4 +556,4 @@ if __name__ == "__main__":
         generate_video(args, pipe)
     finally:
         # Make sure to clean up the distributed environment
-        cleanup_distributed() 
+        cleanup_distributed()

@@ -25,9 +25,7 @@ from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineC
 from cosmos_predict2.models.utils import load_state_dict
 from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
-from cosmos_predict2.schedulers.rectified_flow_scheduler import (
-    RectifiedFlowAB2Scheduler,
-)
+from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.utils.context_parallel import cat_outputs_cp, split_inputs_cp
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc

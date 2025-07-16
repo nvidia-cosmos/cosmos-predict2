@@ -32,16 +32,12 @@ def get_sampler(dataset) -> DistributedSampler:
 
 
 cs = ConfigStore.instance()
-
-
-
 # Cosmos-NeMo-Assets LoRA video2world example (use same dataloader as working config)
 example_video_dataset_cosmos_nemo_assets = L(Dataset)(
     dataset_dir="datasets/cosmos_nemo_assets",
     num_frames=93,
     video_size=(704, 1280),
 )
-
 dataloader_train_cosmos_nemo_assets = L(DataLoader)(
     dataset=example_video_dataset_cosmos_nemo_assets,
     sampler=L(get_sampler)(dataset=example_video_dataset_cosmos_nemo_assets),
@@ -50,7 +46,6 @@ dataloader_train_cosmos_nemo_assets = L(DataLoader)(
     num_workers=8,
     pin_memory=True,
 )
-
 # torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_lora_training_2b_cosmos_nemo_assets model.config.train_architecture=lora
 predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
     defaults=[
@@ -91,13 +86,13 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
         callbacks=dict(
             iter_speed=dict(hit_thres=10),
         ),
-        max_iter=1000,  
+        max_iter=1000,
     ),
     checkpoint=dict(
-        save_iter=200, 
+        save_iter=200,
     ),
     optimizer=dict(
-        lr=2 ** (-14.5),  
+        lr=2 ** (-14.5),
     ),
     scheduler=dict(
         warm_up_steps=[0],
@@ -106,7 +101,6 @@ predict2_video2world_lora_training_2b_cosmos_nemo_assets = dict(
         f_min=[0.0],
     ),
 )
-
 # torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_lora_training_14b_cosmos_nemo_assets model.config.train_architecture=lora
 predict2_video2world_lora_training_14b_cosmos_nemo_assets = dict(
     defaults=[
@@ -163,8 +157,6 @@ predict2_video2world_lora_training_14b_cosmos_nemo_assets = dict(
         f_min=[0.0],
     ),
 )
-
-
 for _item in [
     # 2b, cosmos_nemo_assets video2world LoRA
     predict2_video2world_lora_training_2b_cosmos_nemo_assets,
@@ -173,10 +165,9 @@ for _item in [
 ]:
     # Get the experiment name from the global variable.
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]
-
     cs.store(
         group="experiment",
         package="_global_",
         name=experiment_name,
         node=_item,
-    ) 
+    )

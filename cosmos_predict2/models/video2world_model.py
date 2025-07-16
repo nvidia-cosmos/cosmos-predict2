@@ -26,10 +26,7 @@ from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
 from cosmos_predict2.conditioner import DataType, TextCondition
-from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    Video2WorldPipelineConfig,
-)
+from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_2B, Video2WorldPipelineConfig
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.utils.checkpointer import non_strict_load_model
@@ -57,7 +54,7 @@ class Predict2Video2WorldModelConfig:
     init_lora_weights: bool = True
 
     precision: str = "bfloat16"
-    
+
     def __attrs_post_init__(self):
         """Validate LoRA configuration after initialization."""
         if self.train_architecture == "lora":
@@ -67,12 +64,15 @@ class Predict2Video2WorldModelConfig:
                 raise ValueError(f"LoRA alpha must be positive, got {self.lora_alpha}")
             if not self.lora_target_modules.strip():
                 raise ValueError("LoRA target_modules cannot be empty")
-            
+
             # Warn about potentially inefficient configurations
             if self.lora_rank > 64:
                 log.warning(f"High LoRA rank ({self.lora_rank}) may reduce training efficiency")
             if self.lora_alpha != self.lora_rank:
-                log.info(f"LoRA alpha ({self.lora_alpha}) != rank ({self.lora_rank}), scaling factor: {self.lora_alpha/self.lora_rank}")
+                log.info(
+                    f"LoRA alpha ({self.lora_alpha}) != rank ({self.lora_rank}), scaling factor: {self.lora_alpha/self.lora_rank}"
+                )
+
     input_video_key: str = "video"
     input_image_key: str = "images"
     loss_reduce: str = "mean"
@@ -238,11 +238,11 @@ class Predict2Video2WorldModel(ImaginaireModel):
         init_lora_weights: bool = True,
     ) -> None:
         """Add LoRA (Low-Rank Adaptation) adapters to the model.
-        
+
         This function injects LoRA adapters into specified modules of the model,
         enabling parameter-efficient fine-tuning by training only a small number
         of additional parameters.
-        
+
         Args:
             model: The PyTorch model to add LoRA adapters to
             lora_rank: The rank of the LoRA adaptation matrices. Higher rank allows
@@ -252,7 +252,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
             lora_target_modules: Comma-separated string of module names to target
                                for LoRA adaptation (default: attention and MLP layers)
             init_lora_weights: Whether to initialize LoRA weights properly (default: True)
-        
+
         Raises:
             ImportError: If PEFT library is not installed
             ValueError: If invalid parameters are provided
@@ -261,18 +261,20 @@ class Predict2Video2WorldModel(ImaginaireModel):
         try:
             from peft import LoraConfig, inject_adapter_in_model
         except ImportError as e:
-            raise ImportError("PEFT library is required for LoRA training. Please install it with: pip install peft") from e
-        
+            raise ImportError(
+                "PEFT library is required for LoRA training. Please install it with: pip install peft"
+            ) from e
+
         # Validate parameters
         if lora_rank <= 0:
             raise ValueError(f"LoRA rank must be positive, got {lora_rank}")
         if lora_alpha <= 0:
             raise ValueError(f"LoRA alpha must be positive, got {lora_alpha}")
-        
+
         target_modules_list = [module.strip() for module in lora_target_modules.split(",")]
         if not target_modules_list:
             raise ValueError("LoRA target_modules cannot be empty")
-        
+
         # Validate target modules exist in model
         model_module_names = set(name for name, _ in model.named_modules())
         invalid_modules = []
@@ -280,27 +282,27 @@ class Predict2Video2WorldModel(ImaginaireModel):
             # Check if any module contains this target pattern
             if not any(target_module in module_name for module_name in model_module_names):
                 invalid_modules.append(target_module)
-        
+
         if invalid_modules:
             log.warning(f"Target modules not found in model: {invalid_modules}")
-        
+
         # Add LoRA to model
         self.lora_alpha = lora_alpha
-        
+
         log.info(f"Adding LoRA adapters: rank={lora_rank}, alpha={lora_alpha}, targets={target_modules_list}")
-        
+
         lora_config = LoraConfig(
             r=lora_rank,
             lora_alpha=lora_alpha,
             init_lora_weights=init_lora_weights,
             target_modules=target_modules_list,
         )
-        
+
         try:
             model = inject_adapter_in_model(lora_config, model)
         except Exception as e:
             raise RuntimeError(f"Failed to inject LoRA adapters into model: {e}") from e
-        
+
         # Count and log LoRA parameters
         lora_params = 0
         total_params = 0
@@ -310,22 +312,24 @@ class Predict2Video2WorldModel(ImaginaireModel):
                 lora_params += param.numel()
                 # Upcast LoRA parameters into fp32
                 param.data = param.to(torch.float32)
-        
-        log.info(f"LoRA injection successful: {lora_params:,} trainable parameters out of {total_params:,} total ({100*lora_params/total_params:.3f}%)")
+
+        log.info(
+            f"LoRA injection successful: {lora_params:,} trainable parameters out of {total_params:,} total ({100*lora_params/total_params:.3f}%)"
+        )
 
     def _log_lora_statistics(self) -> None:
         """Log detailed LoRA parameter statistics."""
         lora_params_by_type = {}
         total_lora_params = 0
-        
+
         for name, param in self.pipe.dit.named_parameters():
-            if param.requires_grad and 'lora' in name.lower():
-                param_type = 'lora_A' if 'lora_A' in name else 'lora_B' if 'lora_B' in name else 'other_lora'
+            if param.requires_grad and "lora" in name.lower():
+                param_type = "lora_A" if "lora_A" in name else "lora_B" if "lora_B" in name else "other_lora"
                 if param_type not in lora_params_by_type:
                     lora_params_by_type[param_type] = 0
                 lora_params_by_type[param_type] += param.numel()
                 total_lora_params += param.numel()
-        
+
         if total_lora_params > 0:
             log.info("LoRA parameter breakdown:")
             for param_type, count in lora_params_by_type.items():
@@ -333,7 +337,6 @@ class Predict2Video2WorldModel(ImaginaireModel):
             log.info(f"  Total LoRA: {total_lora_params:,} parameters")
         else:
             log.warning("No LoRA parameters found in model")
-
 
     def setup_data_key(self) -> None:
         self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
