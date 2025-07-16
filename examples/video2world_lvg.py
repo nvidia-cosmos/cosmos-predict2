@@ -30,11 +30,7 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_2B,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.video2world import (
-    _IMAGE_EXTENSIONS,
-    _VIDEO_EXTENSIONS,
-    Video2WorldPipeline,
-)
+from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
 

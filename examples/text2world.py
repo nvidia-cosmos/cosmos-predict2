@@ -27,17 +27,10 @@ from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 
 # Import functionality from other example scripts
-from examples.text2image import (
-    process_single_generation as process_single_image_generation,
-)
+from examples.text2image import process_single_generation as process_single_image_generation
 from examples.text2image import setup_pipeline as setup_text2image_pipeline
-from examples.video2world import (
-    _DEFAULT_NEGATIVE_PROMPT,
-    cleanup_distributed,
-)
-from examples.video2world import (
-    process_single_generation as process_single_video_generation,
-)
+from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
+from examples.video2world import process_single_generation as process_single_video_generation
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
 from imaginaire.utils import log
 

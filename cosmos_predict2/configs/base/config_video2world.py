@@ -22,7 +22,7 @@ from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr, VideoCo
 from cosmos_predict2.configs.base.config_natten import (
     PREDICT2_VIDEO2WORLD_NET_2B_NATTEN_PARAMETERS,
     PREDICT2_VIDEO2WORLD_NET_14B_NATTEN_PARAMETERS,
-
+)
 from cosmos_predict2.configs.base.config_text2image import CosmosGuardrailConfig, SolverTimestampConfig
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import SACConfig

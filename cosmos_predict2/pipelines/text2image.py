@@ -137,9 +137,7 @@ class Text2ImagePipeline(BasePipeline):
         ), "conditioner should not have learnable parameters"
 
         if config.guardrail_config.enabled:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             pipe.text_guardrail_runner = guardrail_presets.create_text_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu
@@ -341,9 +339,7 @@ class Text2ImagePipeline(BasePipeline):
 
         # Run text guardrail on the prompt
         if self.text_guardrail_runner is not None:
-            from cosmos_predict2.auxiliary.guardrail.common import (
-                presets as guardrail_presets,
-            )
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):

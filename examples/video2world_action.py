@@ -28,7 +28,6 @@ from megatron.core import parallel_state
 
 from cosmos_predict2.configs.action_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
 from cosmos_predict2.pipelines.video2world_action import Video2WorldActionConditionedPipeline
-
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
