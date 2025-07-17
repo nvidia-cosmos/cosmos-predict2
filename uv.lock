@@ -85,7 +85,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d
 [[package]]
 name = "apex"
 version = "0.1"
-source = { git = "https://github.com/NVIDIA/apex.git#2eda0ac9ed590863dce5eb8ccaa3a6eede559460" }
+source = { git = "https://github.com/spectralflight/apex.git?branch=cosmos#cac48feab44e237f3fe5ef64c546eea7ce6c4efb" }
 dependencies = [
     { name = "packaging" },
 ]
@@ -2014,7 +2014,7 @@ transformer-engine = [
 
 [package.metadata]
 requires-dist = [
-    { name = "apex", marker = "extra == 'apex'", git = "https://github.com/NVIDIA/apex.git" },
+    { name = "apex", marker = "extra == 'apex'", git = "https://github.com/spectralflight/apex.git?branch=cosmos" },
     { name = "attrs", specifier = "==25.1.0" },
     { name = "better-profanity", specifier = "==0.7.0" },
     { name = "boto3", specifier = "==1.35.99" },

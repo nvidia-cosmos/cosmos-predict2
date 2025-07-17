@@ -92,7 +92,7 @@ no-build-isolation-package = [
 ]
 
 [tool.uv.sources]
-apex = { git = "https://github.com/NVIDIA/apex.git" }
+apex = { git = "https://github.com/spectralflight/apex.git", branch = "cosmos" }
 flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention.git", rev = "27f501d", subdirectory = "hopper" }
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
