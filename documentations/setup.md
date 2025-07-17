@@ -35,8 +35,9 @@ bash scripts/install_decord_arm.sh
 pip install -r requirements-conda.txt
 pip install flash-attn==2.6.3 --no-build-isolation
 # Transformer engine
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
+export CPLUS_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$CPLUS_INCLUDE_PATH
+export C_INCLUDE_PATH=$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include:$C_INCLUDE_PATH
+export CPPFLAGS="-I$CONDA_PREFIX/lib/python3.10/site-packages/nvidia/cudnn/include $CPPFLAGS"
 CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
 # NATTEN
 CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
