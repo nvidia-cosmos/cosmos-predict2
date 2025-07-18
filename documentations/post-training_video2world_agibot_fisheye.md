@@ -64,8 +64,8 @@ datasets/agibot_head_center_fisheye_color/
 Run the following command to pre-compute T5-XXL embeddings for the video caption used for post-training:
 ```bash
 # The script will use the provided prompt from the dataset, save the T5-XXL embeddings in pickle format.
-PYTHONPATH=$(pwd) python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/train
-PYTHONPATH=$(pwd) python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/val
+python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/train
+python scripts/get_t5_embeddings.py --dataset_path datasets/agibot_head_center_fisheye_color/val
 ```
 
 Dataset folder format:
@@ -241,12 +241,12 @@ For example, if a posttrained checkpoint with 1000 iterations is to be used, run
 Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 
 ```bash
-PROMPT="The video captures a humanoid robot positioned in front of a fruit stand in a supermarket environment. The robot's right arm extends downward, reaching for a shiitake mushroom on the shelf. The arm carefully grasps the mushroom, lifting it towards the robot's body. The surrounding environment includes a shopping cart with a clear plastic bag and a red handle, as well as various fruits and vegetables displayed on the shelves. The robot's task is to retrieve items from the supermarket shelves, and this frame shows the initial step of picking up a shiitake mushroom."
+PROMPT_="The video captures a humanoid robot positioned in front of a fruit stand in a supermarket environment. The robot's right arm extends downward, reaching for a shiitake mushroom on the shelf. The arm carefully grasps the mushroom, lifting it towards the robot's body. The surrounding environment includes a shopping cart with a clear plastic bag and a red handle, as well as various fruits and vegetables displayed on the shelves. The robot's task is to retrieve items from the supermarket shelves, and this frame shows the initial step of picking up a shiitake mushroom."
 
-CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
+python examples/video2world.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/video2world/predict2_video2world_training_2b_agibot_head_center_fisheye_color/checkpoints/model/iter_000001000.pt" \
-  --prompt "${PROMPT}" \
+  --prompt "${PROMPT_}" \
   --input_path "datasets/agibot_head_center_fisheye_color/val/task_327_episode_685393_window_0_frame_0-149.mp4" \
   --num_conditional_frmaes 1 \
   --save_path output/agibot_head_center_fisheye_color/generated_video_2b.mp4

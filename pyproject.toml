@@ -5,11 +5,13 @@ build-backend = "uv_build"
 [project]
 name = "cosmos_predict2"
 version = "1.0.3"
-authors = [{ name = "NVIDIA Corporation" }]
+authors = [
+  {name = "NVIDIA Corporation"},
+]
 description = "Cosmos World Foundation Model"
 readme = "README.md"
 requires-python = ">=3.10"
-license = { text = "Apache-2.0" }
+license = {text = "Apache-2.0"}
 dependencies = [
   "attrs==25.1.0",
   "better-profanity==0.7.0",
@@ -139,5 +141,5 @@ omit = [
   ".venv/*",
   "**/test_*.py",
   "config.py",
-  "config-3.10.py",
+  "config-3.10.py"
 ]

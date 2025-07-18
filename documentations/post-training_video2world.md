@@ -244,7 +244,7 @@ For example, if a posttrained checkpoint with 1000 iterations is to be used, run
 Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 
 ```bash
-CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
+python examples/video2world.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/video2world/2b_custom_data/checkpoints/model/iter_000001000.pt" \
   --prompt "A descriptive prompt for physical AI." \

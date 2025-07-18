@@ -46,11 +46,11 @@ The output is saved to `output/text2world_2b.mp4`.
 
 ```bash
 # Set the input prompt
-PROMPT="An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
+PROMPT_="An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
 # Run text2world generation
 python -m examples.text2world \
     --model_size 2B \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/text2world_2b.mp4
 ```
 
@@ -106,7 +106,7 @@ export NUM_GPUS=8
 # Run text2world generation with multi-GPU acceleration
 torchrun --nproc_per_node=${NUM_GPUS} -m examples.text2world \
     --model_size 2B \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/text2world_2b_${NUM_GPUS}gpu.mp4 \
     --num_gpus ${NUM_GPUS} \
     --disable_guardrail \

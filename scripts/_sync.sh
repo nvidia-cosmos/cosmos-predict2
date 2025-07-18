@@ -33,13 +33,12 @@ else
         echo "Error: CUDA $CUDA_VERSION not installed. Please install https://developer.nvidia.com/cuda-toolkit-archive" >&2
         exit 1
     fi
-
-    # Must use `clang`: https://github.com/astral-sh/uv/issues/11707
-    export CXX=clang
-    if ! command -v clang &> /dev/null; then
-        echo "Error: clang not installed." >&2
-        exit 1
-    fi
+fi
+# Must use `clang`: https://github.com/astral-sh/uv/issues/11707
+export CXX=clang
+if ! command -v clang &> /dev/null; then
+    echo "Error: clang not installed." >&2
+    exit 1
 fi
 export _GLIBCXX_USE_CXX11_ABI=$(python -c "import torch; print(1 if torch.compiled_with_cxx11_abi() else 0)")
 

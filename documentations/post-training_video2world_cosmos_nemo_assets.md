@@ -41,7 +41,7 @@ Cosmos-NeMo-Assets comes with a single caption for 4 long videos.
 Run the following command to pre-compute T5-XXL embeddings for the video caption used for post-training:
 ```bash
 # The script will use the provided prompt, save the T5-XXL embeddings in pickle format.
-PYTHONPATH=$(pwd) python scripts/get_t5_embeddings_from_cosmos_nemo_assets.py --dataset_path datasets/cosmos_nemo_assets --prompt "A video of sks teal robot."
+python scripts/get_t5_embeddings_from_cosmos_nemo_assets.py --dataset_path datasets/cosmos_nemo_assets --prompt "A video of sks teal robot."
 ```
 
 Dataset folder format:
@@ -145,7 +145,7 @@ For example, if a posttrained checkpoint with 1000 iterations is to be used, run
 Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 
 ```bash
-CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
+python examples/video2world.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/video2world/2b_cosmos_nemo_assets/checkpoints/model/iter_000001000.pt" \
   --prompt "A video of sks teal robot." \

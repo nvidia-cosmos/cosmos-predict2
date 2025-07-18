@@ -82,7 +82,7 @@ predict2_video2world_2b_action_conditioned_training = dict(
 To run inference using a post-trained checkpoint (e.g., at 1000 iterations), use the command below.
 Specify the path to the checkpoint using the `--dit_path` argument:
 ```
-CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world_action.py \
+python examples/video2world_action.py \
   --model_size 2B \
   --dit_path "checkpoints/posttraining/video2world/predict2_video2world_2b_action_conditioned_training_${now:%Y-%m-%d}_${now:%H-%M-%S}/checkpoints/model/iter_000001000.pt" \
   --input_video datasets/bridge/videos/test/13/rgb.mp4 \

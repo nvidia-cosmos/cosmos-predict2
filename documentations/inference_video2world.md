@@ -51,13 +51,13 @@ The corresponding input prompt is saved to `output/video2world_2b.txt`.
 
 ```bash
 # Set the input prompt
-PROMPT="A nighttime city bus terminal gradually shifts from stillness to subtle movement. At first, multiple double-decker buses are parked under the glow of overhead lights, with a central bus labeled '87D' facing forward and stationary. As the video progresses, the bus in the middle moves ahead slowly, its headlights brightening the surrounding area and casting reflections onto adjacent vehicles. The motion creates space in the lineup, signaling activity within the otherwise quiet station. It then comes to a smooth stop, resuming its position in line. Overhead signage in Chinese characters remains illuminated, enhancing the vibrant, urban night scene."
+PROMPT_="A nighttime city bus terminal gradually shifts from stillness to subtle movement. At first, multiple double-decker buses are parked under the glow of overhead lights, with a central bus labeled '87D' facing forward and stationary. As the video progresses, the bus in the middle moves ahead slowly, its headlights brightening the surrounding area and casting reflections onto adjacent vehicles. The motion creates space in the lineup, signaling activity within the otherwise quiet station. It then comes to a smooth stop, resuming its position in line. Overhead signage in Chinese characters remains illuminated, enhancing the vibrant, urban night scene."
 # Run video2world generation
 python -m examples.video2world \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
     --num_conditional_frames 1 \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_2b.mp4
 ```
 
@@ -67,13 +67,13 @@ The 14B model can be run similarly by changing the model size parameter. For GPU
 
 ```bash
 # Set the input prompt
-PROMPT="A nighttime city bus terminal gradually shifts from stillness to subtle movement. At first, multiple double-decker buses are parked under the glow of overhead lights, with a central bus labeled '87D' facing forward and stationary. As the video progresses, the bus in the middle moves ahead slowly, its headlights brightening the surrounding area and casting reflections onto adjacent vehicles. The motion creates space in the lineup, signaling activity within the otherwise quiet station. It then comes to a smooth stop, resuming its position in line. Overhead signage in Chinese characters remains illuminated, enhancing the vibrant, urban night scene."
+PROMPT_="A nighttime city bus terminal gradually shifts from stillness to subtle movement. At first, multiple double-decker buses are parked under the glow of overhead lights, with a central bus labeled '87D' facing forward and stationary. As the video progresses, the bus in the middle moves ahead slowly, its headlights brightening the surrounding area and casting reflections onto adjacent vehicles. The motion creates space in the lineup, signaling activity within the otherwise quiet station. It then comes to a smooth stop, resuming its position in line. Overhead signage in Chinese characters remains illuminated, enhancing the vibrant, urban night scene."
 # Run video2world generation
 python -m examples.video2world \
     --model_size 14B \
     --input_path assets/video2world/input0.jpg \
     --num_conditional_frames 1 \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_14b.mp4 \
     --offload_guardrail \
     --offload_prompt_refiner
@@ -138,13 +138,13 @@ For 5-frame conditioning, the input must be a video file, not a still image. Spe
 
 ```bash
 # Set the input prompt
-PROMPT="A point-of-view video shot from inside a vehicle, capturing a quiet suburban street bathed in bright sunlight. The road is lined with parked cars on both sides, and buildings, likely residential or small businesses, are visible across the street. A STOP sign is prominently displayed near the center of the intersection. The sky is clear and blue, with the sun shining brightly overhead, casting long shadows on the pavement. On the left side of the street, several vehicles are parked, including a van with some text on its side. Across the street, a white van is parked near two trash bins, and a red SUV is parked further down. The buildings on either side have a mix of architectural styles, with some featuring flat roofs and others with sloped roofs. Overhead, numerous power lines stretch across the street, and a few trees are visible in the background, partially obscuring the view of the buildings. As the video progresses, a white car truck makes a right turn into the adjacent opposite lane. The ego vehicle slows down and comes to a stop, waiting until the car fully enters the opposite lane before proceeding. The pedestrian keeps walking on the street. The other vehicles remain stationary, parked along the curb. The scene remains static otherwise, with no significant changes in the environment or additional objects entering the frame. By the end of the video, the white car truck has moved out of the camera view, the rest of the scene remains largely unchanged, maintaining the same composition and lighting conditions as the beginning."
+PROMPT_="A point-of-view video shot from inside a vehicle, capturing a quiet suburban street bathed in bright sunlight. The road is lined with parked cars on both sides, and buildings, likely residential or small businesses, are visible across the street. A STOP sign is prominently displayed near the center of the intersection. The sky is clear and blue, with the sun shining brightly overhead, casting long shadows on the pavement. On the left side of the street, several vehicles are parked, including a van with some text on its side. Across the street, a white van is parked near two trash bins, and a red SUV is parked further down. The buildings on either side have a mix of architectural styles, with some featuring flat roofs and others with sloped roofs. Overhead, numerous power lines stretch across the street, and a few trees are visible in the background, partially obscuring the view of the buildings. As the video progresses, a white car truck makes a right turn into the adjacent opposite lane. The ego vehicle slows down and comes to a stop, waiting until the car fully enters the opposite lane before proceeding. The pedestrian keeps walking on the street. The other vehicles remain stationary, parked along the curb. The scene remains static otherwise, with no significant changes in the environment or additional objects entering the frame. By the end of the video, the white car truck has moved out of the camera view, the rest of the scene remains largely unchanged, maintaining the same composition and lighting conditions as the beginning."
 # Run video2world generation with 5-frame conditioning
 python -m examples.video2world \
     --model_size 2B \
     --input_path assets/video2world/input3.mp4 \
     --num_conditional_frames 5 \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_2b_5frames.mp4
 ```
 
@@ -164,13 +164,13 @@ The Cosmos-Predict2 models include a prompt refiner model using [Cosmos-Reason1-
 The following example uses a short prompt that will be automatically expanded by the prompt refiner:
 ```bash
 # Set the input short prompt
-PROMPT="A nighttime city bus terminal."
+PROMPT_="A nighttime city bus terminal."
 # Run video2world generation
 python -m examples.video2world \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
     --num_conditional_frames 1 \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_2b_with_prompt_refiner.mp4
 ```
 
@@ -180,7 +180,7 @@ The prompt refiner is enabled by default. To disable it, use the `--disable_prom
 python -m examples.video2world \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --disable_prompt_refiner \
     --save_path output/video2world_2b_without_prompt_refiner.mp4
 ```
@@ -208,7 +208,7 @@ export NUM_GPUS=8
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world.py \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_2b_${NUM_GPUS}gpu.mp4 \
     --num_gpus ${NUM_GPUS}
 ```
@@ -232,12 +232,12 @@ Video quality can be further improved by generating multiple variations and sele
 
 ```bash
 # Set the input prompt
-PROMPT="A nighttime city bus terminal gradually shifts from stillness to subtle movement. Multiple double-decker buses are parked under overhead lights, with a central bus labeled '87D' facing forward."
+PROMPT_="A nighttime city bus terminal gradually shifts from stillness to subtle movement. Multiple double-decker buses are parked under overhead lights, with a central bus labeled '87D' facing forward."
 # Run video2world generation with rejection sampling
 python -m examples.video2world_bestofn \
     --model_size 2B \
     --input_path assets/video2world/input0.jpg \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --num_generations 4 \
     --num_critic_trials 5 \
     --disable_guardrail \
@@ -267,7 +267,7 @@ Since long video generation calls the whole denoising process of Video2World mod
 
 ```bash
 # Set the input prompt
-PROMPT="The video opens with a view inside a well-lit warehouse or retail store aisle, characterized by high ceilings and industrial shelving units stocked with various products. The shelves are neatly organized with items such as canned goods, packaged foods, and cleaning supplies, all displayed in bright packaging that catches the eye. The surrounding environment includes additional shelving units filled with similar products. The scene concludes with the forklift still in motion, ensuring the pallet is securely placed on the shelf."
+PROMPT_="The video opens with a view inside a well-lit warehouse or retail store aisle, characterized by high ceilings and industrial shelving units stocked with various products. The shelves are neatly organized with items such as canned goods, packaged foods, and cleaning supplies, all displayed in bright packaging that catches the eye. The surrounding environment includes additional shelving units filled with similar products. The scene concludes with the forklift still in motion, ensuring the pallet is securely placed on the shelf."
 
 # Set the number of GPUs to use
 export NUM_GPUS=8
@@ -277,7 +277,7 @@ PYTHONPATH=. torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lvg.py \
     --model_size 14B \
     --num_chunks 6 \
     --input_path assets/video2world_lvg/example_input.jpg \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --save_path output/video2world_2b_lvg_example1.mp4 \
     --num_gpus ${NUM_GPUS} \
     --disable_guardrail \
@@ -298,7 +298,7 @@ flag.
 python -m examples.video2world \
     --model_size 2B \
     --input_path $INPUT_PATH \
-    --prompt "${PROMPT}" \
+    --prompt "${PROMPT_}" \
     --natten \
     --save_path output/video2world_2b_with_natten.mp4
 ```
