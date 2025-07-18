@@ -5,7 +5,7 @@ extras := "flash-attn transformer-engine natten"
 training_extras := "apex flash-attn-3"
 
 # Install inference in existing environment
-install cuda:
+install cuda='cu126':
     echo {{ cuda }} > .venv/cuda-version
     ./scripts/_sync.sh "{{ extras }}"
     ./.venv/bin/python scripts/test_environment.py
@@ -18,10 +18,10 @@ install-training:
 # Create a new conda environment
 _conda-env:
     rm -rf .venv
-    conda env create -y --no-default-packages -f cosmos-predict2.yaml
+    conda env create -y --no-default-packages -f conda.yaml
     ln -sf "$(conda info --base)/envs/cosmos-predict2" .venv
 
 # Install inference in a new conda environment
 install-conda:
     just -f {{ justfile() }} _conda-env
-    just -f {{ justfile() }} install cu124
+    just -f {{ justfile() }} install cu126

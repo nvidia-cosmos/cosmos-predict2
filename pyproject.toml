@@ -3,7 +3,7 @@ requires = ["uv_build>=0.7.21,<0.8.0"]
 build-backend = "uv_build"
 
 [project]
-name = "nvidia-cosmos"
+name = "cosmos_predict2"
 version = "1.0.3"
 authors = [{ name = "NVIDIA Corporation" }]
 description = "Cosmos World Foundation Model"
@@ -70,8 +70,11 @@ build = [
   "wheel",
 ]
 cpu = ["torch==2.6.0", "torchvision==0.21.0"]
-cu124 = ["torch==2.6.0", "torchvision==0.21.0"]
-cu126 = ["torch==2.6.0", "torchvision==0.21.0"]
+cu126 = [
+  "nvidia-nvtx-cu12==12.6.*",
+  "torch==2.6.0",
+  "torchvision==0.21.0",
+]
 flash-attn = ["flash-attn==2.6.3"]
 flash-attn-3 = ["flash-attn-3"]
 natten = ["natten==0.20.1"]
@@ -82,7 +85,7 @@ homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"
 issues = "https://github.com/nvidia-cosmos/cosmos-predict2/issues"
 
 [tool.uv]
-conflicts = [[{ extra = "cpu" }, { extra = "cu124" }, { extra = "cu126" }]]
+conflicts = [[{ extra = "cpu" }, { extra = "cu126" }]]
 no-build-isolation-package = [
   "apex",
   "flash-attn",
@@ -96,23 +99,16 @@ apex = { git = "https://github.com/spectralflight/apex.git", branch = "cosmos" }
 flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention.git", rev = "27f501d", subdirectory = "hopper" }
 torch = [
   { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu124", extra = "cu124" },
   { index = "pytorch-cu126", extra = "cu126" },
 ]
 torchvision = [
   { index = "pytorch-cpu", extra = "cpu" },
-  { index = "pytorch-cu124", extra = "cu124" },
   { index = "pytorch-cu126", extra = "cu126" },
 ]
 
 [[tool.uv.index]]
 name = "pytorch-cpu"
 url = "https://download.pytorch.org/whl/cpu"
-explicit = true
-
-[[tool.uv.index]]
-name = "pytorch-cu124"
-url = "https://download.pytorch.org/whl/cu124"
 explicit = true
 
 [[tool.uv.index]]

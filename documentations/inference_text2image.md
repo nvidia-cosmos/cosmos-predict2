@@ -27,7 +27,7 @@ The inference script is `examples/text2image.py`.
 It requires the input argument `--prompt` (text input).
 To see the complete list of available arguments, run:
 ```bash
-uv run examples/text2image.py --help
+python examples/text2image.py --help
 ```
 
 ## Examples
@@ -38,10 +38,10 @@ This is a basic example for running inference on the 2B model with a single prom
 The output is saved to `output/text2image_2b.jpg`.
 ```bash
 # Set the input prompt
-PROMPT_="A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
+PROMPT="A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 # Run text2image generation
-uv run examples/text2image.py \
-    --prompt "${PROMPT_}" \
+python -m examples.text2image \
+    --prompt "${PROMPT}" \
     --model_size 2B \
     --save_path output/text2image_2b.jpg
 ```

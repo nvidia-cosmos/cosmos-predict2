@@ -56,7 +56,7 @@ Install the package using your preferred environment:
    * clang
 
    ```sh
-   just install cu126
+   just install
    source .venv/bin/activate
    ```
 
