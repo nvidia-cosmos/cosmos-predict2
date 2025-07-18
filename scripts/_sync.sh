@@ -11,14 +11,14 @@ fi
 all_extras=$1
 
 # Install build dependencies
-extras="--extra $(<".cuda-version")"
+extras="--extra $(<".venv/cuda-version")"
 uv sync --extra build $extras
 
 # Set environment variables
 if [ -f ".venv/bin/nvcc" ]; then
     echo "Using conda cuda"
-    ln -sf $(pwd)/.venv/lib/python3.10/site-packages/nvidia/*/include/* $(pwd)/.venv/include/
-    ln -sf $(pwd)/.venv/lib/python3.10/site-packages/nvidia/*/include/* $(pwd)/.venv/include/python3.10/
+    ln -sf "$(pwd)/.venv/lib/python3.10/site-packages/nvidia/*/include/*" "$(pwd)/.venv/include/"
+    ln -sf "$(pwd)/.venv/lib/python3.10/site-packages/nvidia/*/include/*" "$(pwd)/.venv/include/python3.10/"
     export CUDA_HOME="$(pwd)/.venv"
 else
     echo "Using system cuda"

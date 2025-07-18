@@ -6,7 +6,7 @@ training_extras := "apex flash-attn-3"
 
 # Install inference in existing environment
 install cuda:
-    echo {{ cuda }} > .cuda-version
+    echo {{ cuda }} > .venv/cuda-version
     ./scripts/_sync.sh "{{ extras }}"
     ./.venv/bin/python scripts/test_environment.py
 
