@@ -27,7 +27,7 @@ The inference script is `examples/text2image.py`.
 It requires the input argument `--prompt` (text input).
 To see the complete list of available arguments, run:
 ```bash
-python -m examples.text2image --help
+python examples/text2image.py --help
 ```
 
 ## Examples

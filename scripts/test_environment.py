@@ -13,10 +13,13 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from argparse import ArgumentParser
 import importlib
-import os
 import sys
 
+parser = ArgumentParser()
+parser.add_argument("--training", action="store_true", help="Check training packages")
+args = parser.parse_args()
 
 def check_packages(package_list, success_status=True):
     def print_success(package, version=None):
@@ -106,9 +109,10 @@ packages_training = [
 ]
 
 all_success = check_packages(packages)
-training_success = check_packages(packages_training)
-if not training_success:
-    print("\033[93m[WARNING]\033[0m Training packages not found. Training features will be unavailable.")
+if args.training:
+    training_success = check_packages(packages_training)
+    if not training_success:
+        print("\033[93m[WARNING]\033[0m Training packages not found. Training features will be unavailable.")
 
 if all_success:
     print("-----------------------------------------------------------")

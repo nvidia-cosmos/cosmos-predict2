@@ -20,37 +20,50 @@ cd cosmos-predict2
 When using an ARM platform, like GB200, special steps are required to install the `decord` package.
 You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
 The installation will be handled by the Conda scripts or Dockerfile.
-### Option 1: Conda environment
 
-Please make sure you have a Conda distribution installed ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
+### Option 1: Virtual environment
 
-```bash
-# Create and activate the environment
-conda env create --file cosmos-predict2.yaml
-conda activate cosmos-predict2
+Install system dependencies:
+
+```sh
+# Install uv/just
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv tool install rust-just
 
 # Try to install decord when on ARM platform
 bash scripts/install_decord_arm.sh
-# Install dependencies
-pip install -r requirements-conda.txt
-pip install flash-attn==2.6.3 --no-build-isolation
-# Transformer engine
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
-CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
-# NATTEN
-CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
-
-# Apex library for training (optional if inference only)
-CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
-
-# Verify setup
-CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
 ```
 
-Make sure the `CUDA_HOME` environment variable points to your Conda installation directory by running:
-```bash
-export CUDA_HOME=$CONDA_PREFIX
+Install the package using your preferred environment:
+
+1. conda
+
+   Install system dependencies:
+
+   * conda: https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html
+
+   ```sh
+   just install-conda
+   conda activate cosmos-predict2
+   ```
+
+2. venv
+
+   Install system dependencies:
+
+   * CUDA 12.6: https://developer.nvidia.com/cuda-12-6-0-download-archive
+   * clang
+
+   ```sh
+   just install
+   source .venv/bin/activate
+   ```
+
+[Optional] Install training dependencies
+
+```sh
+just install-training
 ```
 
 ### Option 2: Docker container
