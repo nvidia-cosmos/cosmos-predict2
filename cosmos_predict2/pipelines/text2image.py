@@ -83,12 +83,10 @@ def load_sample_inputs(path: str, device: str = "cuda") -> dict:
     sample_inputs = torch.load(path, map_location="cpu", weights_only=False)
     log.success(f"Successfully loaded sample DiT inputs from {path}")
 
-    print(type(sample_inputs))
-
     for k, v in sample_inputs.items():
         if isinstance(v, torch.Tensor):
             sample_inputs[k] = v.to(device=device)
-            print(k, sample_inputs[k].shape, sample_inputs[k].dtype)
+            # print(k, sample_inputs[k].shape, sample_inputs[k].dtype)
 
     return sample_inputs
 
