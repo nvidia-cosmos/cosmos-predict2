@@ -19,6 +19,7 @@ import torch
 
 from cosmos_predict2.conditioner import DataType
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
+from imaginaire.utils import log
 
 
 class MinimalV1LVGDiT(MiniTrainDIT):
@@ -40,6 +41,22 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
         del kwargs
+
+        # Save inputs if path is set (for auto_deploy compilation)
+        if self.save_input_path:
+            inputs_to_save = {
+                "x_B_C_T_H_W": x_B_C_T_H_W.clone(),
+                "timesteps_B_T": timesteps_B_T.clone(),
+                "crossattn_emb": crossattn_emb.clone(),
+                "fps": fps.clone() if fps is not None else None,
+                "padding_mask": padding_mask.clone() if padding_mask is not None else None,
+                "data_type": data_type,
+                "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.clone() if condition_video_input_mask_B_C_T_H_W is not None else None,
+            }
+            log.info(f"Saving actual Video2World DiT inputs to {self.save_input_path}")
+            torch.save(inputs_to_save, self.save_input_path)
+            log.success(f"Successfully saved actual Video2World DiT inputs to {self.save_input_path}")
+            self.save_input_path = None  # Reset to avoid saving multiple times
 
         if data_type == DataType.VIDEO:
             x_B_C_T_H_W = torch.cat([x_B_C_T_H_W, condition_video_input_mask_B_C_T_H_W.type_as(x_B_C_T_H_W)], dim=1)

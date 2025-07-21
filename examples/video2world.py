@@ -21,7 +21,10 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import time
-
+import numpy as np
+from tensorrt_llm._torch.auto_deploy.compile import compile_and_capture
+from tensorrt_llm._torch.auto_deploy.transformations.export import torch_export_to_gm
+from cosmos_predict2.pipelines.text2image import load_sample_inputs
 import torch
 from megatron.core import parallel_state
 
@@ -171,6 +174,18 @@ def parse_args() -> argparse.Namespace:
         "--natten",
         action="store_true",
         help="Run Video2World + NATTEN (sparse attention variant).",
+    )
+    parser.add_argument(
+        "--save_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to save the actual DiT input dictionary to a .pt file. The script will save the input and exit.",
+    )
+    parser.add_argument(
+        "--load_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to load a DiT input dictionary from a .pt file and compile the DiT with auto-deploy.",
     )
     return parser.parse_args()
 
@@ -414,6 +429,93 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
 
     return
 
+# ---------------------------------------------------------------------------
+# Auto-Deploy support for Video2World (Text-to-Video) DiT model
+# ---------------------------------------------------------------------------
+
+def ad_optimize_t2v_dit(pipe: Video2WorldPipeline, args: argparse.Namespace):
+    """Auto-deploy compile & optimise the Video2World DiT model, mirroring the
+    behaviour of ad_optimize_t2i_dit in text2image.py.  Requires that
+    --load_dit_input_path points to a .pt containing a sample kwargs dict for
+    dit_model.forward()."""
+
+    print("[Auto-Deploy] Starting Video2World DiT optimization…")
+
+    dit_model = pipe.dit
+
+    # Unwrap checkpoint wrappers so that torch.export can trace the modules.
+    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
+
+    for i, block in enumerate(dit_model.blocks):
+        if isinstance(block, CheckpointWrapper):
+            dit_model.blocks[i] = block._checkpoint_wrapped_module
+
+    if hasattr(dit_model, "final_layer") and isinstance(dit_model.final_layer, CheckpointWrapper):
+        dit_model.final_layer = dit_model.final_layer._checkpoint_wrapped_module
+
+    # Disable context parallelism – unsupported by torch.export today.
+    if hasattr(dit_model, "disable_context_parallel"):
+        dit_model.disable_context_parallel()
+
+    # ------------------------------------------------------------------
+    # 1. Prepare sample inputs
+    # ------------------------------------------------------------------
+    inputs = load_sample_inputs(args.load_dit_input_path)
+    # Some forward signatures expect this flag; harmless if unused.
+    inputs["use_cuda_graphs"] = False
+
+    # ------------------------------------------------------------------
+    # 2. Measure baseline latency
+    # ------------------------------------------------------------------
+    for _ in range(5):
+        _ = dit_model.forward(**inputs)
+    torch.cuda.synchronize()
+
+    latencies_before = []
+    for _ in range(20):
+        start_t = time.time()
+        _ = dit_model.forward(**inputs)
+        torch.cuda.synchronize()
+        latencies_before.append((time.time() - start_t) * 1000)
+    avg_before = np.mean(latencies_before)
+    log.success(f"Average latency before optimization: {avg_before:.2f} ms")
+
+    # ------------------------------------------------------------------
+    # 3. Export & compile with torch-opt backend
+    # ------------------------------------------------------------------
+    exported_gm = torch_export_to_gm(dit_model, args=(), kwargs=inputs, clone=False)
+    compiled_gm = compile_and_capture(exported_gm, backend="torch-opt", args=(), kwargs=inputs)
+
+    # ------------------------------------------------------------------
+    # 4. Measure optimised latency
+    # ------------------------------------------------------------------
+    with torch.inference_mode():
+        for _ in range(5):
+            _ = compiled_gm.forward(**inputs)
+        torch.cuda.synchronize()
+
+    latencies_after = []
+    with torch.inference_mode():
+        for _ in range(20):
+            start_t = time.time()
+            _ = compiled_gm.forward(**inputs)
+            torch.cuda.synchronize()
+            latencies_after.append((time.time() - start_t) * 1000)
+    avg_after = np.mean(latencies_after)
+    log.success(f"Average latency after optimization: {avg_after:.2f} ms")
+    log.success(f"Optimization speedup: {avg_before/avg_after:.2f}x")
+
+    # ------------------------------------------------------------------
+    # 5. Patch compatibility helpers & replace model
+    # ------------------------------------------------------------------
+    def _dummy_disable_cp():
+        pass
+
+    compiled_gm.disable_context_parallel = _dummy_disable_cp
+
+    pipe.dit = compiled_gm
+    print("[Auto-Deploy] Video2World DiT optimization completed")
+
 
 def cleanup_distributed():
     """Clean up the distributed environment if initialized."""
@@ -427,6 +529,14 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
+        # ------------------------------------------------------------------
+        # Optional: capture sample inputs or run auto-deploy optimisation
+        # ------------------------------------------------------------------
+        if args.load_dit_input_path:
+            ad_optimize_t2v_dit(pipe, args)
+        elif args.save_dit_input_path:
+            pipe.dit.set_save_input_path(args.save_dit_input_path)
+
         generate_video(args, pipe)
     finally:
         # Make sure to clean up the distributed environment

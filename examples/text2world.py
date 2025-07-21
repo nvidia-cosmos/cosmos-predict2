@@ -16,15 +16,16 @@
 import argparse
 import json
 import os
-
-# Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
+import numpy as np
+from tensorrt_llm._torch.auto_deploy.compile import compile_and_capture
+from tensorrt_llm._torch.auto_deploy.transformations.export import torch_export_to_gm
+from cosmos_predict2.pipelines.text2image import load_sample_inputs
 import torch
 import torch.distributed
 
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
+from cosmos_predict2.models.text2image_dit import torch_attention_op
 
 # Import functionality from other example scripts
 from examples.text2image import process_single_generation as process_single_image_generation
@@ -33,6 +34,7 @@ from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
 from examples.video2world import process_single_generation as process_single_video_generation
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
 from imaginaire.utils import log
+import time
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
 
@@ -133,6 +135,19 @@ def parse_args() -> argparse.Namespace:
         "--natten",
         action="store_true",
         help="Run the sparse attention variant (with NATTEN).",
+    )
+    # --- Auto-Deploy helper flags (Text2Video DiT) ---
+    parser.add_argument(
+        "--save_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to save the DiT input dict (for later compilation).",
+    )
+    parser.add_argument(
+        "--load_dit_input_path",
+        type=str,
+        default=None,
+        help="Path to a saved DiT input dict; if provided, the script compiles the Video2World DiT with auto-deploy before generation.",
     )
     return parser.parse_args()
 
@@ -266,6 +281,228 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
             log.success(f"Cleaned up temporary image: {temp_image_path}")
 
 
+# ---------------------------------------------------------------------------
+# Auto-Deploy support for the Video2World DiT inside text2world pipeline
+# ---------------------------------------------------------------------------
+
+def ad_optimize_t2v_dit(pipe: Video2WorldPipeline, args: argparse.Namespace):
+    """Compile & optimise the Video2World DiT with torch.export + torch-opt backend."""
+
+    print("[Auto-Deploy] Starting Video2World DiT optimization…")
+    
+    # Set environment variable to handle memory fragmentation
+    import os
+    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    
+    # Clear GPU cache before optimization
+    torch.cuda.empty_cache()
+    
+    dit_model = pipe.dit
+
+    print("type(dit_model)", type(dit_model))
+
+    # Ensure Flash-Attention kernels are not invoked during export.
+    try:
+        dit_model.atten_backend = "torch"
+    except AttributeError:
+        pass
+
+    from cosmos_predict2.models.text2image_dit import Attention as _Attn
+
+    for name, mod in dit_model.named_modules():
+        if isinstance(mod, _Attn):
+            mod.backend = "torch"
+            if hasattr(mod, "attn_op"):
+                if isinstance(mod.attn_op, torch.nn.Module):
+                    # Remove the existing sub-module so _modules dict accepts a plain function replacement
+                    delattr(mod, "attn_op")
+                    mod.__dict__["attn_op"] = torch_attention_op
+                else:
+                    mod.attn_op = torch_attention_op
+                # Some Attention wrappers stash the backend string under a different name
+                if hasattr(mod, "atten_backend"):
+                    mod.atten_backend = "torch"
+            log.debug(f"Patched Attention backend on module {name}")
+
+    # Unwrap checkpoint wrappers
+    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
+
+    for i, block in enumerate(dit_model.blocks):
+        if isinstance(block, CheckpointWrapper):
+            dit_model.blocks[i] = block._checkpoint_wrapped_module
+
+    if hasattr(dit_model, "final_layer") and isinstance(dit_model.final_layer, CheckpointWrapper):
+        dit_model.final_layer = dit_model.final_layer._checkpoint_wrapped_module
+
+    # Turn off context parallel if present
+    if hasattr(dit_model, "disable_context_parallel"):
+        dit_model.disable_context_parallel()
+
+    # Prepare inputs
+    inputs = load_sample_inputs(args.load_dit_input_path)
+    
+    # Move inputs to GPU if they're on CPU (to avoid device mismatch)
+    device = next(dit_model.parameters()).device
+    for key, tensor in inputs.items():
+        if isinstance(tensor, torch.Tensor):
+            inputs[key] = tensor.to(device)
+    
+    # Check available GPU memory and aggressively reduce input size for compilation
+    import gc
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    allocated_memory = torch.cuda.memory_allocated(device) / (1024**2)
+    print(f"Current GPU memory allocated: {allocated_memory:.0f} MB")
+    
+    # Always reduce input tensor sizes for compilation to save memory
+    # The exact tensor sizes don't matter for graph capture, only the shapes and operations
+    log.info("Reducing input tensor sizes for efficient compilation...")
+    original_shapes = {}
+    
+    for key, tensor in inputs.items():
+        if isinstance(tensor, torch.Tensor):
+            original_shapes[key] = tensor.shape
+            
+            # Aggressively reduce tensor sizes for compilation
+            # IMPORTANT: Keep spatial dimensions consistent between related tensors
+            if key == "x_B_C_T_H_W":
+                # Reduce from [1, 16, 24, 88, 160] to [1, 16, 8, 32, 64] - much smaller
+                target_h, target_w = 32, 64
+                inputs[key] = tensor[:, :, :8, :target_h, :target_w]
+            elif key == "condition_video_input_mask_B_C_T_H_W":
+                # Match the reduced x_B_C_T_H_W dimensions exactly
+                inputs[key] = tensor[:, :, :8, :32, :64]
+            elif key == "timesteps_B_T":
+                # Reduce temporal dimension to match
+                inputs[key] = tensor[:, :8]
+            elif key == "crossattn_emb":
+                # CRITICAL: Don't reduce crossattn_emb sequence dimension - it must match the model's linear layer weights
+                # The shape [1, 512, 1024] means: batch=1, seq_len=512, embed_dim=1024
+                # The embed_dim (1024) MUST match the model's k_proj weight matrix input size
+                # We can only safely reduce batch size, not sequence or embedding dimensions
+                pass  # Keep crossattn_emb unchanged to avoid matrix multiplication errors
+            elif key == "padding_mask" and tensor.dim() == 4:
+                # CRITICAL: padding_mask spatial dimensions might have a fixed relationship to x_B_C_T_H_W
+                # Original: padding_mask [1, 1, 704, 1280], x_B_C_T_H_W [1, 16, 24, 88, 160]
+                # Ratio: 704/88 = 8, 1280/160 = 8 (8x scaling factor)
+                # During compilation: x_B_C_T_H_W -> [1, 16, 8, 32, 64]
+                # So padding_mask should -> [1, 1, 8*32, 8*64] = [1, 1, 256, 512] to maintain the 8x ratio
+                target_h, target_w = 32 * 8, 64 * 8  # Maintain 8x scaling relationship
+                inputs[key] = tensor[:, :, :target_h, :target_w]  # [1, 1, 256, 512]
+            elif tensor.dim() >= 3 and tensor.shape[2] > 8:
+                # For any other temporal tensors, reduce T dimension (but skip crossattn_emb)
+                if key != "crossattn_emb":
+                    inputs[key] = tensor[:, :, :8]
+                
+            if tensor.shape != inputs[key].shape:
+                log.info(f"Reduced {key}: {original_shapes[key]} -> {inputs[key].shape}")
+    
+    # Force garbage collection and cache clearing
+    del original_shapes
+    gc.collect()
+    torch.cuda.empty_cache()
+    
+    # Check memory usage after reduction
+    allocated_after = torch.cuda.memory_allocated(device) / (1024**2)
+    print(f"GPU memory after tensor reduction: {allocated_after:.0f} MB")
+
+    # Baseline latency (reduced iterations to save memory)
+    for _ in range(2):  # Reduced warmup iterations
+        _ = dit_model.forward(**inputs)
+    torch.cuda.synchronize()
+    torch.cuda.empty_cache()  # Clear cache between warmup and measurement
+    
+    lat_before = []
+    for _ in range(10):  # Reduced measurement iterations
+        t0 = time.time(); _ = dit_model.forward(**inputs); torch.cuda.synchronize(); lat_before.append((time.time()-t0)*1000)
+    avg_before = np.mean(lat_before)
+    
+    # Clear intermediate results
+    torch.cuda.empty_cache()
+    log.success(f"Average latency before optimisation: {avg_before:.2f} ms")
+
+    # Export & compile
+    print(f"Compilation input structure: {list(inputs.keys())}")
+    print(f"Input shapes: {[(k, v.shape if isinstance(v, torch.Tensor) else type(v)) for k, v in inputs.items()]}")
+    
+    # Force dynamic shapes to handle variable temporal AND spatial dimensions during inference
+    print("Using dynamic shapes with PyTorch's suggested constraints...")
+    from torch.export import Dim
+    time_dim = Dim("time", min=1, max=120)     # Temporal dimension
+    # Use PyTorch's suggested height/width constraints: height = 2*_height, width = 2*_width
+    _height = Dim('_height', min=8, max=120)   # Base height dimension for latent tensors
+    _width = Dim('_width', min=8, max=120)     # Base width dimension for latent tensors
+    height_dim = 2 * _height                   # height = 2*_height (latent space)
+    width_dim = 2 * _width                     # width = 2*_width (latent space)
+    
+    # padding_mask has a different scaling (8x) compared to latent tensors, so needs separate dims
+    _pad_height = Dim('_pad_height', min=16, max=640)  # Base padding height (8x larger than latent)
+    _pad_width = Dim('_pad_width', min=32, max=640)    # Base padding width (8x larger than latent)
+    pad_height_dim = 2 * _pad_height           # padding height = 2*_pad_height
+    pad_width_dim = 2 * _pad_width             # padding width = 2*_pad_width
+    
+    dynamic_shapes = {
+        'x_B_C_T_H_W': (None, None, time_dim, height_dim, width_dim),  # T, H, W are dynamic (latent space)
+        'timesteps_B_T': (None, time_dim),  # Only T is dynamic
+        'condition_video_input_mask_B_C_T_H_W': (None, None, time_dim, height_dim, width_dim),  # T, H, W are dynamic (latent space)
+        'crossattn_emb': None,  # Keep completely static
+        'fps': None,  # Keep static
+        'padding_mask': (None, None, pad_height_dim, pad_width_dim),  # H, W are dynamic (image space, separate scaling)
+        'data_type': None,  # Non-tensor
+    }
+    
+    print(f"Using dynamic shapes: {dynamic_shapes}")
+    gm = torch_export_to_gm(dit_model, args=(), kwargs=inputs, clone=False, dynamic_shapes=dynamic_shapes)
+    gm_opt = compile_and_capture(gm, backend="torch-opt", args=(), kwargs=inputs)
+
+    # Post-opt latency (reduced iterations to save memory)
+    with torch.inference_mode():
+        for _ in range(2): _ = gm_opt.forward(**inputs); torch.cuda.synchronize()  # Reduced warmup
+        torch.cuda.empty_cache()
+    lat_after = []
+    with torch.inference_mode():
+        for _ in range(10):  # Reduced measurement iterations
+            t0 = time.time(); _ = gm_opt.forward(**inputs); torch.cuda.synchronize(); lat_after.append((time.time()-t0)*1000)
+    avg_after = np.mean(lat_after)
+    log.success(f"Average latency after optimisation: {avg_after:.2f} ms")
+    log.success(f"Speed-up: {avg_before/avg_after:.2f}x")
+
+    # Patch helper & replace
+    gm_opt.disable_context_parallel = lambda: None
+    gm_opt._is_context_parallel_enabled = False  # Private state variable
+    gm_opt.is_context_parallel_enabled = False   # Public interface (simplified for compiled model)
+    
+    # Create a wrapper that matches the exact calling signature used during compilation
+    original_forward = gm_opt.forward
+    
+    def filtered_forward(x_B_C_T_H_W, timesteps_B_T, **kwargs):
+        print(f"Inference call - Positional args: x_B_C_T_H_W.shape={x_B_C_T_H_W.shape}, timesteps_B_T.shape={timesteps_B_T.shape}")
+        print(f"Inference call - Keyword args: {list(kwargs.keys())}")
+        
+        # Reconstruct the inputs dictionary exactly as it was during compilation
+        # The compiled model expects: args=(), kwargs=full_input_dict
+        inference_inputs = {
+            'x_B_C_T_H_W': x_B_C_T_H_W,
+            'timesteps_B_T': timesteps_B_T,
+        }
+        
+        # Add the expected keyword arguments
+        expected_fields = ['crossattn_emb', 'fps', 'padding_mask', 'condition_video_input_mask_B_C_T_H_W', 'data_type']
+        for field in expected_fields:
+            if field in kwargs:
+                inference_inputs[field] = kwargs[field]
+        
+        print(f"Calling compiled model with kwargs: {list(inference_inputs.keys())}")
+        
+        # Call the compiled model with the exact same signature as during compilation: args=(), kwargs=inputs
+        return original_forward(**inference_inputs)
+    
+    gm_opt.forward = filtered_forward
+    pipe.dit = gm_opt
+    print("[Auto-Deploy] Video2World DiT optimisation completed")
+
+
 if __name__ == "__main__":
     args = parse_args()
     try:
@@ -323,6 +560,46 @@ if __name__ == "__main__":
         # Pass all video2world relevant arguments and the text encoder
         args.dit_path = args.dit_path_video2world
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
+
+        # ------------------------------------------------------------------
+        # Optional: compile or capture DiT inputs
+        # ------------------------------------------------------------------
+        if args.load_dit_input_path:
+            # Temporarily offload some pipeline components to save memory during optimization
+            log.info("Temporarily offloading pipeline components for auto_deploy optimization...")
+            
+            # Store components that can be restored later
+            backup_components = {}
+            if hasattr(video2world_pipe, 'text_encoder') and video2world_pipe.text_encoder is not None:
+                backup_components['text_encoder'] = video2world_pipe.text_encoder
+                video2world_pipe.text_encoder = None
+            
+            if hasattr(video2world_pipe, 'vae') and video2world_pipe.vae is not None:
+                backup_components['vae'] = video2world_pipe.vae
+                video2world_pipe.vae = None
+                
+            if hasattr(video2world_pipe, 'guardrail') and video2world_pipe.guardrail is not None:
+                backup_components['guardrail'] = video2world_pipe.guardrail
+                video2world_pipe.guardrail = None
+            
+            # Clear cache after offloading
+            torch.cuda.empty_cache()
+            log.info("Starting auto_deploy optimization with reduced memory footprint...")
+            
+            try:
+                ad_optimize_t2v_dit(video2world_pipe, args)
+                log.success("Auto_deploy optimization completed successfully!")
+            finally:
+                # Restore components
+                log.info("Restoring pipeline components after optimization...")
+                for attr_name, component in backup_components.items():
+                    setattr(video2world_pipe, attr_name, component)
+                torch.cuda.empty_cache()
+                
+        elif args.save_dit_input_path:
+            # Set the path to save inputs during the next inference run
+            video2world_pipe.dit.set_save_input_path(args.save_dit_input_path)
+            log.info(f"Video2World DiT will save inputs to {args.save_dit_input_path} during the next forward pass")
 
         # Generate videos
         log.info("Step 2: Generating videos from first frames...")
