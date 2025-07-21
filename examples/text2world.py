@@ -143,6 +143,18 @@ def parse_args() -> argparse.Namespace:
         default=None,
         help="Path to a saved DiT input dict; if provided, the script compiles the Video2World DiT with auto-deploy before generation.",
     )
+    parser.add_argument(
+        "--auto_deploy_backend",
+        type=str,
+        choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
+        default="torch-opt",
+        help="Auto-deploy backend for model optimization.",
+    )
+    parser.add_argument(
+        "--enable_context_parallel_optimization",
+        action="store_true",
+        help="Enable context-parallel-aware auto-deploy optimization (experimental).",
+    )
     return parser.parse_args()
 
 
@@ -281,19 +293,36 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
 
 def ad_optimize_t2v_dit(pipe: Video2WorldPipeline, args: argparse.Namespace):
     """Compile & optimise the Video2World DiT with torch.export + torch-opt backend."""
-    from cosmos_predict2.utils.auto_deploy import optimize_model
+    from cosmos_predict2.utils.auto_deploy import optimize_model, optimize_model_with_context_parallel
     
     # Set environment variable to handle memory fragmentation
     import os
     os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
     
-    # Use the modular optimization function
-    optimize_model(
-        pipe=pipe,
-        input_path=args.load_dit_input_path,
-        backend="torch-opt",
-        target_scale=0.25  # Reduce tensor sizes to 1/4 for memory efficiency
-    )
+    # Check if context parallelism is enabled
+    cp_enabled = getattr(pipe.dit, 'is_context_parallel_enabled', False)
+    
+    if args.enable_context_parallel_optimization and cp_enabled and args.num_gpus > 1:
+        log.info(f"Context parallelism detected with {args.num_gpus} GPUs. Using CP-aware optimization...")
+        # Use context-parallel-aware optimization
+        optimize_model_with_context_parallel(
+            pipe=pipe,
+            input_path=args.load_dit_input_path,
+            backend=args.auto_deploy_backend,
+            target_scale=0.25
+        )
+    else:
+        if cp_enabled and args.num_gpus > 1:
+            log.warning("Context parallelism detected but CP-aware optimization disabled.")
+            log.warning("Use --enable_context_parallel_optimization to enable experimental CP optimization.")
+        log.info(f"Using standard optimization with backend: {args.auto_deploy_backend}")
+        # Use standard optimization
+        optimize_model(
+            pipe=pipe,
+            input_path=args.load_dit_input_path,
+            backend=args.auto_deploy_backend,
+            target_scale=0.25  # Reduce tensor sizes to 1/4 for memory efficiency
+        )
 
 
 if __name__ == "__main__":
