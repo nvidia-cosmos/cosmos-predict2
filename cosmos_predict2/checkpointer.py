@@ -237,6 +237,7 @@ class Checkpointer:
                         strict=False if model.config.train_architecture == "lora" else True,
                     ),
                 )
+                del state_dicts_to_load_for_dit_reg
                 # Load EMA weights.
                 if model.pipe.config.ema.enabled:
                     set_model_state_dict(
@@ -248,6 +249,7 @@ class Checkpointer:
                             strict=False if model.config.train_architecture == "lora" else True,
                         ),
                     )
+                del state_dicts_to_load_for_dit_ema
 
                 # Restore the attention operators.
                 model.pipe.apply_cp()
