@@ -34,118 +34,15 @@ from cosmos_predict2.configs.base.config_text2image import (
 )
 from cosmos_predict2.pipelines.text2image import (
     Text2ImagePipeline,
-    load_sample_inputs,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
-from tensorrt_llm._torch.auto_deploy.compile import compile_and_capture
-from tensorrt_llm._torch.auto_deploy.transformations.export import torch_export_to_gm
-
-
-def ad_optimize_t2i_dit(pipe: Text2ImagePipeline, args: argparse.Namespace):
-    """Apply auto-deploy optimization to a model"""
-    print("[Auto-Deploy] Starting optimization...")
-
-    dit_model = pipe.dit
-    
-    # Unwrap checkpointed blocks before export, as they are incompatible with torch.export
-    from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import (
-        CheckpointWrapper,
-    )
-
-    for i, block in enumerate(dit_model.blocks):
-        if isinstance(block, CheckpointWrapper):
-            dit_model.blocks[i] = block._checkpoint_wrapped_module
-            # dit_model.blocks[i].use_adaln_lora = False
-    if isinstance(dit_model.final_layer, CheckpointWrapper):
-        dit_model.final_layer = dit_model.final_layer._checkpoint_wrapped_module
-        # dit_model.final_layer.use_adaln_lora = False
-
-    # Temporarily replace the problematic save_io method with a dummy function
-    # to allow torch.export to succeed.
-    if hasattr(dit_model, "save_io"):
-        dit_model.save_io = lambda: None
-    
-    if hasattr(dit_model, "disable_context_parallel"):
-        log.info("Disabling context parallelism on the model before compilation.")
-        dit_model.disable_context_parallel()
-
-    # Create dummy inputs
-    inputs = load_sample_inputs(args.load_dit_input_path)
-    # Add the 'use_cuda_graphs' argument to the inputs to match the inference signature.
-    # The compiled graph will not use this argument, but it needs to be in the signature
-    # to avoid a mismatch error at runtime.
-    inputs["use_cuda_graphs"] = False
-
-    # --- Timing before optimization ---
-    log.info("Running inference before optimization for latency comparison...")
-    # Warmup
-    for _ in range(5):
-        _ = dit_model.forward(**inputs)
-    torch.cuda.synchronize()
-
-    # Timing
-    latencies_before = []
-    for _ in range(20):
-        start_time = time.time()
-        _ = dit_model.forward(**inputs)
-        torch.cuda.synchronize()
-        end_time = time.time()
-        latencies_before.append((end_time - start_time) * 1000)
-
-    avg_latency_before = np.mean(latencies_before)
-    log.success(f"Average latency before optimization: {avg_latency_before:.2f} ms")
-
-    # Export and compile
-    exported_gm = torch_export_to_gm(
-        dit_model,
-        args=(),
-        kwargs=inputs,
-        clone=False,
-    )
-
-    compiled_gm = compile_and_capture(
-        exported_gm,
-        backend="torch-opt",
-        args=(),
-        kwargs=inputs,
-    )
-
-    # --- Timing after optimization ---
-    log.info("Running inference after optimization for latency comparison...")
-    # Warmup
-    with torch.inference_mode():
-        for _ in range(5):
-            _ = compiled_gm.forward(**inputs)
-        torch.cuda.synchronize()
-
-    # Timing
-    latencies_after = []
-    with torch.inference_mode():
-        for _ in range(20):
-            start_time = time.time()
-            _ = compiled_gm.forward(**inputs)
-            torch.cuda.synchronize()
-            end_time = time.time()
-            latencies_after.append((end_time - start_time) * 1000)
-
-    avg_latency_after = np.mean(latencies_after)
-    log.success(f"Average latency after optimization: {avg_latency_after:.2f} ms")
-
-    # --- Comparison ---
-    speedup = avg_latency_before / avg_latency_after
-    log.success(f"Optimization speedup: {speedup:.2f}x")
-
-    # Monkey-patch the compiled graph to have a dummy disable_context_parallel method,
-    # as the original method is not available on the compiled object.
-    def dummy_disable_cp():
-        pass
-
-    compiled_gm.disable_context_parallel = dummy_disable_cp
-
-    pipe.dit = compiled_gm
-    print("[Auto-Deploy] Optimization completed")
+# Import auto-deploy function
+try:
+    from cosmos_predict2.utils.auto_deploy import ad_optimize_dit
+except ImportError:
+    ad_optimize_dit = None
 
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
@@ -192,18 +89,6 @@ def parse_args() -> argparse.Namespace:
         default="output/generated_image.jpg",
         help="Path to save the generated image (include file extension)",
     )
-    parser.add_argument(
-        "--save_dit_input_path",
-        type=str,
-        default=None,
-        help="Path to save the actual DiT input dictionary to a .pt file. The script will save the input and continue with generation.",
-    )
-    parser.add_argument(
-        "--load_dit_input_path",
-        type=str,
-        default=None,
-        help="Path to load a DiT input dictionary from a .pt file. If provided, the script will run a single forward pass and exit.",
-    )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the inference.")
     parser.add_argument("--disable_guardrail", action="store_true", help="Disable guardrail checks on prompts")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
@@ -211,6 +96,19 @@ def parse_args() -> argparse.Namespace:
         "--benchmark",
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
+    )
+    # Auto-Deploy flags
+    parser.add_argument(
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
+    )
+    parser.add_argument(
+        "--auto_deploy_backend",
+        type=str,
+        choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
+        default="torch-opt",
+        help="Auto-deploy backend for model optimization.",
     )
     return parser.parse_args()
 
@@ -428,11 +326,13 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
-        if args.load_dit_input_path:
-            log.info(f"Loading DiT inputs from {args.load_dit_input_path}")
-            ad_optimize_t2i_dit(pipe, args)
-        elif args.save_dit_input_path:
-            pipe.dit.set_save_input_path(args.save_dit_input_path)
+
+        # Optional: auto-deploy optimization
+        if args.auto_deploy:
+            if ad_optimize_dit:
+                ad_optimize_dit(pipe, args)
+            else:
+                log.warning("Auto-deploy optimization is enabled, but ad_optimize_dit is not available. Skipping.")
 
         generate_image(args, pipe)
     finally:

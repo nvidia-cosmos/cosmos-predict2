@@ -28,7 +28,14 @@ from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
 from examples.video2world import process_single_generation as process_single_video_generation
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
-from imaginaire.utils import log
+from imaginaire.utils import distributed, log, misc
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
+
+# Import auto-deploy function
+try:
+    from cosmos_predict2.utils.auto_deploy import ad_optimize_dit
+except ImportError:
+    ad_optimize_dit = None
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
 
@@ -130,18 +137,11 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run the sparse attention variant (with NATTEN).",
     )
-    # --- Auto-Deploy helper flags (Text2Video DiT) ---
+    # Auto-Deploy flags
     parser.add_argument(
-        "--save_dit_input_path",
-        type=str,
-        default=None,
-        help="Path to save the DiT input dict (for later compilation).",
-    )
-    parser.add_argument(
-        "--load_dit_input_path",
-        type=str,
-        default=None,
-        help="Path to a saved DiT input dict; if provided, the script compiles the Video2World DiT with auto-deploy before generation.",
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
     )
     parser.add_argument(
         "--auto_deploy_backend",
@@ -149,11 +149,6 @@ def parse_args() -> argparse.Namespace:
         choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
         default="torch-opt",
         help="Auto-deploy backend for model optimization.",
-    )
-    parser.add_argument(
-        "--enable_context_parallel_optimization",
-        action="store_true",
-        help="Enable context-parallel-aware auto-deploy optimization (experimental).",
     )
     return parser.parse_args()
 
@@ -287,44 +282,6 @@ def generate_videos(video2world_pipe: Video2WorldPipeline, batch_items: list, ar
             log.success(f"Cleaned up temporary image: {temp_image_path}")
 
 
-# ---------------------------------------------------------------------------
-# Auto-Deploy support for the Video2World DiT inside text2world pipeline
-# ---------------------------------------------------------------------------
-
-def ad_optimize_t2v_dit(pipe: Video2WorldPipeline, args: argparse.Namespace):
-    """Compile & optimise the Video2World DiT with torch.export + torch-opt backend."""
-    from cosmos_predict2.utils.auto_deploy import optimize_model, optimize_model_with_context_parallel
-    
-    # Set environment variable to handle memory fragmentation
-    import os
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
-    
-    # Check if context parallelism is enabled
-    cp_enabled = getattr(pipe.dit, 'is_context_parallel_enabled', False)
-    
-    if args.enable_context_parallel_optimization and cp_enabled and args.num_gpus > 1:
-        log.info(f"Context parallelism detected with {args.num_gpus} GPUs. Using CP-aware optimization...")
-        # Use context-parallel-aware optimization
-        optimize_model_with_context_parallel(
-            pipe=pipe,
-            input_path=args.load_dit_input_path,
-            backend=args.auto_deploy_backend,
-            target_scale=0.25
-        )
-    else:
-        if cp_enabled and args.num_gpus > 1:
-            log.warning("Context parallelism detected but CP-aware optimization disabled.")
-            log.warning("Use --enable_context_parallel_optimization to enable experimental CP optimization.")
-        log.info(f"Using standard optimization with backend: {args.auto_deploy_backend}")
-        # Use standard optimization
-        optimize_model(
-            pipe=pipe,
-            input_path=args.load_dit_input_path,
-            backend=args.auto_deploy_backend,
-            target_scale=0.25  # Reduce tensor sizes to 1/4 for memory efficiency
-        )
-
-
 if __name__ == "__main__":
     args = parse_args()
     try:
@@ -383,45 +340,12 @@ if __name__ == "__main__":
         args.dit_path = args.dit_path_video2world
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
 
-        # ------------------------------------------------------------------
-        # Optional: compile or capture DiT inputs
-        # ------------------------------------------------------------------
-        if args.load_dit_input_path:
-            # Temporarily offload some pipeline components to save memory during optimization
-            log.info("Temporarily offloading pipeline components for auto_deploy optimization...")
-            
-            # Store components that can be restored later
-            backup_components = {}
-            if hasattr(video2world_pipe, 'text_encoder') and video2world_pipe.text_encoder is not None:
-                backup_components['text_encoder'] = video2world_pipe.text_encoder
-                video2world_pipe.text_encoder = None
-            
-            if hasattr(video2world_pipe, 'vae') and video2world_pipe.vae is not None:
-                backup_components['vae'] = video2world_pipe.vae
-                video2world_pipe.vae = None
-                
-            if hasattr(video2world_pipe, 'guardrail') and video2world_pipe.guardrail is not None:
-                backup_components['guardrail'] = video2world_pipe.guardrail
-                video2world_pipe.guardrail = None
-            
-            # Clear cache after offloading
-            torch.cuda.empty_cache()
-            log.info("Starting auto_deploy optimization with reduced memory footprint...")
-            
-            try:
-                ad_optimize_t2v_dit(video2world_pipe, args)
-                log.success("Auto_deploy optimization completed successfully!")
-            finally:
-                # Restore components
-                log.info("Restoring pipeline components after optimization...")
-                for attr_name, component in backup_components.items():
-                    setattr(video2world_pipe, attr_name, component)
-                torch.cuda.empty_cache()
-                
-        elif args.save_dit_input_path:
-            # Set the path to save inputs during the next inference run
-            video2world_pipe.dit.set_save_input_path(args.save_dit_input_path)
-            log.info(f"Video2World DiT will save inputs to {args.save_dit_input_path} during the next forward pass")
+        # Optional: auto-deploy optimization
+        if args.auto_deploy:
+            if ad_optimize_dit:
+                ad_optimize_dit(video2world_pipe, args)
+            else:
+                log.warning("Auto-deploy optimization is enabled, but ad_optimize_dit is not available. Skipping.")
 
         # Generate videos
         log.info("Step 2: Generating videos from first frames...")

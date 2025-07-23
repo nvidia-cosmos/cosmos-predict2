@@ -68,29 +68,6 @@ def get_sample_batch(
     return data_batch
 
 
-def load_sample_inputs(path: str, device: str = "cuda") -> dict:
-    """
-    Loads sample DiT inputs from a .pt file.
-
-    Args:
-        path (str): The file path to load the inputs from.
-        device (str, optional): The device to move the tensors to. Defaults to "cuda".
-
-    Returns:
-        dict: A dictionary containing the sample inputs.
-    """
-    log.info(f"Loading sample DiT inputs from {path}")
-    sample_inputs = torch.load(path, map_location="cpu", weights_only=False)
-    log.success(f"Successfully loaded sample DiT inputs from {path}")
-
-    for k, v in sample_inputs.items():
-        if isinstance(v, torch.Tensor):
-            sample_inputs[k] = v.to(device=device)
-            # print(k, sample_inputs[k].shape, sample_inputs[k].dtype)
-
-    return sample_inputs
-
-
 class Text2ImagePipeline(BasePipeline):
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         super().__init__(device=device, torch_dtype=torch_dtype)
