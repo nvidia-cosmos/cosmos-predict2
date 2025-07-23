@@ -176,16 +176,15 @@ def parse_args() -> argparse.Namespace:
         help="Run Video2World + NATTEN (sparse attention variant).",
     )
     parser.add_argument(
-        "--save_dit_input_path",
+        "--dit_input_path",
         type=str,
         default=None,
-        help="Path to save the DiT input dict (for later compilation).",
+        help="Path for DiT input tensors. If file doesn't exist, inputs will be saved here. If file exists, it will be used for auto-deploy optimization.",
     )
     parser.add_argument(
-        "--load_dit_input_path",
-        type=str,
-        default=None,
-        help="Path to a saved DiT input dict; if provided, the script compiles the Video2World DiT with auto-deploy before generation.",
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
     )
     parser.add_argument(
         "--auto_deploy_backend",
@@ -193,11 +192,6 @@ def parse_args() -> argparse.Namespace:
         choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
         default="torch-opt",
         help="Auto-deploy backend for model optimization.",
-    )
-    parser.add_argument(
-        "--enable_context_parallel_optimization",
-        action="store_true",
-        help="Enable context-parallel-aware auto-deploy optimization (experimental).",
     )
     
     return parser.parse_args()
@@ -449,38 +443,17 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
 def ad_optimize_t2v_dit(pipe: Video2WorldPipeline, args: argparse.Namespace):
     """Compile & optimise the Video2World DiT with torch.export + auto-deploy backend.
     Enhanced version with memory management and context-parallel awareness."""
-    from cosmos_predict2.utils.auto_deploy import optimize_model, optimize_model_with_context_parallel
-    
-    # Set environment variable to handle memory fragmentation
-    import os
-    os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "expandable_segments:True"
+    from cosmos_predict2.utils.auto_deploy import optimize_model_with_context_parallel
     
     log.info(f"[Auto-Deploy] Starting Video2World DiT optimization with backend: {args.auto_deploy_backend}")
     
-    # Check if context parallelism is enabled
-    cp_enabled = getattr(pipe.dit, 'is_context_parallel_enabled', False)
-    
-    if args.enable_context_parallel_optimization and cp_enabled and args.num_gpus > 1:
-        log.info(f"Context parallelism detected with {args.num_gpus} GPUs. Using CP-aware optimization...")
-        # Use context-parallel-aware optimization
-        optimize_model_with_context_parallel(
-            pipe=pipe,
-            input_path=args.load_dit_input_path,
-            backend=args.auto_deploy_backend,
-            target_scale=0.25
-        )
-    else:
-        if cp_enabled and args.num_gpus > 1:
-            log.warning("Context parallelism detected but CP-aware optimization disabled.")
-            log.warning("Use --enable_context_parallel_optimization to enable experimental CP optimization.")
-        log.info(f"Using standard optimization with backend: {args.auto_deploy_backend}")
-        # Use standard optimization
-        optimize_model(
-            pipe=pipe,
-            input_path=args.load_dit_input_path,
-            backend=args.auto_deploy_backend,
-            target_scale=0.25  # Reduce tensor sizes to 1/4 for memory efficiency
-        )
+    # Always use context-parallel-aware optimization (handles both single and multi-GPU cases)
+    optimize_model_with_context_parallel(
+        pipe=pipe,
+        input_path=args.dit_input_path,
+        backend=args.auto_deploy_backend,
+        target_scale=0.25
+    )
 
 
 def cleanup_distributed():
@@ -499,7 +472,31 @@ if __name__ == "__main__":
         # ------------------------------------------------------------------
         # Optional: auto-deploy optimization with memory management
         # ------------------------------------------------------------------
-        if args.load_dit_input_path:
+        if args.auto_deploy:
+            import os
+            
+            if not args.dit_input_path:
+                log.error("--dit_input_path must be specified when using --auto_deploy")
+                raise ValueError("--dit_input_path is required for auto-deploy optimization")
+            
+            # Check if input file exists
+            if not os.path.exists(args.dit_input_path):
+                # File doesn't exist - save inputs during this run first
+                log.info(f"DiT inputs not found at {args.dit_input_path}, will save inputs during this run...")
+                pipe.dit.set_save_input_path(args.dit_input_path)
+                log.info(f"Video2World DiT will save inputs to {args.dit_input_path} during the forward pass")
+                
+                # Run one forward pass to capture inputs
+                log.info("Running forward pass to capture DiT inputs...")
+                generate_video(args, pipe)
+                log.success(f"DiT inputs saved to {args.dit_input_path}")
+                
+                # Reset the save path
+                pipe.dit.set_save_input_path(None)
+            
+            # Now proceed with optimization
+            log.info(f"Found DiT inputs at {args.dit_input_path}, proceeding with auto-deploy optimization...")
+            
             # Temporarily offload some pipeline components to save memory during optimization
             log.info("Temporarily offloading pipeline components for auto_deploy optimization...")
             
@@ -530,11 +527,6 @@ if __name__ == "__main__":
                 for attr_name, component in backup_components.items():
                     setattr(pipe, attr_name, component)
                 torch.cuda.empty_cache()
-                
-        elif args.save_dit_input_path:
-            # Set the path to save inputs during the next inference run
-            pipe.dit.set_save_input_path(args.save_dit_input_path)
-            log.info(f"Video2World DiT will save inputs to {args.save_dit_input_path} during the next forward pass")
 
         generate_video(args, pipe)
         
