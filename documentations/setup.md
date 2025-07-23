@@ -39,7 +39,7 @@ ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREF
 ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
 CUDA_HOME=$CONDA_PREFIX pip install transformer-engine[pytorch]==1.13.0
 # NATTEN
-CUDA_HOME=$CONDA_PREFIX pip install natten==0.20.1
+CUDA_HOME=$CONDA_PREFIX pip install natten==0.21.0
 
 # Apex library for training (optional if inference only)
 CUDA_HOME=$CONDA_PREFIX pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
