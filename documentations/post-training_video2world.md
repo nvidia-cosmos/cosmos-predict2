@@ -31,12 +31,18 @@ We support post-training the models with example datasets.
 
 ### 1. Preparing Data
 
-The post-training data is expected to contain paired prompt and video files.
+You can use [Cosmos-Curate](https://github.com/nvidia-cosmos/cosmos-curate) to generate the ready-to-train dataset from your raw videos.
+- First follow the [user guide here](https://github.com/nvidia-cosmos/cosmos-curate/blob/main/docs/client/END_USER_GUIDE.md)
+and the specific instructions in [Generate Dataset for Cosmos-Predict2 Post-Training section]() to prepare the dataset.
+- Then copy the generated `cosmos_predict2_video2world_dataset/` directory into `datasets/` directory in this repo.
+
+Alternatively, in case you want to prepare the dataset without `Cosmos-Curate`,
+the post-training data is expected to contain paired prompt and video files.
 For example, a custom dataset can be saved in a following structure.
 
 Dataset folder format:
 ```
-datasets/custom_video2world_dataset/
+datasets/cosmos_predict2_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -48,11 +54,11 @@ datasets/custom_video2world_dataset/
 
 After preparing `metas` and `videos` folders, run the following command to pre-compute T5-XXL embeddings.
 ```bash
-python -m scripts.get_t5_embeddings --dataset_path datasets/custom_video2world_dataset/
+python -m scripts.get_t5_embeddings --dataset_path datasets/cosmos_predict2_video2world_dataset/
 ```
 This script will create `t5_xxl` folder under the dataset root where the T5-XXL embeddings are saved as `.pickle` files.
 ```
-datasets/custom_video2world_dataset/
+datasets/cosmos_predict2_video2world_dataset/
 ├── metas/
 │   ├── *.txt
 ├── videos/
@@ -63,13 +69,18 @@ datasets/custom_video2world_dataset/
 
 ### 2. Creating Configs for Training
 
-Define dataloader from the prepared dataset.
+Note we provide an example config file for post-training with custom data
+at [cosmos_predict2/configs/base/experiment/custom_data.py](../cosmos_predict2/configs/base/experiment/custom_data.py)
+that includes the sample code below.
+But the walk-through below will help you understand how to configure the training.
+
+First, define dataloader from the prepared dataset.
 
 For example,
 ```python
 # custom dataset example
 example_video_dataset = L(Dataset)(
-    dataset_dir="datasets/custom_video2world_dataset",
+    dataset_dir="datasets/cosmos_predict2_video2world_dataset",
     num_frames=93,
     video_size=(704, 1280),  # 720 resolution, 16:9 aspect ratio
 )
