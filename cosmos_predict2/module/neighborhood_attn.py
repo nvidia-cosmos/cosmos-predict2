@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+from collections import namedtuple
 from collections.abc import Mapping, Sequence
 from typing import Optional
 
@@ -41,16 +42,13 @@ except ImportError:
 
 from cosmos_predict2.module.attention import get_device_cc
 
+VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
+
 # Only allowing on Hopper and Blackwell for now, since Hopper FNA and
 # Blackwell FNA can deliver excellent speedup over SOL baselines.
 # Other architectures will be enabled as soon as good kernels for them
 # land in NATTEN.
 ALLOWED_COMPUTE_CAPS = [90, 100]
-
-
-from collections import namedtuple
-
-VideoSize = namedtuple("VideoSize", ["T", "H", "W"])
 
 
 class NeighborhoodAttention(nn.Module):
@@ -98,32 +96,32 @@ class NeighborhoodAttention(nn.Module):
 
         # Configurations
         # Tuned for 720p and window sizes (24, 12, 24), (16, 12, 24), and stride (1, 4, 8).
-        self.default_config = {
-            "backend": "flex-fna",
-            "q_tile_shape": (4, 4, 4),
-            "kv_tile_shape": (4, 4, 4),
-            "torch_compile": False,
-        }
-        self.default_config_cuda = {
-            "backend": "cutlass-fna",
-            "q_tile_shape": (4, 4, 4),
-            "kv_tile_shape": (4, 4, 8),
-            "backward_q_tile_shape": (4, 4, 8),
-            "backward_kv_tile_shape": (4, 4, 8),
-            "backward_use_pt_reduction": False,
-        }
-        self.inference_configs = {
+        # They also assume head dim = 128.
+        self.performance_configs = {
+            # Ampere (SM80). Also serves as the default option for RTX cards (Ampere RTX, Ada, Blackwell RTX.)
+            80: {
+                "backend": "cutlass-fna",
+                "q_tile_shape": (4, 4, 4),
+                "kv_tile_shape": (4, 4, 8),
+                "backward_q_tile_shape": (4, 4, 8),
+                "backward_kv_tile_shape": (4, 4, 8),
+                "backward_use_pt_reduction": False,
+            },
             # Hopper (SM90)
             90: {
                 "backend": "hopper-fna",
                 "q_tile_shape": (4, 4, 8),
                 "kv_tile_shape": (4, 4, 8),
+                "backward_q_tile_shape": (4, 4, 4),
+                "backward_kv_tile_shape": (4, 4, 8),
             },
             # Blackwell (SM100)
             100: {
                 "backend": "blackwell-fna",
                 "q_tile_shape": (8, 4, 8),
                 "kv_tile_shape": (4, 4, 8),
+                "backward_q_tile_shape": (4, 4, 8),
+                "backward_kv_tile_shape": (4, 4, 8),
                 "run_persistent_kernel": True,
             },
         }
@@ -179,27 +177,23 @@ class NeighborhoodAttention(nn.Module):
         requires_grad = q_B_L_H_D.requires_grad or k_B_L_H_D.requires_grad or v_B_L_H_D.requires_grad
         is_cuda = torch.cuda.is_available() and torch.version.cuda and device.type == "cuda"
 
-        if compute_cap not in ALLOWED_COMPUTE_CAPS:
-            allowed_devices = ", ".join([f"SM{x}" for x in ALLOWED_COMPUTE_CAPS])
-            raise NotImplementedError(
-                "Cosmos-Predict2 + NATTEN is only allowed for Hopper and "
-                f"certain Blackwell GPUs ({allowed_devices}), but your GPU "
-                f"is SM{compute_cap}."
-            )
-
-        if requires_grad:
-            raise NotImplementedError(
-                "Cosmos-Predict2 + NATTEN does not support training yet, " f"got {requires_grad=}."
-            )
-
         if not is_cuda:
             raise NotImplementedError("Cosmos-Predict2 + NATTEN requires CUDA, tensors were on " f"{device=}.")
 
-        natten_configuration = self.default_config
-        if requires_grad and is_cuda:
-            natten_configuration = self.default_config_cuda
-        elif is_cuda and compute_cap in self.inference_configs.keys():
-            natten_configuration = self.inference_configs[compute_cap]
+        if compute_cap not in ALLOWED_COMPUTE_CAPS:
+            raise NotImplementedError(
+                "Cosmos-Predict2 + NATTEN is only allowed on devices with the following "
+                f"compute capabilities: {ALLOWED_COMPUTE_CAPS}, got {compute_cap}."
+            )
+
+        natten_configuration = None
+        assert 80 in self.performance_configs.keys()
+        if is_cuda and compute_cap in self.performance_configs.keys():
+            natten_configuration = self.performance_configs[compute_cap]
+        elif is_cuda and compute_cap >= 80:
+            natten_configuration = self.performance_configs[80]
+        else:
+            raise ValueError(f"No NATTEN config found for this use case: {requires_grad=}, {is_cuda=}, {compute_cap=}.")
 
         batch, seqlen, heads, head_dim = q_B_L_H_D.shape
         T, H, W = video_size
