@@ -1225,6 +1225,9 @@ class MiniTrainDIT(WeightTrainingStat):
         self.extra_t_extrapolation_ratio = extra_t_extrapolation_ratio
         self.rope_enable_fps_modulation = rope_enable_fps_modulation
         self.cuda_graphs = {}
+        
+        # For auto_deploy input capture
+        self.save_input_path = None
 
         self.build_patch_embed()
         self.build_pos_embed()
@@ -1287,7 +1290,6 @@ class MiniTrainDIT(WeightTrainingStat):
         self.init_weights()
         self.enable_selective_checkpoint(sac_config)
         self._is_context_parallel_enabled = False
-        self.save_input_path: Optional[str] = None
 
     def init_weights(self) -> None:
         self.x_embedder.init_weights()

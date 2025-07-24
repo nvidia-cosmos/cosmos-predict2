@@ -110,6 +110,12 @@ def parse_args() -> argparse.Namespace:
         default="torch-opt",
         help="Auto-deploy backend for model optimization.",
     )
+    parser.add_argument(
+        "--dit_input_path",
+        type=str,
+        default="/tmp/t2i_dit_inputs.pt",
+        help="Path to save/load DiT inputs for auto-deploy compilation. If not provided, uses default based on pipeline type.",
+    )
     return parser.parse_args()
 
 

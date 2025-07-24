@@ -44,19 +44,26 @@ class MinimalV1LVGDiT(MiniTrainDIT):
 
         # Save inputs if path is set (for auto_deploy compilation)
         if self.save_input_path:
-            inputs_to_save = {
-                "x_B_C_T_H_W": x_B_C_T_H_W.clone(),
-                "timesteps_B_T": timesteps_B_T.clone(),
-                "crossattn_emb": crossattn_emb.clone(),
-                "fps": fps.clone() if fps is not None else None,
-                "padding_mask": padding_mask.clone() if padding_mask is not None else None,
-                "data_type": data_type,
-                "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.clone() if condition_video_input_mask_B_C_T_H_W is not None else None,
-            }
-            log.info(f"Saving actual Video2World DiT inputs to {self.save_input_path}")
-            torch.save(inputs_to_save, self.save_input_path)
-            log.success(f"Successfully saved actual Video2World DiT inputs to {self.save_input_path}")
-            self.save_input_path = None  # Reset to avoid saving multiple times
+            log.info(f"=== ACTUAL DiT INPUT ANALYSIS ===")
+            log.info(f"x_B_C_T_H_W shape: {x_B_C_T_H_W.shape}")
+            log.info(f"timesteps_B_T shape: {timesteps_B_T.shape}")
+            log.info(f"crossattn_emb shape: {crossattn_emb.shape if crossattn_emb is not None else None}")
+            log.info(f"fps shape: {fps.shape if fps is not None else None}")
+            log.info(f"padding_mask shape: {padding_mask.shape if padding_mask is not None else None}")
+            log.info(f"condition_video_input_mask_B_C_T_H_W shape: {condition_video_input_mask_B_C_T_H_W.shape if condition_video_input_mask_B_C_T_H_W is not None else None}")
+            
+            # Analyze the main input tensor
+            B, C, T, H, W = x_B_C_T_H_W.shape
+            patch_dim = 2  # spatial patch size
+            temporal_patch = 1  # temporal patch size
+            flattened_dim = C * patch_dim * patch_dim * temporal_patch
+            log.info(f"Main input analysis: B={B}, C={C}, T={T}, H={H}, W={W}")
+            log.info(f"Patch embedding input: {C} * {patch_dim} * {patch_dim} * {temporal_patch} = {flattened_dim}")
+            log.info(f"Expected error format: [{H//patch_dim * W//patch_dim * T}*s0, {flattened_dim}] X [72, 2048]")
+            log.info(f"=== END ANALYSIS ===")
+            
+            # Clear the save path to avoid repeated logs
+            self.save_input_path = None
 
         if data_type == DataType.VIDEO:
             x_B_C_T_H_W = torch.cat([x_B_C_T_H_W, condition_video_input_mask_B_C_T_H_W.type_as(x_B_C_T_H_W)], dim=1)
