@@ -19,6 +19,7 @@ import torch
 
 from cosmos_predict2.conditioner import DataType
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
+from imaginaire.utils import log
 
 
 class MinimalV1LVGDiT(MiniTrainDIT):
@@ -39,6 +40,28 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         use_cuda_graphs: bool = False,
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
+        
+        # Save inputs if path is set (for auto_deploy compilation) - capture ALL arguments
+        if self.save_input_path:
+            inputs_to_save = {
+                "x_B_C_T_H_W": x_B_C_T_H_W.detach().cpu(),
+                "timesteps_B_T": timesteps_B_T.detach().cpu(),
+                "crossattn_emb": crossattn_emb.detach().cpu() if crossattn_emb is not None else None,
+                "fps": fps.detach().cpu() if fps is not None else None,
+                "padding_mask": padding_mask.detach().cpu() if padding_mask is not None else None,
+                "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.detach().cpu() if condition_video_input_mask_B_C_T_H_W is not None else None,
+                "data_type": data_type,
+                "use_cuda_graphs": use_cuda_graphs,
+            }
+            # Also save any additional kwargs that might be passed during real inference
+            for key, value in kwargs.items():
+                if isinstance(value, torch.Tensor):
+                    inputs_to_save[key] = value.detach().cpu()
+                else:
+                    inputs_to_save[key] = value
+            torch.save(inputs_to_save, self.save_input_path)
+            self.save_input_path = None
+
         del kwargs
 
         if data_type == DataType.VIDEO:

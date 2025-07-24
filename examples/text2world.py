@@ -16,10 +16,6 @@
 import argparse
 import json
 import os
-
-# Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
-os.environ["TOKENIZERS_PARALLELISM"] = "false"
-
 import torch
 import torch.distributed
 
@@ -32,7 +28,14 @@ from examples.text2image import setup_pipeline as setup_text2image_pipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed
 from examples.video2world import process_single_generation as process_single_video_generation
 from examples.video2world import setup_pipeline as setup_video2world_pipeline
-from imaginaire.utils import log
+from imaginaire.utils import distributed, log, misc
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
+
+# Import auto-deploy function
+try:
+    from cosmos_predict2.utils.auto_deploy import ad_optimize_dit
+except ImportError:
+    ad_optimize_dit = None
 
 _DEFAULT_POSITIVE_PROMPT = "An autonomous welding robot arm operating inside a modern automotive factory, sparks flying as it welds a car frame with precision under bright overhead lights."
 
@@ -133,6 +136,25 @@ def parse_args() -> argparse.Namespace:
         "--natten",
         action="store_true",
         help="Run the sparse attention variant (with NATTEN).",
+    )
+    # Auto-Deploy flags
+    parser.add_argument(
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
+    )
+    parser.add_argument(
+        "--auto_deploy_backend",
+        type=str,
+        choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
+        default="torch-opt",
+        help="Auto-deploy backend for model optimization.",
+    )
+    parser.add_argument(
+        "--dit_input_path",
+        type=str,
+        default="/tmp/t2w_dit_inputs.pt",
+        help="Path to save/load DiT inputs for auto-deploy compilation. If not provided, uses default based on pipeline type.",
     )
     return parser.parse_args()
 
@@ -323,6 +345,13 @@ if __name__ == "__main__":
         # Pass all video2world relevant arguments and the text encoder
         args.dit_path = args.dit_path_video2world
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
+
+        # Optional: auto-deploy optimization
+        if args.auto_deploy:
+            if ad_optimize_dit:
+                ad_optimize_dit(video2world_pipe, args)
+            else:
+                log.warning("Auto-deploy optimization is enabled, but ad_optimize_dit is not available. Skipping.")
 
         # Generate videos
         log.info("Step 2: Generating videos from first frames...")
