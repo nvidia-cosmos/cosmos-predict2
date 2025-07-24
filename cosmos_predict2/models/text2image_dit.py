@@ -1438,17 +1438,16 @@ class MiniTrainDIT(WeightTrainingStat):
         """
         if self.save_input_path:
             inputs_to_save = {
-                "x_B_C_T_H_W": x_B_C_T_H_W.clone(),
-                "timesteps_B_T": timesteps_B_T.clone(),
-                "crossattn_emb": crossattn_emb.clone(),
-                "fps": fps.clone() if fps is not None else None,
-                "padding_mask": padding_mask.clone() if padding_mask is not None else None,
+                "x_B_C_T_H_W": x_B_C_T_H_W.detach().cpu(),
+                "timesteps_B_T": timesteps_B_T.detach().cpu(),
+                "crossattn_emb": crossattn_emb.detach().cpu() if crossattn_emb is not None else None,
+                "fps": fps.detach().cpu() if fps is not None else None,
+                "padding_mask": padding_mask.detach().cpu() if padding_mask is not None else None,
                 "data_type": data_type,
+                "use_cuda_graphs": use_cuda_graphs,
             }
-            log.info(f"Saving actual DiT inputs to {self.save_input_path}")
             torch.save(inputs_to_save, self.save_input_path)
-            log.success(f"Successfully saved actual DiT inputs to {self.save_input_path}")
-            self.save_input_path = None  # Reset to avoid saving multiple times
+            self.save_input_path = None
 
         assert isinstance(
             data_type, DataType
