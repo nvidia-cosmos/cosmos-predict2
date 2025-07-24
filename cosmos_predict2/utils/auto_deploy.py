@@ -41,6 +41,33 @@ from PIL import Image
 from imaginaire.utils import log
 from cosmos_predict2.models.text2image_dit import Attention as _Attn, torch_attention_op
 
+def is_blackwell_gpu() -> bool:
+    """Check if the current GPU is a Blackwell architecture GPU."""
+    if not torch.cuda.is_available():
+        return False
+    
+    try:
+        # Check GPU name for Blackwell identifiers
+        gpu_name = torch.cuda.get_device_name().lower()
+        blackwell_identifiers = ['b200', 'b100', 'gb200', 'blackwell']
+        
+        if any(identifier in gpu_name for identifier in blackwell_identifiers):
+            return True
+            
+        # Also check compute capability as fallback
+        actual_capability = torch.cuda.get_device_capability()
+        # Blackwell GPUs have compute capability 10.0
+        return actual_capability >= (10, 0)
+        
+    except Exception:
+        # If we can't determine GPU type, don't override
+        return False
+
+# Only override compute capability if we're on Blackwell GPU
+if is_blackwell_gpu():
+    print("[INFO] Detected Blackwell GPU - overriding compute capability to 10.0 for compatibility")
+    torch.cuda.get_device_capability = lambda device=None: (10, 0)  # Compute capability 10.0 = sm_100
+
 # Configuration Constants
 SUPPORTED_BACKENDS = {"torch-opt", "torch-compile", "torch-cudagraph", "torch-simple"}
 PIPELINE_TYPES = {
