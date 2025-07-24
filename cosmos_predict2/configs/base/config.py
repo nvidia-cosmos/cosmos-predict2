@@ -42,7 +42,7 @@ class Config(config.Config):
             {"dataloader_val": None},
             {"optimizer": "fusedadamw"},
             {"scheduler": "constant"},
-            {"model": "predict2_video2world_fsdp_2b"},
+            {"model": "predict2_multiview_fsdp_2b_720p_29frames_10fps"},
             {"callbacks": ["basic"]},
             {"net": None},
             {"ema": None},
@@ -92,5 +92,6 @@ def make_config() -> Config:
     # experiment config are defined in the experiment folder
     # call import_all_modules_from_package to register them
     import_all_modules_from_package("cosmos_predict2.configs.base.experiment", reload=True)
+    import_all_modules_from_package("cosmos_predict2.configs.base.experiment.multiview", reload=True)
     import_all_modules_from_package("cosmos_predict2.configs.action_conditioned.experiment", reload=True)
     return c
