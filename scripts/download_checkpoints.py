@@ -39,6 +39,7 @@ def parse_args():
             "sample_action_conditioned",
             "sample_gr00t_dreams_gr1",
             "sample_gr00t_dreams_droid",
+            "multiview",
         ],
         choices=[
             "text2image",
@@ -46,6 +47,7 @@ def parse_args():
             "sample_action_conditioned",
             "sample_gr00t_dreams_gr1",
             "sample_gr00t_dreams_droid",
+            "multiview",
         ],
         help="Which model types to download. Possible values: text2image, video2world, sample_action_conditioned",
     )
@@ -101,6 +103,8 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps-natten.pt": "4ef2b03da1ca0888e3a4054dc8b4b2f0",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps-natten.pt": "09167672edf4bcd456318d8498cb6f36",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps-natten.pt": "86d5e27ac75021798ab594f257600e50",
+    # Multiview models
+    "nvidia/Cosmos-Predict2-2B-Multiview/model-720p-10fps-7views-29frames.pt": "0336b218dffe32848d075ba7606c522b",
     # Cosmos-Reason1-7B
     "nvidia/Cosmos-Reason1-7B/model-00001-of-00004.safetensors": "90198d3b3dab5a00b7b9288cecffa5e9",
     "nvidia/Cosmos-Reason1-7B/model-00002-of-00004.safetensors": "6bde197d212f2a83ae19585b87de500e",
@@ -184,6 +188,7 @@ def main(args):
         "video2world": "Video2World",
         "sample_gr00t_dreams_gr1": "Sample-GR00T-Dreams-GR1",
         "sample_gr00t_dreams_droid": "Sample-GR00T-Dreams-DROID",
+        "multiview": "Multiview",
     }
     if "text2image" in args.model_types:
         for size in args.model_sizes:
@@ -212,6 +217,10 @@ def main(args):
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['video2world']}"
             download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="tokenizer/*")
         download_model(args.checkpoint_dir, "nvidia/Cosmos-Reason1-7B", verify_md5=args.verify_md5)
+    
+    if "multiview" in args.model_types:
+        repo_id = f"nvidia/Cosmos-Predict2-2B-Multiview"
+        download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="*.pt")
 
     if "sample_action_conditioned" in args.model_types:
         print("NOTE: Sample Action Conditioned model is only available for 2B model size, 480P and 4FPS")

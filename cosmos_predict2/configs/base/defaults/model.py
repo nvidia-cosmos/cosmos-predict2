@@ -31,12 +31,22 @@ from cosmos_predict2.configs.base.config_video2world import (
     PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_10FPS,
     PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS,
 )
-from cosmos_predict2.models.text2image_model import Predict2Text2ImageModel, Predict2Text2ImageModelConfig
+from cosmos_predict2.configs.base.config_multiview import PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES
+
+from cosmos_predict2.models.text2image_model import (
+    Predict2Text2ImageModel,
+    Predict2Text2ImageModelConfig,
+)
 from cosmos_predict2.models.video2world_model import (
     Predict2ModelManagerConfig,
     Predict2Video2WorldModel,
     Predict2Video2WorldModelConfig,
 )
+from cosmos_predict2.models.multiview_model import (
+    Predict2MultiviewModel,
+    Predict2MultiviewModelConfig,
+)
+
 from imaginaire.lazy_config import LazyCall as L
 
 # 2b model config for predict2 text2image
@@ -259,6 +269,25 @@ PREDICT2_VIDEO2WORLD_FSDP_14B_720P_16FPS = dict(
     ),
 )
 
+# 2b model configs for predict2 multiview
+PREDICT2_MULTIVIEW_FSDP_2B_720P_10FPS_7VIEWS_29FRAMES = dict(
+    trainer=dict(
+        distributed_parallelism="fsdp",
+    ),
+    model=L(Predict2MultiviewModel)(
+        config=Predict2MultiviewModelConfig(
+            pipe_config=PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES,
+            model_manager_config=L(Predict2ModelManagerConfig)(
+                dit_path="checkpoints/nvidia/Cosmos-Predict2-2B-Multiview/model-720p-10fps-7views-29frames.pt",
+                text_encoder_path="",  # Do not load text encoder for training.
+            ),
+            fsdp_shard_size=8,
+            high_sigma_ratio=0.05,
+        ),
+        _recursive_=False,
+    ),
+)
+
 
 def register_model() -> None:
     cs = ConfigStore.instance()
@@ -321,4 +350,10 @@ def register_model() -> None:
         package="_global_",
         name="predict2_video2world_fsdp_14b_720p_16fps",
         node=PREDICT2_VIDEO2WORLD_FSDP_14B_720P_16FPS,
+    )
+    cs.store(
+        group="model",
+        package="_global_",
+        name="predict2_multiview_fsdp_2b_720p_10fps_7views_29frames",
+        node=PREDICT2_MULTIVIEW_FSDP_2B_720P_10FPS_7VIEWS_29FRAMES,
     )
