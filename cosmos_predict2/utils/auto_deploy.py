@@ -103,14 +103,14 @@ def detect_pipeline_type(pipe) -> str:
     return PIPELINE_TYPES["VIDEO2WORLD"]
 
 
-def get_default_dit_input_path(pipeline_type: str) -> str:
-    """Get default DiT input path based on pipeline type."""
+def get_default_dit_input_path(pipeline_type: str, backend: str = "torch-opt") -> str:
+    """Get default DiT input path based on pipeline type and backend."""
     paths = {
-        PIPELINE_TYPES["TEXT2IMAGE"]: "/tmp/t2i_dit_inputs.pt",
-        PIPELINE_TYPES["TEXT2WORLD"]: "/tmp/t2w_dit_inputs.pt", 
-        PIPELINE_TYPES["VIDEO2WORLD"]: "/tmp/v2w_dit_inputs.pt"
+        PIPELINE_TYPES["TEXT2IMAGE"]: f"/tmp/dit_inputs_text2image_{backend}.pt",
+        PIPELINE_TYPES["TEXT2WORLD"]: f"/tmp/dit_inputs_text2world_{backend}.pt", 
+        PIPELINE_TYPES["VIDEO2WORLD"]: f"/tmp/dit_inputs_video2world_{backend}.pt"
     }
-    return paths.get(pipeline_type, "/tmp/dit_inputs.pt")
+    return paths.get(pipeline_type, f"/tmp/dit_inputs_{backend}.pt")
 
 
 def prepare_model_for_export(model: nn.Module) -> None:
@@ -271,7 +271,7 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
     # Determine input path
     if dit_input_path is None:
         pipeline_type = detect_pipeline_type(pipe)
-        dit_input_path = get_default_dit_input_path(pipeline_type)
+        dit_input_path = get_default_dit_input_path(pipeline_type, backend)
     
     # Load or capture inputs
     if os.path.exists(dit_input_path):
@@ -301,10 +301,9 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
         dynamic_shapes = None
         log.info("Using static shapes for Text2Image")
     else:
-        config = pipe.config
-        max_frames = getattr(config.net, "max_frames", 128) if config and hasattr(config, "net") else 128
-        dynamic_shapes = create_dynamic_shapes(gpu_inputs, max_frames)
-        log.info(f"Using dynamic time dimension (max={max_frames}) for video models")
+        # Temporarily disable dynamic shapes to avoid kwargs mismatch with new parameters
+        dynamic_shapes = None
+        log.info("Using static shapes for video models (temporary fix for kwargs mismatch)")
     
     # Benchmark original model
     baseline_latency = None

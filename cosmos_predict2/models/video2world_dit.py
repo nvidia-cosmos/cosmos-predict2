@@ -27,6 +27,7 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         assert "in_channels" in kwargs, "in_channels must be provided"
         kwargs["in_channels"] += 1  # Add 1 for the condition mask
         super().__init__(*args, **kwargs)
+        self.save_input_path = None  # For auto_deploy input capture
 
     def forward(
         self,
@@ -41,8 +42,9 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
         
-        # Save inputs if path is set (for auto_deploy compilation) - capture ALL arguments
+        # Save inputs if path is set (for auto_deploy compilation)
         if self.save_input_path:
+            # Save core arguments AND critical kwargs for accurate video conditioning
             inputs_to_save = {
                 "x_B_C_T_H_W": x_B_C_T_H_W.detach().cpu(),
                 "timesteps_B_T": timesteps_B_T.detach().cpu(),
@@ -52,13 +54,10 @@ class MinimalV1LVGDiT(MiniTrainDIT):
                 "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.detach().cpu() if condition_video_input_mask_B_C_T_H_W is not None else None,
                 "data_type": data_type,
                 "use_cuda_graphs": use_cuda_graphs,
+                # Include critical video conditioning parameters
+                "gt_frames": kwargs.get("gt_frames").detach().cpu() if kwargs.get("gt_frames") is not None else None,
+                "use_video_condition": kwargs.get("use_video_condition"),
             }
-            # Also save any additional kwargs that might be passed during real inference
-            for key, value in kwargs.items():
-                if isinstance(value, torch.Tensor):
-                    inputs_to_save[key] = value.detach().cpu()
-                else:
-                    inputs_to_save[key] = value
             torch.save(inputs_to_save, self.save_input_path)
             self.save_input_path = None
 
