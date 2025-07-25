@@ -103,7 +103,9 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
         order=config.timestamps.order,
         t_scaling_factor=config.rectified_flow_t_scaling_factor,
     )
-    pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
+    pipe.scaling = RectifiedFlowScaling(
+        pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
+    )
     # 3. Set up tokenizer
     pipe.tokenizer = instantiate(config.tokenizer)
     assert (

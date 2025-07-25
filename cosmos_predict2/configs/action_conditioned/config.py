@@ -98,6 +98,7 @@ PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED = Video2WorldPipelineConfig(
     net=PREDICT2_VIDEO2WORLD_NET_2B_ACTION_CONDITIONED,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="720",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference

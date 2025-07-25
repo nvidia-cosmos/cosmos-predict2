@@ -34,9 +34,17 @@ class EDMScaling:
 
 
 class RectifiedFlowScaling:
-    def __init__(self, sigma_data: float = 1.0, t_scaling_factor: float = 1.0):
+    def __init__(self, sigma_data: float = 1.0, t_scaling_factor: float = 1.0, loss_weight_uniform: bool = True):
         assert abs(sigma_data - 1.0) < 1e-6, "sigma_data must be 1.0 for RectifiedFlowScaling"
         self.t_scaling_factor = t_scaling_factor
+        self.loss_weight_uniform = loss_weight_uniform
+        if loss_weight_uniform is False:
+            self.num_steps = 1000
+            t = torch.linspace(0, 1, self.num_steps)
+            y = torch.exp(-2 * (t - 0.5) ** 2)
+            shift = y - y.min()
+            weights = shift * (self.num_steps / shift.sum())  # make sure the avg weights is 1.0
+            self.weights = weights
 
     def __call__(self, sigma: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor, torch.Tensor]:
         t = sigma / (sigma + 1)
@@ -47,4 +55,12 @@ class RectifiedFlowScaling:
         return c_skip, c_out, c_in, c_noise
 
     def sigma_loss_weights(self, sigma: torch.Tensor) -> torch.Tensor:
-        return 1.0 / sigma**2
+        if self.loss_weight_uniform:
+            return (1.0 + sigma) ** 2 / sigma**2
+        else:
+            t = sigma / (sigma + 1)
+            index = (t * self.num_steps).round().long()
+            # Clamp index to valid range [0, num_steps-1] to avoid out of bounds
+            index = torch.clamp(index, 0, self.num_steps - 1)
+            weights_on_device = self.weights.to(sigma.device)
+            return weights_on_device[index].type_as(sigma)

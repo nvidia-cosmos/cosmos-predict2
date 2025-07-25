@@ -52,6 +52,7 @@ class Text2ImagePipelineConfig:
     guardrail_config: CosmosGuardrailConfig
     precision: str
     rectified_flow_t_scaling_factor: float
+    rectified_flow_loss_weight_uniform: bool
     resize_online: bool
     resolution: str
     ema: EMAConfig
@@ -123,6 +124,7 @@ PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
@@ -201,6 +203,7 @@ PREDICT2_TEXT2IMAGE_PIPELINE_14B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_14B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
