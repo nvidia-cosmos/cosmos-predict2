@@ -64,6 +64,7 @@ class Video2WorldPipelineConfig:
     guardrail_config: CosmosGuardrailConfig
     precision: str
     rectified_flow_t_scaling_factor: float
+    rectified_flow_loss_weight_uniform: bool
     resize_online: bool
     resolution: str
     ema: EMAConfig
@@ -139,6 +140,7 @@ PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     net=PREDICT2_VIDEO2WORLD_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="720",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
@@ -229,6 +231,7 @@ PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
     net=PREDICT2_VIDEO2WORLD_NET_14B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="720",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
@@ -322,6 +325,7 @@ PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = Video2WorldPipelineConfig(
     net=PREDICT2_VIDEO2WORLD_WITH_NATTEN_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="720",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
@@ -384,6 +388,7 @@ PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B = Video2WorldPipelineConfig(
     net=PREDICT2_VIDEO2WORLD_WITH_NATTEN_NET_14B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="720",
     ema=L(EMAConfig)(enabled=False),  # defaults to inference
