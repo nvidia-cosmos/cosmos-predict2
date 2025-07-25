@@ -62,9 +62,7 @@ class MultiviewPipelineConfig:
         is_forward=False,
     )
     
-    
-    
-PREDICT2_MULTIVIEW_NET_2B_29FRAMES = L(MultiViewDiT)(
+PREDICT2_MULTIVIEW_NET_2B_10FPS_7VIEWS_29FRAMES = L(MultiViewDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,
@@ -99,7 +97,7 @@ PREDICT2_MULTIVIEW_NET_2B_29FRAMES = L(MultiViewDiT)(
     concat_view_embedding=True
 )   
 
-PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES = MultiviewPipelineConfig(
+PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES = MultiviewPipelineConfig(
     adjust_video_noise=True,
     conditioner=L(MultiViewConditioner)(
         fps=L(ReMapkey)(
@@ -138,9 +136,9 @@ PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES = MultiviewPipelineConfig(
     ),
     conditioning_strategy=str(ConditioningStrategy.FRAME_REPLACE),
     min_num_conditional_frames_per_view=0,
-    max_num_conditional_frames_per_view=2,
+    max_num_conditional_frames_per_view=1,
     condition_locations=[ConditionLocation.FIRST_RANDOM_N],
-    net=PREDICT2_MULTIVIEW_NET_2B_29FRAMES,
+    net=PREDICT2_MULTIVIEW_NET_2B_10FPS_7VIEWS_29FRAMES,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
     resize_online=True,
@@ -149,7 +147,7 @@ PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES = MultiviewPipelineConfig(
     sigma_conditional=0.0001,
     sigma_data=1.0,
     state_ch=16,
-    state_t=24,
+    state_t=8,
     text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
@@ -170,11 +168,4 @@ PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES = MultiviewPipelineConfig(
     ),
 )
 
-PREDICT2_MULTIVIEW_PIPELINE_2B_720P_29FRAMES_10FPS = deepcopy(PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES)
-PREDICT2_MULTIVIEW_PIPELINE_2B_720P_29FRAMES_10FPS.state_t = 8
-
-
-PREDICT2_MULTIVIEW_PIPELINE_2B_480P_29FRAMES_10FPS = deepcopy(PREDICT2_MULTIVIEW_PIPELINE_2B_29FRAMES)
-PREDICT2_MULTIVIEW_PIPELINE_2B_480P_29FRAMES_10FPS.state_t = 8
-PREDICT2_MULTIVIEW_PIPELINE_2B_480P_29FRAMES_10FPS.resolution = "480"
-PREDICT2_MULTIVIEW_PIPELINE_2B_480P_29FRAMES_10FPS.net.sac_config.mode = "none"
+PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES = deepcopy(PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES)

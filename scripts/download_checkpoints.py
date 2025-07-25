@@ -83,45 +83,47 @@ def parse_args():
 
 MD5_CHECKSUM_LOOKUP = {
     # Cosmos-Predict2 models
-    # "nvidia/Cosmos-Predict2-2B-Text2Image/model.pt": "0336b218dffe32848d075ba7606c522b",
-    # "nvidia/Cosmos-Predict2-14B-Text2Image/model.pt": "3bc68c3384b4985120b13f964e9d6c03",
+    "nvidia/Cosmos-Predict2-2B-Text2Image/model.pt": "0336b218dffe32848d075ba7606c522b",
+    "nvidia/Cosmos-Predict2-14B-Text2Image/model.pt": "3bc68c3384b4985120b13f964e9d6c03",
     # 8 variants of Video2World models
     "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt": "66157e5aece452a5a121cbb6fe0580ac",
     "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps.pt": "1884e792fe3a57c3384c68ff1c0ef0d3",
     "nvidia/Cosmos-Predict2-2B-Video2World/model-480p-10fps.pt": "af1e352c5a8fb52ee1de19e307731b6b",
     "nvidia/Cosmos-Predict2-2B-Video2World/model-480p-16fps.pt": "dad6861b72d595f6fae8d91c08a58e9e",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps.pt": "79c86aa3c91897d9d402e70a3525ed96",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt": "34730e3d5e65c4c590f3a88ca3fd4e74",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt": "b1dcd8adbe82e69496532d1e237c7022",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt": "53a04f51880272d9f4a5c4460b82966d",
-    # "nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
-    # "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps.pt": "79c86aa3c91897d9d402e70a3525ed96",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt": "34730e3d5e65c4c590f3a88ca3fd4e74",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt": "b1dcd8adbe82e69496532d1e237c7022",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt": "53a04f51880272d9f4a5c4460b82966d",
+    "nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     # Video2World Sparse Variants
-    # "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps-natten.pt": "91355cc9979f47aeb7ee991193e88305",
-    # "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps-natten.pt": "4ef2b03da1ca0888e3a4054dc8b4b2f0",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps-natten.pt": "09167672edf4bcd456318d8498cb6f36",
-    # "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps-natten.pt": "86d5e27ac75021798ab594f257600e50",
+    "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps-natten.pt": "91355cc9979f47aeb7ee991193e88305",
+    "nvidia/Cosmos-Predict2-2B-Video2World/model-720p-10fps-natten.pt": "4ef2b03da1ca0888e3a4054dc8b4b2f0",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-16fps-natten.pt": "09167672edf4bcd456318d8498cb6f36",
+    "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps-natten.pt": "86d5e27ac75021798ab594f257600e50",
+    # Multiview models
+    "nvidia/Cosmos-Predict2-2B-Multiview/model-720p-10fps-7views-29frames.pt": "0336b218dffe32848d075ba7606c522b",
     # Cosmos-Reason1-7B
     "nvidia/Cosmos-Reason1-7B/model-00001-of-00004.safetensors": "90198d3b3dab5a00b7b9288cecffa5e9",
     "nvidia/Cosmos-Reason1-7B/model-00002-of-00004.safetensors": "6bde197d212f2a83ae19585b87de500e",
     "nvidia/Cosmos-Reason1-7B/model-00003-of-00004.safetensors": "c999ec0bc79fccf2f2cdba598d4e951f",
     "nvidia/Cosmos-Reason1-7B/model-00004-of-00004.safetensors": "232e93dfc82361ea8b0678fffc8660ef",
     # Cosmos-Predict2-2B-Sample-Action-Conditioned
-    # "nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pt": "b4db0f266cc487f1242dc09a082c6dd5",
+    "nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pt": "b4db0f266cc487f1242dc09a082c6dd5",
     # Cosmos-Predict2 Post-training models
-    # "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-720p-16fps.pt": "af799ec678f6f18e3b3cfe3c1d9c591b",
-    # "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/model-720p-16fps.pt": "b7f92ff4d0943ab7477ad873fb17015558ee597897782032bdfeb1db2aee0796",
-    # "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
-    # "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/model-720p-16fps.pt": "af799ec678f6f18e3b3cfe3c1d9c591b",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/model-720p-16fps.pt": "b7f92ff4d0943ab7477ad873fb17015558ee597897782032bdfeb1db2aee0796",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
+    "nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     # T5 text encoder
     "google-t5/t5-11b/pytorch_model.bin": "f890878d8a162e0045a25196e27089a3",
-    # # Cosmos-Guardrail1
+    # Cosmos-Guardrail1
     "nvidia/Cosmos-Guardrail1/face_blur_filter/Resnet50_Final.pth": "bce939bc22d8cec91229716dd932e56e",
     "nvidia/Cosmos-Guardrail1/video_content_safety_filter/safety_filter.pt": "b46dc2ad821fc3b0d946549d7ade19cf",
     "nvidia/Cosmos-Guardrail1/video_content_safety_filter/models--google--siglip-so400m-patch14-384/snapshots/9fdffc58afc957d1a03a25b10dba0329ab15c2a3/model.safetensors": "f4c887e55e159f96453e18a1d6ca984f",
-    # # Meta Llama guard
+    # Meta Llama guard
     "meta-llama/Llama-Guard-3-8B/model-00001-of-00004.safetensors": "5748060ae47b335dc19263060c921a54",
     "meta-llama/Llama-Guard-3-8B/model-00002-of-00004.safetensors": "89e7dce10959cab81c0d09468a873f33",
     "meta-llama/Llama-Guard-3-8B/model-00003-of-00004.safetensors": "e7e5f50ecdb02a946d071373a52c01b8",
@@ -215,6 +217,10 @@ def main(args):
             repo_id = f"nvidia/{model_size_mapping[size]}-{model_type_mapping['video2world']}"
             download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="tokenizer/*")
         download_model(args.checkpoint_dir, "nvidia/Cosmos-Reason1-7B", verify_md5=args.verify_md5)
+    
+    if "multiview" in args.model_types:
+        repo_id = f"nvidia/Cosmos-Predict2-2B-Multiview"
+        download_model(args.checkpoint_dir, repo_id, verify_md5=args.verify_md5, allow_patterns="*.pt")
 
     if "sample_action_conditioned" in args.model_types:
         print("NOTE: Sample Action Conditioned model is only available for 2B model size, 480P and 4FPS")

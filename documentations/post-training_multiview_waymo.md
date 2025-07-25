@@ -78,18 +78,18 @@ datasets/waymo/
 
 Run the following command to execute an example post-training job with Waymo data
 ```bash
-torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_multiview_training_2b_waymo
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_multiview_training_2b_720p_10fps_7views_29frames_waymo5views
 ```
 
-The model will be post-trained using the Waymo dataset. See the config `predict2_multiview_lora_training_2b_waymo_480p_10fps` defined in `cosmos_predict2/configs/base/experiment/waymo.py` to understand how the dataloader is defined.
+The model will be post-trained using the Waymo dataset. See the config `predict2_multiview_training_2b_720p_10fps_7views_29frames_waymo5views` defined in `cosmos_predict2/configs/base/experiment/waymo.py` to understand how the dataloader is defined.
 ```python
-example_video_dataset_waymo_train = L(MultiviewDataset)(
+example_video_dataset_waymo5views_720p_train = L(MultiviewDataset)(
     dataset_dir="datasets/waymo",
     state_t=8,
     num_frames=29,
     sequence_interval=1,
     camera_keys=camera_keys,
-    video_size=(480, 848),
+    video_size=(704, 1280),
     front_camera_key="pinhole_front",
     camera_to_view_id=camera_to_view_id,
     front_view_caption_only=True,
@@ -98,17 +98,17 @@ example_video_dataset_waymo_train = L(MultiviewDataset)(
 ```
 
 The checkpoints will be saved to `checkpoints/PROJECT/GROUP/NAME`.
-In the above example, `PROJECT` is `posttraining`, `GROUP` is `multiview`, `NAME` is `2b_waymo_480p_10fps"`.
+In the above example, `PROJECT` is `posttraining`, `GROUP` is `multiview`, `NAME` is `2b_720p_10fps_7views_29frames_waymo5views"`.
 
 See the job config to understand how they are determined.
 ```python
-predict2_multiview_training_2b_waymo_480p_10fps = dict(
+predict2_multiview_training_2b_720p_10fps_7views_29frames_waymo5views = dict(
     dict(
         ...
         job=dict(
             project="posttraining",
             group="multiview",
-            name="2b_waymo_480p_10fps",
+            name="2b_720p_10fps_7views_29frames_waymo5views",
         ),
         ...
     )
@@ -117,7 +117,7 @@ predict2_multiview_training_2b_waymo_480p_10fps = dict(
 
 The checkpoints will be saved in the below structure.
 ```
-checkpoints/posttraining/multiview/2b_waymo_480p_10fps/checkpoints/
+checkpoints/posttraining/multiview/2b_720p_10fps_7views_29frames_waymo5views/checkpoints/
 ├── model/
 │   ├── iter_{NUMBER}.pt
 ├── optim/
@@ -130,20 +130,20 @@ checkpoints/posttraining/multiview/2b_waymo_480p_10fps/checkpoints/
 
 Post-training can be done using LoRA. Run the following command to execute an example LoRA multiview post-training job
 ```bash
-torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_multiview_lora_training_2b_waymo_480p_10fps
+torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_multiview_lora_training_2b_720p_10fps_7views_29frames_waymo5views
+
 ```
 
 
 ### 2.2 Post-training performance
 
-The following table shows the expected iteration speed for 2B Multiview Training variations
-Note that 2B model uses 8 GPUs, while 14B model uses 32 GPUs. 14B model also has 4x lower global batch size, as it uses Context-Parallelism of size 8, while 2B model uses Context-Parallelism of size 2.
+The following table shows the expected iteration speed for 2B Multiview Training variations on 8 H100 GPUs with Context-Parallelism of size 8. Note that the 480p configurations can also run on as few as 2 H100 GPUs with Context-Parallelism of size 2.
 
-| GPU Hardware    | 2B-Multiview-720p-7views-29frames | 2B-Multiview-480p-5views-29frames |
-|-----------------|-----------------------------------|-----------------------------------|
-| NVIDIA B200     | -                                 | -                                 |
-| NVIDIA H100 NVL | ~8.90s sec                        | ~3 sec                            |
-| NVIDIA A100     | -                                 | -                                 |
+| GPU Hardware    | 2B-Multiview-720p-7views-29frames | 2B-Multiview-720p-5views-29frames | 2B-Multiview-480p-5views-29frames |
+|-----------------|-----------------------------------|-----------------------------------|-----------------------------------|
+| NVIDIA B200     | -                                 | -                                 |-                                  |
+| NVIDIA H100 NVL | ~8.90s sec                        | ~6.5 sec                          | ~3.5 sec                            |
+| NVIDIA A100     | -                                 | -                                 |-                                  |
 
 ## 3. Inference with the Post-trained checkpoint
 ### 3.1 Inference
@@ -157,7 +157,7 @@ export NUM_GPUS=8
 torchrun --nproc_per_node=${NUM_GPUS} examples/multiview.py  \
   --model_size 2B  \
   --num_gpus $NUM_GPUS  \
-  --dit_path "checkpoints/posttraining/multiview/2b_waymo_480p_10fps/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/multiview/2b_720p_10fps_7views_29frames_waymo5views/checkpoints/model/iter_000001000.pt" \
   --input_path  assets/multiview/sample1/video.mp4  \
   --prompt assets/multiview/sample1/caption.txt \
   --num_conditional_frames 1 \
@@ -165,7 +165,7 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/multiview.py  \
   --n_views 7  \
   --guidance 7.0 \
   --disable_prompt_refiner \
-  --save_path output/multiview_2b_sample1_cond1.mp4
+  --save_path output/multiview_postrain_2b_sample1_cond1.mp4
 
 ```
 
@@ -175,7 +175,7 @@ export NUM_GPUS=8
 torchrun --nproc_per_node=${NUM_GPUS} examples/multiview.py  \
   --model_size 2B  \
   --num_gpus $NUM_GPUS  \
-  --dit_path "checkpoints/posttraining/multiview/2b_waymo_480p_10fps//checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/multiview/2b_720p_10fps_7views_29frames_waymo5views//checkpoints/model/iter_000001000.pt" \
   --input_path  assets/multiview/sample1/video.mp4  \
   --prompt assets/multiview/sample1/caption.txt \\
   --num_conditional_frames 1 \
@@ -183,7 +183,7 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/multiview.py  \
   --n_views 7  \
   --guidance 7.0 \
   --disable_prompt_refiner \
-  --save_path output/multiview_2b_sample1_cond1.mp4 
+  --save_path output/multiview_postrain_2b_sample1_cond1.mp4
 ```
 
 See [documentations/inference_multiview.md](documentations/inference_multiview.md) for inference run details.

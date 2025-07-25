@@ -26,7 +26,7 @@ import torch
 from megatron.core import parallel_state
 from examples.video2world import cleanup_distributed, process_single_generation
 from cosmos_predict2.configs.base.config_multiview import (
-    PREDICT2_MULTIVIEW_PIPELINE_2B_720P_29FRAMES_10FPS,
+    PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES,
 )
 from imaginaire.utils.io import save_image_or_video, save_text_prompts, save_image_or_video_multiview
 from imaginaire.utils import log, misc, distributed
@@ -57,8 +57,8 @@ def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
 
 def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
-    config = PREDICT2_MULTIVIEW_PIPELINE_2B_720P_29FRAMES_10FPS
-    dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Multiview/model.pt"
+    config = PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES
+    dit_path = f"checkpoints/nvidia/Cosmos-Predict2-2B-Multiview/model-720p-10fps-7views-29frames.pt"
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
