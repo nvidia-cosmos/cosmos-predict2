@@ -273,14 +273,25 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
         pipeline_type = detect_pipeline_type(pipe)
         dit_input_path = get_default_dit_input_path(pipeline_type, backend)
     
-    # Load or capture inputs
+    # Load or capture inputs (two-pass system preferred)
     if os.path.exists(dit_input_path):
-        log.info(f"Loading existing DiT inputs from {dit_input_path}")
+        log.info(f"✅ Found existing DiT inputs at: {dit_input_path}")
+        log.info("📋 Using two-pass system (recommended for multi-GPU)")
         real_inputs = torch.load(dit_input_path, map_location='cpu', weights_only=False)
     else:
-        log.info("Capturing real DiT inputs...")
+        log.warning(f"⚠️  DiT inputs not found at: {dit_input_path}")
+        log.warning("📋 Falling back to inline capture (not recommended for multi-GPU)")
+        log.info("💡 Consider running: python scripts/capture_dit_inputs_single_gpu.py --pipeline <type> --backend <backend>")
         capture_dit_inputs(pipe, dit_input_path)
         real_inputs = torch.load(dit_input_path, map_location='cpu', weights_only=False)
+    
+    # Debug: Print loaded input shapes
+    log.info("🔍 [DEBUG] Loaded DiT input shapes:")
+    for key, value in real_inputs.items():
+        if isinstance(value, torch.Tensor):
+            log.info(f"  {key}: {value.shape} ({value.dtype})")
+        else:
+            log.info(f"  {key}: {type(value)} = {value}")
     
     # Move inputs to GPU
     device = next(pipe.dit.parameters()).device
@@ -291,6 +302,14 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
             gpu_inputs[key] = value.to(device=device, dtype=dtype)
         else:
             gpu_inputs[key] = value
+    
+    # Debug: Print GPU input shapes after conversion
+    log.info("🔍 [DEBUG] GPU DiT input shapes:")
+    for key, value in gpu_inputs.items():
+        if isinstance(value, torch.Tensor):
+            log.info(f"  {key}: {value.shape} ({value.dtype})")
+        else:
+            log.info(f"  {key}: {type(value)} = {value}")
     
     # Prepare model
     prepare_model_for_export(pipe.dit)
