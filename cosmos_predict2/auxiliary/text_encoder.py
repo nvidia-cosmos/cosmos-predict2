@@ -13,7 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import List, Tuple, Union
+from typing import List, Tuple, Union, Optional
 
 import torch
 import transformers
@@ -33,6 +33,7 @@ class CosmosT5TextEncoder(torch.nn.Module):
         device: str = "cuda",
         cache_dir: str = None,
         local_files_only: bool = False,
+        torch_dtype: Optional[torch.dtype] = None,
     ):
         """Initializes the T5 tokenizer and encoder.
 
@@ -43,18 +44,18 @@ class CosmosT5TextEncoder(torch.nn.Module):
         super().__init__()
         try:
             self.tokenizer = T5TokenizerFast.from_pretrained(
-                pretrained_model_name_or_path=cache_dir, cache_dir=cache_dir, local_files_only=local_files_only
+                pretrained_model_name_or_path=cache_dir, cache_dir=cache_dir, local_files_only=local_files_only, torch_dtype=torch_dtype
             )
             self.text_encoder = T5EncoderModel.from_pretrained(
-                pretrained_model_name_or_path=cache_dir, cache_dir=cache_dir, local_files_only=local_files_only
+                pretrained_model_name_or_path=cache_dir, cache_dir=cache_dir, local_files_only=local_files_only, torch_dtype=torch_dtype
             ).to(device)
         except Exception as e:
             log.error(e)
             self.tokenizer = T5TokenizerFast.from_pretrained(
-                pretrained_model_name_or_path=model_name, cache_dir=cache_dir, local_files_only=local_files_only
+                pretrained_model_name_or_path=model_name, cache_dir=cache_dir, local_files_only=local_files_only, torch_dtype=torch_dtype
             )
             self.text_encoder = T5EncoderModel.from_pretrained(
-                pretrained_model_name_or_path=model_name, cache_dir=cache_dir, local_files_only=local_files_only
+                pretrained_model_name_or_path=model_name, cache_dir=cache_dir, local_files_only=local_files_only, torch_dtype=torch_dtype
             ).to(device)
         self.text_encoder.eval()
         self.device = device
