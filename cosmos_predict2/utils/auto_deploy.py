@@ -268,6 +268,18 @@ def capture_dit_inputs(pipe, dit_input_path: str) -> None:
 def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: bool = False, 
                                  dit_input_path: str = None) -> None:
     """Main optimization function using real DiT inputs."""
+    # Detect rank and set correct device for distributed execution
+    rank = int(os.environ.get("RANK", 0))
+    local_rank = int(os.environ.get("LOCAL_RANK", 0))
+    world_size = int(os.environ.get("WORLD_SIZE", 1))
+    
+    if world_size > 1:
+        log.info(f"🌍 Distributed setup detected: rank={rank}, local_rank={local_rank}, world_size={world_size}")
+        torch.cuda.set_device(local_rank)
+        log.info(f"📍 Set CUDA device to local_rank={local_rank}")
+    else:
+        log.info("🖥️  Single GPU setup detected")
+    
     # Determine input path
     if dit_input_path is None:
         pipeline_type = detect_pipeline_type(pipe)
@@ -293,13 +305,27 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
         else:
             log.info(f"  {key}: {type(value)} = {value}")
     
-    # Move inputs to GPU
-    device = next(pipe.dit.parameters()).device
+    # Move inputs to GPU with rank awareness
+    if world_size > 1:
+        # Use local_rank device for distributed setup
+        device = torch.device(f"cuda:{local_rank}")
+        log.info(f"📍 Using rank-aware device: {device}")
+    else:
+        # Fallback to model's device for single GPU
+        device = next(pipe.dit.parameters()).device
+        log.info(f"📍 Using model device: {device}")
+    
     dtype = next(pipe.dit.parameters()).dtype
     gpu_inputs = {}
     for key, value in real_inputs.items():
         if isinstance(value, torch.Tensor):
-            gpu_inputs[key] = value.to(device=device, dtype=dtype)
+            if world_size > 1:
+                # Clone tensors for rank isolation to prevent memory aliasing in CUDA graphs
+                gpu_inputs[key] = value.clone().to(device=device, dtype=dtype)
+                log.info(f"🔄 [RANK {rank}] Cloned and moved {key} to {device}")
+            else:
+                # Single GPU - no need to clone
+                gpu_inputs[key] = value.to(device=device, dtype=dtype)
         else:
             gpu_inputs[key] = value
     
