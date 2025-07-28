@@ -373,15 +373,68 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
         log.info(f"Baseline latency: {baseline_latency:.2f} ms")
         log.info(f"Backend: {backend}, Dynamic shapes: {dynamic_shapes is not None}")
     
-    # Compile model
+    # Compile model with deterministic seeding for distributed consistency
     log.info("Compiling model...")
-    compiled_model = compile_model(pipe.dit, gpu_inputs, dynamic_shapes, backend)
-    
-    if compiled_model is None:
-        raise RuntimeError("Model compilation returned None")
+    if world_size > 1:
+        # Multi-GPU: Each rank compiles independently but with identical seeds for determinism
+        log.info(f"🌍 [RANK {rank}] Setting deterministic seeds for consistent compilation")
+        torch.manual_seed(42)
+        torch.cuda.manual_seed(42)
+        if hasattr(torch.backends.cudnn, 'deterministic'):
+            torch.backends.cudnn.deterministic = True
+        
+        log.info(f"🔨 [RANK {rank}] Compiling model on {device} (deterministic)")
+        compiled_model = compile_model(pipe.dit, gpu_inputs, dynamic_shapes, backend)
+        if compiled_model is None:
+            raise RuntimeError("Model compilation returned None")
+        
+        log.info(f"✅ [RANK {rank}] Compilation complete with deterministic seeds")
+    else:
+        # Single GPU: Direct compilation as before
+        log.info(f"🔨 Single GPU compilation on {device}")
+        compiled_model = compile_model(pipe.dit, gpu_inputs, dynamic_shapes, backend)
+        if compiled_model is None:
+            raise RuntimeError("Model compilation returned None")
     
     # Patch compiled model for pipeline compatibility first
     compiled_model = patch_compiled_model(compiled_model, pipe.dit)
+    
+    # Verify CUDA graph consistency across ranks
+    if world_size > 1:
+        # Compute hash of compiled model's state for verification
+        state_dict = compiled_model.state_dict()
+        # Convert all tensors to bytes and hash
+        import hashlib
+        hasher = hashlib.md5()
+        for key in sorted(state_dict.keys()):
+            tensor = state_dict[key]
+            if isinstance(tensor, torch.Tensor):
+                # Handle bfloat16 tensors by converting to float32 first
+                if tensor.dtype == torch.bfloat16:
+                    tensor_bytes = tensor.float().cpu().numpy().tobytes()
+                else:
+                    tensor_bytes = tensor.cpu().numpy().tobytes()
+                hasher.update(tensor_bytes)
+            else:
+                hasher.update(str(tensor).encode())
+        model_hash = hasher.hexdigest()
+        
+        log.info(f"🔍 [RANK {rank}] Compiled model hash: {model_hash[:16]}...")
+        
+        # Gather all hashes at rank 0 for comparison
+        if torch.distributed.is_initialized():
+            all_hashes = [None] * world_size
+            torch.distributed.all_gather_object(all_hashes, model_hash)
+            
+            if rank == 0:
+                unique_hashes = set(all_hashes)
+                if len(unique_hashes) == 1:
+                    log.info(f"✅ [VERIFICATION] All ranks have IDENTICAL compiled models! Hash: {model_hash[:16]}...")
+                else:
+                    log.error(f"❌ [VERIFICATION] Ranks have DIFFERENT compiled models!")
+                    for i, h in enumerate(all_hashes):
+                        log.error(f"   Rank {i}: {h[:16]}...")
+                    log.error("🚨 This will cause output regression!")
     
     # Store compilation input keys and add input filtering
     compilation_input_keys = set(gpu_inputs.keys())
