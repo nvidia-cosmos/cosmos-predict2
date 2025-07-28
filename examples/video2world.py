@@ -166,6 +166,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
+    parser.add_argument(
+        "--benchmark_iterations",
+        type=int,
+        default=4,
+        help="Number of iterations to run in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
+    )
     parser.add_argument("--use_cuda_graphs", action="store_true", help="Use CUDA Graphs for the text2image inference.")
     parser.add_argument(
         "--natten",
@@ -299,6 +305,7 @@ def process_single_generation(
     guidance: float,
     seed: int,
     benchmark: bool = False,
+    benchmark_iterations: int = 4,
     use_cuda_graphs: bool = False,
 ) -> bool:
     # Validate input file
@@ -308,7 +315,7 @@ def process_single_generation(
 
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {prompt}")
 
-    num_repeats = 4 if benchmark else 1
+    num_repeats = benchmark_iterations if benchmark else 1
     time_sum = 0
     for i in range(num_repeats):
         if benchmark and i > 0:
@@ -395,6 +402,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 guidance=args.guidance,
                 seed=args.seed,
                 benchmark=args.benchmark,
+                benchmark_iterations=args.benchmark_iterations,
                 use_cuda_graphs=args.use_cuda_graphs,
             )
     else:
@@ -409,6 +417,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             guidance=args.guidance,
             seed=args.seed,
             benchmark=args.benchmark,
+            benchmark_iterations=args.benchmark_iterations,
             use_cuda_graphs=args.use_cuda_graphs,
         )
 
