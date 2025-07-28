@@ -198,25 +198,40 @@ def create_dynamic_shapes(inputs: Dict[str, torch.Tensor], max_frames: int) -> D
 
 def patch_compiled_model(compiled_model: nn.Module, original_model: nn.Module) -> nn.Module:
     """Patch compiled model for pipeline compatibility."""
-    # Preserve context parallel attributes
-    compiled_model._is_context_parallel_enabled = getattr(original_model, "_is_context_parallel_enabled", False)
-    compiled_model.is_context_parallel_enabled = getattr(original_model, "is_context_parallel_enabled", False)
-    compiled_model.context_parallel_size = getattr(original_model, "context_parallel_size", 1)
-    compiled_model.context_parallel_group = getattr(original_model, "context_parallel_group", None)
+    # Preserve basic context parallel attributes (but not distributed groups)
+    cp_enabled = getattr(original_model, "is_context_parallel_enabled", False)
+    cp_size = getattr(original_model, "context_parallel_size", 1)
+    
+    # Safely copy basic attributes
+    compiled_model._is_context_parallel_enabled = cp_enabled
+    compiled_model.is_context_parallel_enabled = cp_enabled
+    compiled_model.context_parallel_size = cp_size
+    
+    # WARNING: Do not copy context_parallel_group as it may cause distributed issues
+    # compiled_model.context_parallel_group = None  # Safer to not transfer group objects
+    
+    if cp_enabled:
+        log.warning("⚠️  Context parallelism was enabled on original model.")
+        log.warning("⚠️  Compiled model preserves CP attributes but may need group re-initialization.")
+        log.warning("⚠️  Consider disabling context parallelism if you encounter distributed issues.")
 
-    # Add context parallel methods
+    # Add simplified context parallel methods (flags only, no distributed group management)
     def enable_context_parallel(cp_group_or_size=None):
         if cp_group_or_size is not None and isinstance(cp_group_or_size, int):
             compiled_model.context_parallel_size = cp_group_or_size
         compiled_model.is_context_parallel_enabled = True
         compiled_model._is_context_parallel_enabled = True
+        log.info(f"✅ Context parallelism enabled on compiled model (size={compiled_model.context_parallel_size})")
 
     def disable_context_parallel():
         compiled_model.is_context_parallel_enabled = False
         compiled_model._is_context_parallel_enabled = False
+        log.info("❌ Context parallelism disabled on compiled model")
 
     def set_context_parallel_group(cp_group):
+        # Allow setting but warn about potential issues
         compiled_model.context_parallel_group = cp_group
+        log.warning("⚠️  Set context_parallel_group on compiled model - ensure distributed consistency")
 
     compiled_model.enable_context_parallel = enable_context_parallel
     compiled_model.disable_context_parallel = disable_context_parallel
@@ -425,35 +440,8 @@ def ad_optimize_dit(pipe, args) -> None:
     try:
         log.info("Starting DiT optimization...")
         
-        # Handle context parallelism
-        dit_model = pipe.dit
-        cp_enabled = getattr(dit_model, "is_context_parallel_enabled", False)
-        cp_size = getattr(dit_model, "context_parallel_size", 1) if cp_enabled else 1
-        
-        if cp_enabled:
-            log.info(f"Temporarily disabling context parallelism (size={cp_size})")
-            cp_config = {"enabled": True, "size": cp_size}
-            if hasattr(dit_model, "disable_context_parallel"):
-                dit_model.disable_context_parallel()
-            else:
-                dit_model.is_context_parallel_enabled = False
-                dit_model._is_context_parallel_enabled = False
-        else:
-            cp_config = None
-        
-        # Optimize model
+        # Optimize model (context parallelism state handled in patch_compiled_model)
         optimize_model_with_dit_inputs(pipe, backend, benchmark, dit_input_path)
-        
-        # Re-enable context parallelism
-        if cp_config is not None:
-            log.info(f"Re-enabling context parallelism (size={cp_config['size']})")
-            compiled_dit = pipe.dit
-            if hasattr(compiled_dit, "enable_context_parallel"):
-                compiled_dit.enable_context_parallel(cp_config["size"])
-            else:
-                compiled_dit.context_parallel_size = cp_config["size"]
-                compiled_dit.is_context_parallel_enabled = True
-                compiled_dit._is_context_parallel_enabled = True
         
         log.info("DiT optimization completed successfully!")
         
