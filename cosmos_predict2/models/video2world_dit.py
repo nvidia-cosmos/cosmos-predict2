@@ -39,12 +39,14 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         padding_mask: Optional[torch.Tensor] = None,
         data_type: Optional[DataType] = DataType.VIDEO,
         use_cuda_graphs: bool = False,
+        gt_frames: Optional[torch.Tensor] = None,
+        use_video_condition: Optional[torch.Tensor] = None,
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
         
         # Save inputs if path is set (for auto_deploy compilation)
         if self.save_input_path:
-            # Save core arguments AND critical kwargs for accurate video conditioning
+            # Save core arguments AND critical video conditioning parameters
             inputs_to_save = {
                 "x_B_C_T_H_W": x_B_C_T_H_W.detach().cpu(),
                 "timesteps_B_T": timesteps_B_T.detach().cpu(),
@@ -54,13 +56,15 @@ class MinimalV1LVGDiT(MiniTrainDIT):
                 "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.detach().cpu() if condition_video_input_mask_B_C_T_H_W is not None else None,
                 "data_type": data_type,
                 "use_cuda_graphs": use_cuda_graphs,
-                # Include critical video conditioning parameters
-                "gt_frames": kwargs.get("gt_frames").detach().cpu() if kwargs.get("gt_frames") is not None else None,
-                "use_video_condition": kwargs.get("use_video_condition"),
+                # Include critical video conditioning parameters as direct params (not kwargs)
+                "gt_frames": gt_frames.detach().cpu() if gt_frames is not None else None,
+                "use_video_condition": use_video_condition,
             }
             torch.save(inputs_to_save, self.save_input_path)
             self.save_input_path = None
 
+        # Note: gt_frames and use_video_condition are used by the pipeline for temporal conditioning
+        # They don't need to be passed to the parent DiT model, but must be available for compilation
         del kwargs
 
         if data_type == DataType.VIDEO:
