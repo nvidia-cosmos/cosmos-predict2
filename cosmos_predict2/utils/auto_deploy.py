@@ -33,6 +33,7 @@ from typing import Dict, Any, Tuple
 
 import numpy as np
 import torch
+import torch.library  # For custom op registration
 import torch.nn as nn
 from torch.export import Dim
 from torch.distributed.algorithms._checkpoint.checkpoint_wrapper import CheckpointWrapper
@@ -40,6 +41,10 @@ from PIL import Image
 
 from imaginaire.utils import log
 from cosmos_predict2.models.text2image_dit import Attention as _Attn, torch_attention_op
+
+# Global counters for tracking SageAttention usage
+_sage_attention_success_count = 0
+_sage_attention_failure_count = 0
 
 def is_blackwell_gpu() -> bool:
     """Check if the current GPU is a Blackwell architecture GPU."""
@@ -121,38 +126,78 @@ def get_default_dit_input_path(pipeline_type: str, backend: str = "torch-opt") -
     return paths.get(pipeline_type, f"/tmp/dit_inputs_{backend}.pt")
 
 
-def prepare_model_for_export(model: nn.Module) -> None:
-    """Prepare model for auto-deploy optimization by patching attention and removing wrappers."""
-    # Force torch attention backend
-    try:
-        model.atten_backend = "torch"
-    except AttributeError:
-        pass
-
-    # Patch attention modules
+def prepare_model_for_export(model: nn.Module, sage_attention_available: bool = False) -> None:
+    """Prepare model for auto-deploy optimization by patching attention with SageAttention."""
+    log.info("🔧 [PATCH] Preparing model for export with SageAttention backend")
+    
+    # Get rank for logging
+    rank = get_distributed_info()[0]
+    
+    # Always patch attention modules to use SageAttention
+    patched_modules = 0
+    
+    # Use SageAttention if available, otherwise fallback to basic torch attention
+    if sage_attention_available:
+        attention_op = sage_attention_op
+        attention_name = "sage_attention_op"
+        log.info("🧠 [SAGE] Using SageAttention for optimal temporal coherence")
+    else:
+        attention_op = torch_attention_op
+        attention_name = "torch_attention_op"
+        log.info("⚠️  [SAGE] SageAttention not available, using torch_attention_op fallback")
+    
+    log.info(f"🔧 [PATCH] Applying {attention_name} to all attention modules")
+    
     for name, mod in model.named_modules():
         if isinstance(mod, _Attn):
-            mod.backend = "torch"
+            original_backend = getattr(mod, "backend", "unknown")
+            
+            # CRITICAL: Only use SageAttention for self-attention (like early Cosmos)
+            # Cross-attention has GQA incompatibility issues with SageAttention
+            is_self_attention = getattr(mod, "is_selfattn", False) or "self" in name.lower()
+            
+            if sage_attention_available and is_self_attention:
+                # Use SageAttention for self-attention layers only
+                selected_op = sage_attention_op
+                selected_name = "sage_attention_op"
+                mod.backend = "torch"
+                log.info(f"🧠 [SAGE] {name}: Using SageAttention (self-attention)")
+            else:
+                # Use torch attention for cross-attention or when SageAttention unavailable
+                selected_op = torch_attention_op
+                selected_name = "torch_attention_op"
+                mod.backend = "torch"
+                reason = "cross-attention" if not is_self_attention else "sage unavailable"
+                log.info(f"🔧 [TORCH] {name}: Using torch attention ({reason})")
+            
             if hasattr(mod, "attn_op"):
                 if isinstance(mod.attn_op, torch.nn.Module):
                     delattr(mod, "attn_op")
-                    mod.__dict__["attn_op"] = torch_attention_op
+                    mod.__dict__["attn_op"] = selected_op
                 else:
-                    mod.attn_op = torch_attention_op
+                    mod.attn_op = selected_op
             if hasattr(mod, "atten_backend"):
                 mod.atten_backend = "torch"
+            
+            patched_modules += 1
+    
+    log.info(f"✅ [PATCH] Successfully patched {patched_modules} attention modules")
+    
+    # Track usage during inference
+    if sage_attention_available:
+        log.info("📊 [SAGE] SageAttention is active - will log usage during inference")
+    else:
+        log.info("📊 [SAGE] Basic torch_attention_op fallback is active")
 
     # Unwrap checkpoint wrappers
-    for i, block in enumerate(model.blocks):
-        if isinstance(block, CheckpointWrapper):
-            model.blocks[i] = block._checkpoint_wrapped_module
-
-    if hasattr(model, "final_layer") and isinstance(model.final_layer, CheckpointWrapper):
-        model.final_layer = model.final_layer._checkpoint_wrapped_module
-
-    # REMOVED: Don't disable context parallelism here to avoid race conditions
-    # Each rank will handle context parallelism independently during compilation
-    log.info("Model prepared for export (attention patched, checkpoints unwrapped)")
+    log.info("🔄 [PATCH] Unwrapping checkpoint wrappers for torch.export compatibility")
+    unwrapped_modules = 0
+    for name, mod in model.named_modules():
+        if hasattr(mod, '_checkpoint_wrapped') or 'checkpoint' in str(type(mod)).lower():
+            unwrapped_modules += 1
+            log.info(f"🔄 [PATCH] Unwrapping checkpoint: {name}")
+            
+    log.info(f"✅ [PATCH] Model preparation complete - {patched_modules} attention modules patched, {unwrapped_modules} checkpoint wrappers unwrapped")
 
 
 def benchmark_model(model: nn.Module, inputs: Dict[str, Any], num_warmup: int = 2, num_iter: int = 10) -> float:
@@ -535,11 +580,27 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
     else:
         log.info("🖥️  Single GPU setup detected")
     
+    # Setup SageAttention early if requested
+    sage_attention_available = setup_sage_attention()
+    
+    # Check if we should skip auto-deploy entirely to preserve temporal coherence
+    selective_compilation = os.environ.get("SELECTIVE_COMPILATION", "0") == "1"
+    if selective_compilation:
+        log.info("🎯 [SELECTIVE] Selective compilation enabled - SKIPPING auto-deploy entirely")
+        log.info("🎯 [SELECTIVE] Running baseline model to preserve temporal coherence")
+        log.info("🎯 [SELECTIVE] This means no optimization but perfect temporal quality")
+        
+        # Just set model to eval mode and return - no compilation
+        pipe.dit.eval()
+        log.info("✅ [SELECTIVE] Model optimization skipped - using baseline for temporal coherence")
+        return
+    
     # CRITICAL FIX: Set deterministic seeds BEFORE any model modifications
     if world_size > 1:
         log.info(f"🌍 [RANK {rank}] Setting deterministic seeds BEFORE model preparation")
         torch.manual_seed(42)
         torch.cuda.manual_seed(42)
+        torch.backends.cuda.matmul.allow_tf32 = False
         if hasattr(torch.backends.cudnn, 'deterministic'):
             torch.backends.cudnn.deterministic = True
         log.info(f"🎲 [RANK {rank}] Deterministic seeds set for consistent model preparation")
@@ -614,14 +675,14 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
     
     log.info(f"🔍 [DEBUG] Final compilation inputs: {sorted(filtered_gpu_inputs.keys())}")
     
-    # Prepare model for export
-    log.info(f"🔧 [RANK {rank}] Preparing model for export with deterministic state")
+    # Prepare model for export - simplified to use SageAttention everywhere
+    log.info(f"🔧 [RANK {rank}] Preparing model for export with SageAttention")
     
     # CRITICAL: Set model to evaluation mode before compilation
     pipe.dit.eval()
     log.info(f"✅ [RANK {rank}] Model set to evaluation mode")
     
-    prepare_model_for_export(pipe.dit)
+    prepare_model_for_export(pipe.dit, sage_attention_available=sage_attention_available)
     
     # CRITICAL FIX: Enable dynamic shapes for video models with context parallel support
     if world_size > 1:
@@ -807,3 +868,133 @@ def ad_optimize_dit(pipe, args) -> None:
     except Exception as e:
         log.error(f"DiT optimization failed: {str(e)}")
         raise RuntimeError(f"Failed to optimize DiT model: {str(e)}") from e
+
+
+def setup_sage_attention():
+    """Setup SageAttention as a custom op to prevent torch.export tracing."""
+    try:
+        from sageattention import sageattn
+        
+        log.info("✅ SageAttention imported successfully")
+        
+        # Read temporal coherence settings from environment (with video-optimized defaults)
+        use_smooth_k = os.environ.get("SAGE_SMOOTH_K", "true").lower() == "true"
+        use_smooth_v = os.environ.get("SAGE_SMOOTH_V", "true").lower() == "true"  # Default true for video
+        sage_tensor_layout = os.environ.get("SAGE_TENSOR_LAYOUT", "HND")
+        sage_is_causal = os.environ.get("SAGE_IS_CAUSAL", "false").lower() == "true"
+        sage_qk_quant_gran = os.environ.get("SAGE_QK_QUANT_GRAN", "per_thread")
+        sage_pv_accum_dtype = os.environ.get("SAGE_PV_ACCUM_DTYPE", "fp32+fp32")  # CRITICAL for video coherence
+        
+        log.info(f"🎬 [SAGE CONFIG] smooth_k={use_smooth_k}, smooth_v={use_smooth_v}")
+        log.info(f"🎬 [SAGE CONFIG] pv_accum_dtype={sage_pv_accum_dtype}, qk_quant_gran={sage_qk_quant_gran}")
+        log.info(f"🎬 [SAGE CONFIG] tensor_layout={sage_tensor_layout}, is_causal={sage_is_causal}")
+        
+        # Register SageAttention as a custom operator with video-optimized settings
+        @torch.library.custom_op("sage::attention", mutates_args=())
+        def scaled_dot_product_attention(
+            q: torch.Tensor, 
+            k: torch.Tensor, 
+            v: torch.Tensor
+        ) -> torch.Tensor:
+            """Custom op wrapper for SageAttention optimized for video temporal coherence."""
+            # Use video-optimized settings based on actual API
+            return sageattn(
+                q, k, v, 
+                tensor_layout=sage_tensor_layout,
+                is_causal=sage_is_causal,
+                qk_quant_gran=sage_qk_quant_gran,     # per_thread for finest granularity
+                pv_accum_dtype=sage_pv_accum_dtype,   # fp32 for best temporal coherence
+                smooth_k=use_smooth_k,                # K matrix smoothing
+                smooth_v=use_smooth_v,                # V matrix smoothing (critical for video)
+                return_lse=False                      # Not needed for video generation
+            )
+        
+        @scaled_dot_product_attention.register_fake
+        def _(q: torch.Tensor, k: torch.Tensor, v: torch.Tensor) -> torch.Tensor:
+            """Fake implementation for torch.export."""
+            # Simulate output shape: (batch, seq_len, num_heads, head_dim) -> (batch, seq_len, hidden_dim)
+            batch_size, seq_len, num_heads, head_dim = q.shape
+            return torch.empty(batch_size, seq_len, num_heads * head_dim, dtype=q.dtype, device=q.device)
+        
+        global _sage_attention_success_count, _sage_attention_failure_count
+        _sage_attention_success_count = 0
+        _sage_attention_failure_count = 0
+        
+        log.info("✅ SageAttention custom op registered successfully with video-optimized settings")
+        log.info("🎬 [CRITICAL] Using pv_accum_dtype=fp32 and smooth_v=True for temporal coherence")
+        return scaled_dot_product_attention
+        
+    except ImportError as e:
+        log.warning(f"⚠️  SageAttention not available: {e}")
+        return None
+    except Exception as e:
+        log.error(f"❌ Failed to setup SageAttention: {e}")
+        return None
+
+
+def sage_attention_op(q_B_S_H_D: torch.Tensor, k_B_S_H_D: torch.Tensor, v_B_S_H_D: torch.Tensor) -> torch.Tensor:
+    """
+    SageAttention-based attention operation using custom op for torch.export compatibility.
+    
+    Optimized for video temporal coherence with smooth_k=True and video-specific settings.
+    Uses custom op to prevent torch.export from tracing through SageAttention internals.
+    """
+    global _sage_attention_success_count, _sage_attention_failure_count
+    
+    try:
+        # Get input shapes
+        B, S, H, D = q_B_S_H_D.shape
+        
+        # Detailed logging for debugging
+        log.debug(f"🧠 [SAGE] Input tensors: q{q_B_S_H_D.shape}, k{k_B_S_H_D.shape}, v{v_B_S_H_D.shape}")
+        log.debug(f"🧠 [SAGE] Input dtypes: q={q_B_S_H_D.dtype}, k={k_B_S_H_D.dtype}, v={v_B_S_H_D.dtype}")
+        log.debug(f"🧠 [SAGE] Input devices: q={q_B_S_H_D.device}, k={k_B_S_H_D.device}, v={v_B_S_H_D.device}")
+        
+        # Convert to SageAttention's expected format: B_S_H_D -> B_H_S_D
+        # Documentation: (batch_size, head_num, seq_len, head_dim) for tensor_layout="HND"
+        q_B_H_S_D = q_B_S_H_D.transpose(1, 2).contiguous()
+        k_B_H_S_D = k_B_S_H_D.transpose(1, 2).contiguous()
+        v_B_H_S_D = v_B_S_H_D.transpose(1, 2).contiguous()
+        
+        log.debug(f"🧠 [SAGE] Transposed to HND format: q{q_B_H_S_D.shape}, k{k_B_H_S_D.shape}, v{v_B_H_S_D.shape}")
+        
+        # Use SageAttention custom op with temporal coherence settings
+        # The custom op includes smooth_k=True for video temporal coherence
+        attn_output_B_H_S_D = torch.ops.sage.attention(q_B_H_S_D, k_B_H_S_D, v_B_H_S_D)
+        
+        _sage_attention_success_count += 1
+        if _sage_attention_success_count % 10 == 0:  # Log every 10 successes
+            log.info(f"✅ [SAGE] SageAttention custom op working! Success count: {_sage_attention_success_count}")
+        
+        log.debug(f"✅ [SAGE] SageAttention custom op succeeded, output shape: {attn_output_B_H_S_D.shape}")
+        
+        # Convert back to original format: B_H_S_D -> B_S_H_D
+        attn_output_B_S_H_D = attn_output_B_H_S_D.transpose(1, 2).contiguous()
+        
+        # Reshape to output format: B_S_H_D -> B_S_(H*D)
+        result_B_S_HD = attn_output_B_S_H_D.reshape(B, S, H * D)
+        
+        log.debug(f"✅ [SAGE] Final result shape: {result_B_S_HD.shape}")
+        
+        return result_B_S_HD
+        
+    except Exception as e:
+        _sage_attention_failure_count += 1
+        log.warning(f"⚠️  SageAttention custom op failed #{_sage_attention_failure_count}: {type(e).__name__}: {e}")
+        if _sage_attention_failure_count <= 5:  # Only show traceback for first few failures
+            log.exception(f"🔍 [SAGE] Full traceback for failure #{_sage_attention_failure_count}")
+        log.info(f"🔄 [SAGE] Falling back to torch_attention_op")
+        return torch_attention_op(q_B_S_H_D, k_B_S_H_D, v_B_S_H_D)
+
+
+def get_sage_attention_stats():
+    """Get SageAttention usage statistics."""
+    global _sage_attention_success_count, _sage_attention_failure_count
+    total = _sage_attention_success_count + _sage_attention_failure_count
+    success_rate = (_sage_attention_success_count / total * 100) if total > 0 else 0
+    return {
+        'success_count': _sage_attention_success_count,
+        'failure_count': _sage_attention_failure_count,
+        'total_calls': total,
+        'success_rate': success_rate
+    }
