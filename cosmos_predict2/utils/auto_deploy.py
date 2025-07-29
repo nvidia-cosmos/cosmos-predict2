@@ -211,11 +211,10 @@ def create_dynamic_shapes(inputs: Dict[str, torch.Tensor], max_frames: int) -> T
     Returns tuple format to avoid key mismatch issues with torch.export kwargs.
     The tuple order must match the order of inputs passed to the model.
     
-    IMPORTANT: gt_frames uses full frame count (24), while other tensors use sharded count (3).
+    IMPORTANT: All tensors including gt_frames use sharded frame count since runtime provides sharded tensors.
     """
-    # Create different time dimensions for different tensor types
-    sharded_time_dim = Dim("time_dim", min=1, max=max_frames)  # For sharded tensors (3 frames)
-    full_time_dim = Dim("full_time_dim", min=1, max=24)        # For gt_frames (24 frames)
+    # Use consistent sharded time dimension for all tensors
+    sharded_time_dim = Dim("time_dim", min=1, max=max_frames)  # For all sharded tensors (3 frames per rank)
     
     # Define the expected order of inputs for the DiT forward method
     # This must match the parameter order in MinimalV1LVGDiT.forward()
@@ -234,35 +233,28 @@ def create_dynamic_shapes(inputs: Dict[str, torch.Tensor], max_frames: int) -> T
                 if len(value.shape) == 5:  # B_C_T_H_W - make time dimension dynamic
                     batch_size = value.shape[0]
                     
-                    # CRITICAL: Use different time dimensions based on tensor type
-                    if key == 'gt_frames':
-                        # gt_frames is NOT sharded, so it keeps full 24 frames
-                        time_dim_to_use = full_time_dim
-                        log.info(f"🔒 [DYNAMIC] {key} uses full_time_dim (24 frames): {value.shape}")
-                    else:
-                        # Other 5D tensors are sharded to 3 frames per rank
-                        time_dim_to_use = sharded_time_dim
-                        log.info(f"🔪 [DYNAMIC] {key} uses sharded_time_dim ({max_frames} frames): {value.shape}")
+                    # ALL 5D tensors (including gt_frames) use the same sharded time dimension
+                    log.info(f"🔪 [DYNAMIC] {key} uses sharded_time_dim ({max_frames} frames): {value.shape}")
                     
                     if batch_size > 1:
                         batch_dim = Dim("batch_dim", min=1, max=batch_size)
                         # Format: {dim_index: Dim} for 5D tensors (B_C_T_H_W)
                         dynamic_shapes_tuple.append({
-                            0: batch_dim,           # Batch dimension  
-                            2: time_dim_to_use      # Time dimension (index 2 in B_C_T_H_W)
+                            0: batch_dim,               # Batch dimension  
+                            2: sharded_time_dim         # Time dimension (index 2 in B_C_T_H_W)
                         })
                     else:
                         # Batch size = 1, only time dimension is dynamic
-                        dynamic_shapes_tuple.append({2: time_dim_to_use})
+                        dynamic_shapes_tuple.append({2: sharded_time_dim})
                 elif len(value.shape) == 2:  # B_T - make time dimension dynamic
                     batch_size = value.shape[0]
-                    # 2D tensors are always sharded (no gt_frames equivalent for 2D)
+                    # 2D tensors are always sharded
                     if batch_size > 1:
                         batch_dim = Dim("batch_dim", min=1, max=batch_size)
                         # Format: {dim_index: Dim} for 2D tensors (B_T)
                         dynamic_shapes_tuple.append({
-                            0: batch_dim,           # Batch dimension
-                            1: sharded_time_dim     # Time dimension (index 1 in B_T)
+                            0: batch_dim,               # Batch dimension
+                            1: sharded_time_dim         # Time dimension (index 1 in B_T)
                         })
                     else:
                         # Batch size = 1, only time dimension is dynamic
@@ -435,8 +427,8 @@ def shard_inputs_for_context_parallel(inputs: Dict[str, Any], rank: int, world_s
     In context parallelism, the time dimension is split across ranks.
     Each rank should compile with inputs that match its runtime shard.
     
-    IMPORTANT: gt_frames should NOT be sharded as it provides temporal reference context
-    that all ranks need to maintain temporal coherence.
+    IMPORTANT: ALL tensors including gt_frames are sharded to match runtime behavior.
+    The pipeline will provide sharded gt_frames during inference, so compilation must match.
     """
     if world_size == 1:
         return inputs  # No sharding needed for single GPU
@@ -451,12 +443,6 @@ def shard_inputs_for_context_parallel(inputs: Dict[str, Any], rank: int, world_s
     log.info(f"🎯 [RANK {rank}] Expected frames per rank for compilation: {expected_frames_per_rank}")
     
     for key, value in inputs.items():
-        # CRITICAL: gt_frames provides temporal reference context and should NOT be sharded
-        if key == 'gt_frames':
-            sharded_inputs[key] = value
-            log.info(f"🔒 [RANK {rank}] NOT sharding {key}: {value.shape} (temporal reference for all ranks)")
-            continue
-            
         if isinstance(value, torch.Tensor) and len(value.shape) == 5:  # B_C_T_H_W
             B, C, T, H, W = value.shape
             
@@ -486,13 +472,13 @@ def shard_inputs_for_context_parallel(inputs: Dict[str, Any], rank: int, world_s
                 log.info(f"✅ [RANK {rank}] {key} already correctly sized: {value.shape}")
                 
             else:
-                # Input has more frames - shard normally
+                # Input has more frames - shard normally (including gt_frames)
                 # Calculate per-rank time slices for context parallelism
                 frames_per_rank = T // world_size
                 start_frame = rank * frames_per_rank
                 end_frame = start_frame + frames_per_rank
                 
-                # Shard the time dimension
+                # Shard the time dimension for ALL 5D tensors including gt_frames
                 sharded_tensor = value[:, :, start_frame:end_frame, :, :]
                 sharded_inputs[key] = sharded_tensor
                 
@@ -724,14 +710,44 @@ def optimize_model_with_dit_inputs(pipe, backend: str = "torch-opt", benchmark: 
             'data_type', 'use_cuda_graphs', 'gt_frames', 'use_video_condition'
         }
         
+        # DEBUG: Log ALL incoming kwargs to see what the pipeline is actually passing
+        log.info(f"🔍 [RUNTIME-ALL] Incoming kwargs ({len(kwargs)}): {sorted(kwargs.keys())}")
+        for key, value in kwargs.items():
+            if isinstance(value, torch.Tensor):
+                log.info(f"  {key}: {value.shape} ({value.dtype}) on {value.device}")
+            else:
+                log.info(f"  {key}: {type(value)} = {value}")
+        
         # Filter kwargs to only include compiled parameters
         filtered_kwargs = {k: v for k, v in kwargs.items() if k in compilation_input_keys}
         
+        # DEBUG: Log filtered kwargs to see what's being passed to compiled model
+        log.info(f"🔍 [RUNTIME-FILTERED] Filtered kwargs ({len(filtered_kwargs)}): {sorted(filtered_kwargs.keys())}")
+        
         # Debug log for temporal conditioning parameters (only if they exist)
         if 'gt_frames' in filtered_kwargs and filtered_kwargs['gt_frames'] is not None:
-            log.debug(f"✅ [RUNTIME] gt_frames present: {filtered_kwargs['gt_frames'].shape}")
+            gt_frames_tensor = filtered_kwargs['gt_frames']
+            log.info(f"✅ [RUNTIME] gt_frames present: {gt_frames_tensor.shape} on {gt_frames_tensor.device}")
+            # Log some statistics about gt_frames content
+            log.info(f"✅ [RUNTIME] gt_frames stats: min={gt_frames_tensor.min().item():.4f}, max={gt_frames_tensor.max().item():.4f}, mean={gt_frames_tensor.mean().item():.4f}")
+            # Note: gt_frames is now expected to be sharded (3 frames per rank) to match compilation
+            if gt_frames_tensor.shape[2] == 3:
+                log.info(f"✅ [RUNTIME] gt_frames correctly sharded to 3 frames per rank (matches compilation)")
+            else:
+                log.warning(f"⚠️  [RUNTIME] gt_frames has {gt_frames_tensor.shape[2]} frames, expected 3 for this rank")
+        else:
+            log.warning(f"⚠️  [RUNTIME] gt_frames MISSING or None in filtered kwargs!")
+            
         if 'use_video_condition' in filtered_kwargs and filtered_kwargs['use_video_condition'] is not None:
-            log.debug(f"✅ [RUNTIME] use_video_condition: {filtered_kwargs['use_video_condition']}")
+            use_vid_cond = filtered_kwargs['use_video_condition']
+            log.info(f"✅ [RUNTIME] use_video_condition: {use_vid_cond} (type: {type(use_vid_cond)})")
+        else:
+            log.warning(f"⚠️  [RUNTIME] use_video_condition MISSING or None in filtered kwargs!")
+        
+        # DEBUG: Log what gets excluded from compilation
+        excluded_keys = set(kwargs.keys()) - compilation_input_keys
+        if excluded_keys:
+            log.info(f"🚫 [RUNTIME] Excluded from compilation: {sorted(excluded_keys)}")
         
         # Call the ORIGINAL compiled model's forward method (not the replaced one)
         return original_compiled_forward(*args, **filtered_kwargs)
