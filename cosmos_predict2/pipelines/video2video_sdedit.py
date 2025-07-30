@@ -209,10 +209,11 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
     @staticmethod
     def from_config(
         config: LazyDict,
-        dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model_ema_reg.pt",
-        text_encoder_path: str = "checkpoints/google-t5/t5-11b",
+        dit_path: str = "",
+        text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
+        load_ema_to_reg: bool = False,
     ) -> Any:
         # Create a pipe
         pipe = Text2ImageSDEditPipeline(device=device, torch_dtype=torch_dtype)
@@ -227,6 +228,7 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
 
         # 1. set data keys and data information
         pipe.sigma_data = config.sigma_data
+        pipe.setup_data_key()
 
         # 2. setup up diffusion processing and scaling~(pre-condition), sampler
         pipe.scheduler = RectifiedFlowAB2Scheduler(
@@ -235,7 +237,9 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
             order=config.timestamps.order,
             t_scaling_factor=config.rectified_flow_t_scaling_factor,
         )
-        pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
+        pipe.scaling = RectifiedFlowScaling(
+            pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
+        )
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
@@ -244,8 +248,13 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
         ), f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
 
         # 4. Load text encoder
-        pipe.text_encoder = CosmosT5TextEncoder(device=device, cache_dir=text_encoder_path)
-        pipe.text_encoder.to(device)
+        if text_encoder_path:
+            # inference
+            pipe.text_encoder = CosmosT5TextEncoder(device=device, cache_dir=text_encoder_path)
+            pipe.text_encoder.to(device)
+        else:
+            # training
+            pipe.text_encoder = None
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
@@ -262,25 +271,41 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
         else:
             pipe.text_guardrail_runner = None
 
-        # 6. Load DiT
-        assert dit_path is not None, "dit_path must be provided to load the model"
-        log.info(f"Loading DiT from {dit_path}")
+        # 6. Set up DiT
+        if dit_path:
+            log.info(f"Loading DiT from {dit_path}")
+        else:
+            log.warning("dit_path not provided, initializing DiT with random weights")
         with init_weights_on_device():
             dit_config = config.net
             pipe.dit = instantiate(dit_config).eval()  # inference
 
-        state_dict = load_state_dict(dit_path)
-        # drop net. prefix
-        state_dict_dit_compatible = dict()
-        for k, v in state_dict.items():
-            if k.startswith("net."):
-                state_dict_dit_compatible[k[4:]] = v
-            else:
-                state_dict_dit_compatible[k] = v
-        # pipe.dit.load_state_dict(state_dict, assign=True)
-        pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
-        del state_dict, state_dict_dit_compatible
-        log.success(f"Successfully loaded DiT from {dit_path}")
+        if dit_path:
+            state_dict = load_state_dict(dit_path)
+            prefix_to_load = "net_ema." if load_ema_to_reg else "net."
+            # drop net. prefix
+            state_dict_dit_compatible = dict()
+            for k, v in state_dict.items():
+                if k.startswith(prefix_to_load):
+                    state_dict_dit_compatible[k[len(prefix_to_load) :]] = v
+                else:
+                    state_dict_dit_compatible[k] = v
+            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+            del state_dict, state_dict_dit_compatible
+            log.success(f"Successfully loaded DiT from {dit_path}")
+
+        # 6-2. Handle EMA
+        if config.ema.enabled:
+            pipe.dit_ema = instantiate(dit_config).eval()
+            pipe.dit_ema.requires_grad_(False)
+
+            pipe.dit_ema_worker = FastEmaModelUpdater()  # default when not using FSDP
+
+            s = config.ema.rate
+            pipe.ema_exp_coefficient = np.roots([1, 7, 16 - s**-2, 12 - s**-2]).real.max()
+            # copying is only necessary when starting the training at iteration 0.
+            # Actual state_dict should be loaded after the pipe is created.
+            pipe.dit_ema_worker.copy_to(src_model=pipe.dit, tgt_model=pipe.dit_ema)
 
         pipe.dit = pipe.dit.to(device=device, dtype=torch_dtype)
         torch.cuda.empty_cache()
@@ -297,10 +322,10 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
     def __call__(
         self,
         prompt: str,
-        input_video_path: str,
+        input_video_path: str, 
         edit_strength: float = 0.5,
-        aspect_ratio: str = "16:9",
         negative_prompt: str = "",
+        aspect_ratio: str = "16:9",
         seed: int = 0,
         guidance: float = 4.0,
         num_sampling_step: int = 35,
@@ -367,7 +392,7 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
                 self.tensor_kwargs["device"],
                 seed,
             )
-            # * self.scheduler.config.sigma_max
+            #* self.scheduler.config.sigma_max
         )
 
         # ------------------------------------------------------------------ #
@@ -385,7 +410,6 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
         timesteps = self.scheduler.timesteps[edit_step:]
 
         x0_prev: torch.Tensor | None = None
-        # x0_prev = latent_state
 
         for i, timestep in enumerate(tqdm(timesteps, desc="Generating image")):
             step = int(timestep)
@@ -431,6 +455,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
+        load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
@@ -456,7 +481,9 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
             t_scaling_factor=config.rectified_flow_t_scaling_factor,
         )
 
-        pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
+        pipe.scaling = RectifiedFlowScaling(
+            pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
+        )
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
@@ -510,16 +537,17 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
 
         if dit_path:
             state_dict = load_state_dict(dit_path)
-        # drop net. prefix
-        state_dict_dit_compatible = dict()
-        for k, v in state_dict.items():
-            if k.startswith("net."):
-                state_dict_dit_compatible[k[4:]] = v
-            else:
-                state_dict_dit_compatible[k] = v
-        pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
-        del state_dict, state_dict_dit_compatible
-        log.success(f"Successfully loaded DiT from {dit_path}")
+            prefix_to_load = "net_ema." if load_ema_to_reg else "net."
+            # drop net. prefix
+            state_dict_dit_compatible = dict()
+            for k, v in state_dict.items():
+                if k.startswith(prefix_to_load):
+                    state_dict_dit_compatible[k[len(prefix_to_load) :]] = v
+                else:
+                    state_dict_dit_compatible[k] = v
+            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+            del state_dict, state_dict_dit_compatible
+            log.success(f"Successfully loaded DiT from {dit_path}")
 
         # 6-2. Handle EMA
         if config.ema.enabled:
@@ -550,7 +578,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         self,
         input_path: str,
         prompt: str,
-        input_video_path: str,
+        input_video_path: str, 
         edit_strength: float = 0.5,
         negative_prompt: str = "",
         aspect_ratio: str = "16:9",
@@ -559,6 +587,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         num_sampling_step: int = 35,
         seed: int = 0,
         use_cuda_graphs: bool = False,
+        return_prompt: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
         width, height = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
@@ -572,7 +601,10 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                return None
+                if return_prompt:
+                    return None, prompt
+                else:
+                    return None
             else:
                 log.success("Passed guardrail on prompt")
         elif self.text_guardrail_runner is None:
@@ -593,7 +625,10 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
             if self.text_guardrail_runner is not None:
                 log.info("Running guardrail check on refined prompt...")
                 if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                    return None
+                    if return_prompt:
+                        return None, prompt
+                    else:
+                        return None
                 else:
                     log.success("Passed guardrail on refined prompt")
             elif self.text_guardrail_runner is None:
@@ -626,11 +661,10 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
             raise ValueError(
                 f"Unsupported file extension: {ext}. Supported extensions are {_IMAGE_EXTENSIONS + _VIDEO_EXTENSIONS}"
             )
-        
+
         # read input video
         input_video = read_and_process_video_first_frames(input_video_path, [height, width], num_video_frames, resize=True)
         
-
         # Prepare the data batch with text embeddings
         data_batch = self._get_data_batch_input(
             vid_input, prompt, negative_prompt, num_latent_conditional_frames=num_latent_conditional_frames
@@ -640,7 +674,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [
@@ -653,7 +687,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         x0_fn = self.get_x0_fn_from_batch(
             data_batch, guidance, is_negative_prompt=True, use_cuda_graphs=use_cuda_graphs
         )
-
+        
         log.info("Encoding input video...")
         input_video = input_video.cuda().to(dtype=torch.bfloat16)
         input_video = input_video.to(**self.tensor_kwargs) / 127.5 - 1.0
@@ -684,7 +718,6 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         scheduler.set_timesteps(num_sampling_step, device=x_sigma_max.device)
 
         # Bring the initial latent into the precision expected by the scheduler
-        # sample = x_sigma_max.to(dtype=torch.float32)
         edit_step = int(num_sampling_step * (1 - edit_strength))
         sample = self.scheduler.add_noise(input_video_latent, x_sigma_max, self.scheduler.timesteps[edit_step:edit_step+1])
         sample = sample.to(dtype=torch.float32)
@@ -723,7 +756,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
 
         # Decode
         video = self.decode(samples)  # shape: (B, C, T, H, W), possibly out of [-1, 1]
-        
+
         # Run video guardrail on the generated video and apply postprocessing
         if self.video_guardrail_runner is not None:
             # Clamp to safe range before normalization
@@ -738,7 +771,10 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
             # Run guardrail
             processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)
             if processed_frames is None:
-                return None
+                if return_prompt:
+                    return None, None, prompt
+                else:
+                    return None, None
             else:
                 log.success("Passed guardrail on generated video")
 
@@ -750,4 +786,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
             video = processed_video.to(video.device, dtype=video.dtype)
 
         log.success("Video generation completed successfully")
-        return video, input_video.float()
+        if return_prompt:
+            return video, input_video.float(), prompt
+        else:
+            return video, input_video.float()

@@ -20,29 +20,28 @@ import os
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
+import time
 import torch
 import torch.distributed
-from tqdm import tqdm
-import time
-import numpy as np
-from PIL import Image, ImageDraw, ImageFont
 
 from cosmos_predict2.pipelines.video2video_sdedit import Text2ImageSDEditPipeline, Video2WorldSDEditPipeline
+from cosmos_predict2.configs.base.config_video2world import (
+    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
+    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
+    PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B,
+    PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B,
+)
 from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
 )
-from cosmos_predict2.configs.base.config_video2world import (
-    PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-    PREDICT2_VIDEO2WORLD_PIPELINE_14B,
-)
 
 # Import functionality from other example scripts
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, cleanup_distributed, validate_input_file
-from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
-from imaginaire.utils.easy_io import easy_io
 
+from imaginaire.utils import distributed, log, misc
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
+from imaginaire.utils.easy_io import easy_io
 
 _DEFAULT_POSITIVE_PROMPT = "A point-of-view video shot from inside a vehicle, capturing a snowy suburban street in the winter filled with snow on the side of the road."
 
@@ -143,7 +142,6 @@ def concatenate_videos_with_title(output_video_path: str,
         log.error(f"Concatenation failed: {e}")
         return None
 
-
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Text to World Generation with Cosmos Predict2")
     # Common arguments between text2image and video2world
@@ -165,6 +163,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=_DEFAULT_NEGATIVE_PROMPT,
         help="Negative text prompt for video2world generation",
+    )
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
     )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
@@ -205,10 +210,21 @@ def parse_args() -> argparse.Namespace:
         help="FPS of the model to use for video-to-world generation",
     )
     parser.add_argument(
-        "--dit_path",
+        "--dit_path_text2image",
         type=str,
         default="",
-        help="Custom path to the DiT model checkpoint for post-trained models.",
+        help="Custom path to the DiT model checkpoint for post-trained text2image models.",
+    )
+    parser.add_argument(
+        "--dit_path_video2world",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained video2world models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument("--guidance", type=float, default=7, help="Guidance value for video generation")
     parser.add_argument("--offload_guardrail", action="store_true", help="Offload guardrail to CPU to save GPU memory")
@@ -218,16 +234,43 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--offload_prompt_refiner", action="store_true", help="Offload prompt refiner to CPU to save GPU memory"
     )
+    parser.add_argument(
+        "--natten",
+        action="store_true",
+        help="Run the sparse attention variant (with NATTEN).",
+    )
 
     parser.add_argument("--input_video_path", type=str, default="assets/video2world/input3.mp4", help="Path to the input video")
     parser.add_argument("--text2image_edit_strength", type=float, default=0.4, help="Strength of the text2image edit (0.0-1.0)")
     parser.add_argument("--video2world_edit_strength", type=float, default=0.8, help="Strength of the video2world edit (0.0-1.0)")
     return parser.parse_args()
 
-# Setup pipelines
 def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
     log.info(f"Using model size: {args.model_size}")
-    if args.model_size == "2B":
+    if hasattr(args, "natten") and args.natten:
+        assert args.model_size in ["2B", "14B"]
+        config = (
+            PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B
+            if args.model_size == "2B"
+            else PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B
+        )
+
+        config.resolution = args.resolution
+
+        if args.fps == 10:
+            config.state_t = 16
+
+        if args.resolution != "720":
+            raise NotImplementedError("Cosmos-Predict2 + NATTEN only supports 720p inference at the moment.")
+
+        if args.aspect_ratio != "16:9":
+            raise NotImplementedError("Cosmos-Predict2 + NATTEN only supports 16:9 aspect ratio at the moment.")
+
+        dit_path = (
+            f"checkpoints/nvidia/Cosmos-Predict2-{args.model_size}-Video2World/model-720p-{args.fps}fps-natten.pt"
+        )
+
+    elif args.model_size == "2B":
         config = PREDICT2_VIDEO2WORLD_PIPELINE_2B
 
         config.resolution = args.resolution
@@ -248,9 +291,10 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 
+    log.info(f"Using dit_path: {dit_path}")
+
     # Only set up text encoder path if no encoder is provided
     text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
-    log.info(f"Using dit_path: {dit_path}")
     if text_encoder is not None:
         log.info("Using provided text encoder")
     else:
@@ -296,13 +340,14 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
     config.prompt_refiner_config.offload_model_to_cpu = args.offload_prompt_refiner
 
     # Load models
-    log.info(f"Initializing Video2WorldPipeline with model size: {args.model_size}")
+    log.info(f"Initializing Video2WorldSDEditPipeline with model size: {args.model_size}")
     pipe = Video2WorldSDEditPipeline.from_config(
         config=config,
         dit_path=dit_path,
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
     )
 
@@ -312,7 +357,7 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
 
     return pipe
 
-def setup_text2image_pipeline(args: argparse.Namespace) -> Text2ImageSDEditPipeline:
+def setup_text2image_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImageSDEditPipeline:
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_2B
@@ -322,6 +367,16 @@ def setup_text2image_pipeline(args: argparse.Namespace) -> Text2ImageSDEditPipel
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
+    if hasattr(args, "dit_path") and args.dit_path:
+        dit_path = args.dit_path
+
+    log.info(f"Using dit_path: {dit_path}")
+    # Only set up text encoder path if no encoder is provided
+    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
+    if text_encoder is not None:
+        log.info("Using provided text encoder")
+    else:
+        log.info(f"Using text encoder from: {text_encoder_path}")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -355,6 +410,7 @@ def setup_text2image_pipeline(args: argparse.Namespace) -> Text2ImageSDEditPipel
                 dit_path=dit_path,
                 device="cuda",
                 torch_dtype=torch.bfloat16,
+                load_ema_to_reg=args.load_ema,
             )
             return pipe
         else:
@@ -386,13 +442,31 @@ def setup_text2image_pipeline(args: argparse.Namespace) -> Text2ImageSDEditPipel
         pipe = Text2ImageSDEditPipeline.from_config(
             config=config,
             dit_path=dit_path,
+            text_encoder_path=text_encoder_path,
             device="cuda",
             torch_dtype=torch.bfloat16,
+            load_ema_to_reg=args.load_ema,
         )
+
+        # Set the provided text encoder if one was passed
+        if text_encoder is not None:
+            pipe.text_encoder = text_encoder
+
         return pipe
 
-# Process generation methods
-def process_single_image_generation(pipe, prompt, output_path, negative_prompt, seed, use_cuda_graphs, benchmark, edit_strength, input_video_path):
+
+def process_single_image_generation(
+    pipe: Text2ImageSDEditPipeline,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    seed: int,
+    use_cuda_graphs: bool,
+    benchmark: bool,
+    edit_strength: float,
+    input_video_path: str,
+) -> bool:
     log.info(f"Running Text2ImagePipeline\nprompt: {prompt}")
 
     # When benchmarking, run inference 4 times, exclude the 1st due to warmup and average time.
@@ -408,14 +482,18 @@ def process_single_image_generation(pipe, prompt, output_path, negative_prompt, 
             edit_strength=edit_strength,
             input_video_path=input_video_path,
             negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
             seed=seed,
             use_cuda_graphs=use_cuda_graphs,
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
-            time_sum += time.time() - start_time
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
     if benchmark:
-        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_sum / 3} seconds.")
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_avg:.1f} seconds.")
 
     if image is not None:
         # save the generated image
@@ -425,11 +503,30 @@ def process_single_image_generation(pipe, prompt, output_path, negative_prompt, 
         log.info(f"Saving generated image to: {output_path}")
         save_image_or_video(image, output_path)
         log.success(f"Successfully saved image to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 
-def process_single_video_generation(pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, 
-                                    guidance, seed, edit_strength, image_edit_strength, input_video_path, benchmark=False):
+def process_single_video_generation(
+    pipe: Video2WorldSDEditPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    guidance: float,
+    seed: int,
+    benchmark: bool = False,
+    use_cuda_graphs: bool = False,
+    edit_strength: float= 0.8,
+    image_edit_strength: float = 0.4,
+    input_video_path: str = "",
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -443,28 +540,34 @@ def process_single_video_generation(pipe, input_path, prompt, output_path, negat
         if benchmark and i > 0:
             torch.cuda.synchronize()
             start_time = time.time()
-        video, input_video = pipe(
+        video, input_video, prompt_used = pipe(
             prompt=prompt,
+            edit_strength=edit_strength,	
+	        input_video_path=input_video_path,
             negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
             input_path=input_path,
             num_conditional_frames=num_conditional_frames,
             guidance=guidance,
             seed=seed,
-            edit_strength=edit_strength,
-            input_video_path=input_video_path,
+            use_cuda_graphs=use_cuda_graphs,
+            return_prompt=True,
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
-            time_sum += time.time() - start_time
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
     if benchmark:
-        log.critical(f"The benchmarked generation time for Video2WorldPipeline is {time_sum / 3} seconds.")
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"Average generation time for Video2WorldPipeline is {time_avg:.1f} seconds.")
 
     if video is not None:
         # save the generated video
         output_dir = os.path.dirname(output_path)
         if output_dir:
             os.makedirs(output_dir, exist_ok=True)
-        log.info(f"Saving generated video to: {output_path}")
+        log.info(f"Saving the generated video to: {output_path}")
         if pipe.config.state_t == 16:
             fps = 10
         else:
@@ -472,7 +575,8 @@ def process_single_video_generation(pipe, input_path, prompt, output_path, negat
 
         save_image_or_video(video, output_path, fps=fps)
         log.success(f"Successfully saved video to: {output_path}")
-        
+
+        # Save the input video
         input_video_save_path = output_path.replace(".mp4", "_input.mp4")
         save_image_or_video(input_video, input_video_save_path, fps=fps)
         log.success(f"Successfully saved input video to: {input_video_save_path}")
@@ -487,11 +591,23 @@ def process_single_video_generation(pipe, input_path, prompt, output_path, negat
         
         if concatenated_path:
             log.success(f"Successfully created concatenated video: {concatenated_path}")
-        
+
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            prompts_to_save["refined_prompt"] = prompt_used
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
+
         return True
     return False
 
-# Generate methods
+
 def generate_first_frames(text2image_pipe: Text2ImageSDEditPipeline, args: argparse.Namespace) -> list:
     """
     Generate first frames using the text2image pipeline.
@@ -534,11 +650,12 @@ def generate_first_frames(text2image_pipe: Text2ImageSDEditPipeline, args: argpa
                     prompt=prompt,
                     output_path=temp_image_name,
                     negative_prompt=args.negative_prompt,
+                    aspect_ratio=args.aspect_ratio,
                     seed=args.seed,
                     use_cuda_graphs=args.use_cuda_graphs,
                     benchmark=args.benchmark,
                     edit_strength=args.text2image_edit_strength,
-                    input_video_path=args.input_video_path,
+	    input_video_path=args.input_video_path,
                 ):
                     # Save the item for the second stage
                     batch_items.append(
@@ -559,11 +676,12 @@ def generate_first_frames(text2image_pipe: Text2ImageSDEditPipeline, args: argpa
                 prompt=args.prompt,
                 output_path=temp_image_path,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
                 benchmark=args.benchmark,
                 edit_strength=args.text2image_edit_strength,
-                input_video_path=args.input_video_path,
+	            input_video_path=args.input_video_path,
             ):
                 # Add single item to batch_items for consistent processing
                 batch_items.append(
@@ -608,13 +726,15 @@ def generate_videos(video2world_pipe: Video2WorldSDEditPipeline, batch_items: li
             prompt=prompt,
             output_path=output_video,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=1,  # Always use 1 frame for text2world
             guidance=args.guidance,
             seed=args.seed,
+            benchmark=args.benchmark,
+            use_cuda_graphs=args.use_cuda_graphs,
             edit_strength=args.video2world_edit_strength,
             image_edit_strength=args.text2image_edit_strength,
             input_video_path=args.input_video_path,
-            benchmark=args.benchmark,
         )
 
         # # Clean up the temporary image file
@@ -645,6 +765,7 @@ if __name__ == "__main__":
         text_encoder = None
 
         log.info("Step 1: Initializing text2image pipeline...")
+        args.dit_path = args.dit_path_text2image
         text2image_pipe = setup_text2image_pipeline(args)
 
         # Handle the case where setup_text2image_pipeline returns None for non-rank-0 processes
@@ -677,6 +798,7 @@ if __name__ == "__main__":
             log.info(f"Rank {rank}: Will create new text encoder for video2world pipeline")
 
         # Pass all video2world relevant arguments and the text encoder
+        args.dit_path = args.dit_path_video2world
         video2world_pipe = setup_video2world_pipeline(args, text_encoder=text_encoder)
 
         # Generate videos
