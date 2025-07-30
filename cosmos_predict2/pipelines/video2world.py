@@ -300,13 +300,14 @@ class Video2WorldPipeline(BasePipeline):
     ) -> Any:
         # Create a pipe
         pipe = Video2WorldPipeline(device=device, torch_dtype=torch_dtype)
+        config.tokenizer.device = device
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,
             "float16": torch.float16,
             "bfloat16": torch.bfloat16,
         }[config.precision]
-        pipe.tensor_kwargs = {"device": "cuda", "dtype": pipe.precision}
+        pipe.tensor_kwargs = {"device": device, "dtype": pipe.precision}
         log.warning(f"precision {pipe.precision}")
 
         # 1. set data keys and data information
@@ -862,19 +863,20 @@ class Video2WorldPipeline(BasePipeline):
             raise ValueError(
                 f"Unsupported file extension: {ext}. Supported extensions are {_IMAGE_EXTENSIONS + _VIDEO_EXTENSIONS}"
             )
-
-        # Prepare the data batch with text embeddings
-        data_batch = self._get_data_batch_input(
-            vid_input, prompt, negative_prompt, num_latent_conditional_frames=num_latent_conditional_frames
-        )
-
-        return self._process_batch(
-            data_batch=data_batch,
-            guidance=guidance,
-            seed=seed,
-            num_sampling_step=num_sampling_step,
-            use_cuda_graphs=use_cuda_graphs,
-        )
+            
+        with torch.cuda.device(self.tensor_kwargs["device"]):
+            # Prepare the data batch with text embeddings
+            data_batch = self._get_data_batch_input(
+                vid_input, prompt, negative_prompt, num_latent_conditional_frames=num_latent_conditional_frames
+            )
+            
+            return self._process_batch(
+                data_batch=data_batch,
+                guidance=guidance,
+                seed=seed,
+                num_sampling_step=num_sampling_step,
+                use_cuda_graphs=use_cuda_graphs,
+            )
 
     @torch.no_grad()
     def _process_batch(
