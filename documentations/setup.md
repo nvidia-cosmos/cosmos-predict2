@@ -41,10 +41,10 @@ Install the package using your preferred environment:
 
    Install system dependencies:
 
-   * conda: https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html
+   * conda/mamba
 
    ```sh
-   just install-conda
+   just install-conda <conda|mamba|micromamba>
    conda activate cosmos-predict2
    ```
 
@@ -52,7 +52,7 @@ Install the package using your preferred environment:
 
    Install system dependencies:
 
-   * CUDA 12.6: https://developer.nvidia.com/cuda-12-6-0-download-archive
+   * [CUDA 12.6](https://developer.nvidia.com/cuda-12-6-0-download-archive)
    * clang
 
    ```sh

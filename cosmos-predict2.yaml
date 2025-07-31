@@ -1,6 +1,7 @@
 name: cosmos-predict2
 channels:
   - conda-forge
+  - nodefaults
 dependencies:
   - python=3.10
   - clang=20.1.8
