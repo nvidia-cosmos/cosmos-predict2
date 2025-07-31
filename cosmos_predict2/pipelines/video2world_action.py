@@ -134,7 +134,7 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
             state_dict_dit_compatible = dict()
             for k, v in state_dict.items():
                 if k.startswith(prefix_to_load):
-                    state_dict_dit_compatible[k[4:]] = v
+                    state_dict_dit_compatible[k[len(prefix_to_load):]] = v
                 else:
                     state_dict_dit_compatible[k] = v
             pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
