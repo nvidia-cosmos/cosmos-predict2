@@ -133,7 +133,7 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
             # drop net. prefix
             state_dict_dit_compatible = dict()
             for k, v in state_dict.items():
-                if k.startswith("net."):
+                if k.startswith(prefix_to_load):
                     state_dict_dit_compatible[k[4:]] = v
                 else:
                     state_dict_dit_compatible[k] = v
