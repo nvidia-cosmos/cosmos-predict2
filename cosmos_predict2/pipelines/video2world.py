@@ -15,6 +15,7 @@
 
 import math
 import os
+from contextlib import contextmanager
 from typing import Any, Callable, Dict, List, Tuple, Union
 
 import numpy as np
@@ -24,11 +25,12 @@ from einops import rearrange
 from megatron.core import parallel_state
 from PIL import Image
 from torch.distributed.device_mesh import DeviceMesh
-from torch.distributed.fsdp import fully_shard
+from torch.distributed.fsdp import FSDPModule, fully_shard
+from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
 from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
-from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
 from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
@@ -268,6 +270,7 @@ class Video2WorldPipeline(BasePipeline):
         text_encoder_path: str = "",
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
+        load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
@@ -293,7 +296,9 @@ class Video2WorldPipeline(BasePipeline):
             t_scaling_factor=config.rectified_flow_t_scaling_factor,
         )
 
-        pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
+        pipe.scaling = RectifiedFlowScaling(
+            pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
+        )
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
@@ -347,16 +352,17 @@ class Video2WorldPipeline(BasePipeline):
 
         if dit_path:
             state_dict = load_state_dict(dit_path)
-        # drop net. prefix
-        state_dict_dit_compatible = dict()
-        for k, v in state_dict.items():
-            if k.startswith("net."):
-                state_dict_dit_compatible[k[4:]] = v
-            else:
-                state_dict_dit_compatible[k] = v
-        pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
-        del state_dict, state_dict_dit_compatible
-        log.success(f"Successfully loaded DiT from {dit_path}")
+            prefix_to_load = "net_ema." if load_ema_to_reg else "net."
+            # drop net. prefix
+            state_dict_dit_compatible = dict()
+            for k, v in state_dict.items():
+                if k.startswith(prefix_to_load):
+                    state_dict_dit_compatible[k[len(prefix_to_load) :]] = v
+                else:
+                    state_dict_dit_compatible[k] = v
+            pipe.dit.load_state_dict(state_dict_dit_compatible, strict=False, assign=True)
+            del state_dict, state_dict_dit_compatible
+            log.success(f"Successfully loaded DiT from {dit_path}")
 
         # 6-2. Handle EMA
         if config.ema.enabled:
@@ -383,7 +389,7 @@ class Video2WorldPipeline(BasePipeline):
         return pipe
 
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
         self.input_image_key = self.config.input_image_key
 
     def apply_fsdp(self, dp_mesh: DeviceMesh) -> None:
@@ -472,14 +478,14 @@ class Video2WorldPipeline(BasePipeline):
                 This tensor is expected to be on a CUDA device and have dtype of torch.uint8.
 
         Side Effects:
-            Modifies the 'input_data_key' tensor within the 'data_batch' dictionary in-place.
+            Modifies the 'input_video_key' tensor within the 'data_batch' dictionary in-place.
 
         Note:
             This operation is performed directly on the CUDA device to avoid the overhead associated
             with moving data to/from the GPU. Ensure that the tensor is already on the appropriate device
             and has the correct dtype (torch.uint8) to avoid unexpected behaviors.
         """
-        input_key = self.input_data_key if input_key is None else input_key
+        input_key = self.input_video_key if input_key is None else input_key
         # only handle video batch
         if input_key in data_batch:
             # Check if the data has already been normalized and avoid re-normalizing
@@ -494,14 +500,21 @@ class Video2WorldPipeline(BasePipeline):
                 data_batch[IS_PREPROCESSED_KEY] = True
 
             if self.config.resize_online:
-                from torchvision.transforms.v2 import UniformTemporalSubsample
+
+                def temporal_sample(video: torch.Tensor, expected_length: int) -> torch.Tensor:
+                    # sample consecutive video frames to match expected_length
+                    original_length = video.shape[2]
+                    if original_length != expected_length:
+                        # video in [B C T H W] format
+                        start_frame = np.random.randint(0, original_length - expected_length)
+                        end_frame = start_frame + expected_length
+                        video = video[:, :, start_frame:end_frame, :, :]
+                    return video
 
                 expected_length = self.tokenizer.get_pixel_num_frames(self.config.state_t)
                 original_length = data_batch[input_key].shape[2]
                 if original_length != expected_length:
-                    video = rearrange(data_batch[input_key], "b c t h w -> b t c h w")
-                    video = UniformTemporalSubsample(expected_length)(video)
-                    data_batch[input_key] = rearrange(video, "b t c h w -> b c t h w")
+                    data_batch[input_key] = temporal_sample(data_batch[input_key], expected_length)
 
     def _augment_image_dim_inplace(self, data_batch: dict[str, torch.Tensor], input_key: str = None) -> None:
         input_key = self.input_image_key if input_key is None else input_key
@@ -558,13 +571,13 @@ class Video2WorldPipeline(BasePipeline):
 
     def get_data_and_condition(
         self, data_batch: dict[str, torch.Tensor]
-    ) -> Tuple[torch.Tensor, torch.Tensor, T2VCondition]:
+    ) -> Tuple[torch.Tensor, torch.Tensor, TextCondition]:
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
 
         # Latent state
-        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_data_key]
+        raw_state = data_batch[self.input_image_key if is_image_batch else self.input_video_key]
         latent_state = self.encode(raw_state).contiguous().float()
 
         # Condition
@@ -584,20 +597,23 @@ class Video2WorldPipeline(BasePipeline):
         Another comes from a dataloader which we by default assumes as video_data for video model training.
         """
         is_image = self.input_image_key in data_batch
-        is_video = self.input_data_key in data_batch
+        is_video = self.input_video_key in data_batch
         assert (
             is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        ), "Only one of the input_image_key or input_video_key should be present in the data_batch."
         return is_image
 
-    def denoise(self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: T2VCondition) -> DenoisePrediction:
+    def denoise(
+        self, xt_B_C_T_H_W: torch.Tensor, sigma: torch.Tensor, condition: TextCondition, use_cuda_graphs: bool = False
+    ) -> DenoisePrediction:
         """
         Performs denoising on the input noise data, noise level, and condition
 
         Args:
             xt (torch.Tensor): The input noise data.
             sigma (torch.Tensor): The noise level.
-            condition (T2VCondition): conditional information, generated from self.conditioner
+            condition (TextCondition): conditional information, generated from self.conditioner
+            use_cuda_graphs (bool, optional): Whether to use CUDA Graphs for inference. Defaults to False.
 
         Returns:
             DenoisePrediction: The denoised prediction, it includes clean data predicton (x0), \
@@ -662,6 +678,7 @@ class Video2WorldPipeline(BasePipeline):
             x_B_C_T_H_W=net_state_in_B_C_T_H_W.to(**self.tensor_kwargs),
             timesteps_B_T=c_noise_B_1_T_1_1.squeeze(dim=[1, 3, 4]).to(**self.tensor_kwargs),
             **condition.to_dict(),
+            use_cuda_graphs=use_cuda_graphs,
         ).float()
 
         x0_pred_B_C_T_H_W = c_skip_B_1_T_1_1 * xt_B_C_T_H_W + c_out_B_1_T_1_1 * net_output_B_C_T_H_W
@@ -681,6 +698,7 @@ class Video2WorldPipeline(BasePipeline):
         data_batch: Dict,
         guidance: float = 1.5,
         is_negative_prompt: bool = False,
+        use_cuda_graphs: bool = False,
     ) -> Callable:
         """
         Generates a callable function `x0_fn` based on the provided data batch and guidance factor.
@@ -737,8 +755,8 @@ class Video2WorldPipeline(BasePipeline):
             ), "parallel_state is not initialized, context parallel should be turned off."
 
         def x0_fn(noise_x: torch.Tensor, sigma: torch.Tensor) -> torch.Tensor:
-            cond_x0 = self.denoise(noise_x, sigma, condition).x0
-            uncond_x0 = self.denoise(noise_x, sigma, uncondition).x0
+            cond_x0 = self.denoise(noise_x, sigma, condition, use_cuda_graphs=use_cuda_graphs).x0
+            uncond_x0 = self.denoise(noise_x, sigma, uncondition, use_cuda_graphs=use_cuda_graphs).x0
             raw_x0 = cond_x0 + guidance * (cond_x0 - uncond_x0)
             if "guided_image" in data_batch:
                 # replacement trick that enables inpainting with base model
@@ -756,14 +774,16 @@ class Video2WorldPipeline(BasePipeline):
         input_path: str,
         prompt: str,
         negative_prompt: str = "",
+        aspect_ratio: str = "16:9",
         num_conditional_frames: int = 1,
         guidance: float = 7.0,
         num_sampling_step: int = 35,
         seed: int = 0,
-        solver_option: str = "2ab",
+        use_cuda_graphs: bool = False,
+        return_prompt: bool = False,
     ) -> torch.Tensor | None:
         # Parameter check
-        height, width = VIDEO_RES_SIZE_INFO[self.config.resolution]["9,16"]  # type: ignore
+        width, height = VIDEO_RES_SIZE_INFO[self.config.resolution][aspect_ratio]
         height, width = self.check_resize_height_width(height, width)
         assert num_conditional_frames in [1, 5], "num_conditional_frames must be 1 or 5"
         num_latent_conditional_frames = self.tokenizer.get_latent_num_frames(num_conditional_frames)
@@ -774,7 +794,10 @@ class Video2WorldPipeline(BasePipeline):
 
             log.info("Running guardrail check on prompt...")
             if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                return None
+                if return_prompt:
+                    return None, prompt
+                else:
+                    return None
             else:
                 log.success("Passed guardrail on prompt")
         elif self.text_guardrail_runner is None:
@@ -795,7 +818,10 @@ class Video2WorldPipeline(BasePipeline):
             if self.text_guardrail_runner is not None:
                 log.info("Running guardrail check on refined prompt...")
                 if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner):
-                    return None
+                    if return_prompt:
+                        return None, prompt
+                    else:
+                        return None
                 else:
                     log.success("Passed guardrail on refined prompt")
             elif self.text_guardrail_runner is None:
@@ -838,7 +864,7 @@ class Video2WorldPipeline(BasePipeline):
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [
@@ -848,7 +874,9 @@ class Video2WorldPipeline(BasePipeline):
             _W // self.tokenizer.spatial_compression_factor,
         ]
 
-        x0_fn = self.get_x0_fn_from_batch(data_batch, guidance, is_negative_prompt=True)
+        x0_fn = self.get_x0_fn_from_batch(
+            data_batch, guidance, is_negative_prompt=True, use_cuda_graphs=use_cuda_graphs
+        )
 
         log.info("Starting video generation...")
 
@@ -879,7 +907,7 @@ class Video2WorldPipeline(BasePipeline):
 
         x0_prev: torch.Tensor | None = None
 
-        for i, _ in enumerate(scheduler.timesteps):
+        for i, _ in enumerate(tqdm(scheduler.timesteps, desc="Generating world", leave=False)):
             # Current noise level (sigma_t).
             sigma_t = scheduler.sigmas[i].to(sample.device, dtype=torch.float32)
 
@@ -924,7 +952,10 @@ class Video2WorldPipeline(BasePipeline):
             # Run guardrail
             processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)
             if processed_frames is None:
-                return None
+                if return_prompt:
+                    return None, prompt
+                else:
+                    return None
             else:
                 log.success("Passed guardrail on generated video")
 
@@ -936,4 +967,29 @@ class Video2WorldPipeline(BasePipeline):
             video = processed_video.to(video.device, dtype=video.dtype)
 
         log.success("Video generation completed successfully")
-        return video
+        if return_prompt:
+            return video, prompt
+        else:
+            return video
+
+    @contextmanager
+    def ema_scope(self, context: Any = None, is_cpu: bool = False):
+        if self.config.ema.enabled:
+            # https://github.com/pytorch/pytorch/issues/144289
+            for module in self.dit.modules():
+                if isinstance(module, FSDPModule):
+                    module.reshard()
+            self.dit_ema_worker.cache(self.dit.parameters(), is_cpu=is_cpu)
+            self.dit_ema_worker.copy_to(src_model=self.dit_ema, tgt_model=self.dit)
+            if context is not None:
+                log.info(f"{context}: Switched to EMA weights")
+        try:
+            yield None
+        finally:
+            if self.config.ema.enabled:
+                for module in self.dit.modules():
+                    if isinstance(module, FSDPModule):
+                        module.reshard()
+                self.dit_ema_worker.restore(self.dit.parameters())
+                if context is not None:
+                    log.info(f"{context}: Restored training weights")

@@ -13,27 +13,56 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-import attrs
 
-from cosmos_predict2.conditioner import BooleanFlag, ReMapkey, TextAttr
-from cosmos_predict2.configs.action_conditioned.defaults.conditioner import ActionConditionedConditioner
-from cosmos_predict2.configs.base.config_video2world import (
-    ConditioningStrategy,
-    CosmosGuardrailConfig,
-    CosmosReason1Config,
-    SolverTimestampConfig,
-    Video2WorldPipelineConfig,
-)
-from cosmos_predict2.configs.base.defaults.ema import EMAConfig
-from cosmos_predict2.models.action_video2world_dit import ActionConditionedMinimalV1LVGDiT
-from cosmos_predict2.models.text2image_dit import SACConfig
-from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
+from cosmos_predict2.configs.base.config_video2world import Video2WorldPipelineConfig
 from imaginaire.config import make_freezable
+import attrs
+from cosmos_predict2.conditioner import ConditionLocation, ReMapkey, TextAttr, BooleanFlag
+from cosmos_predict2.models.multiview_dit import MultiViewDiT
+from cosmos_predict2.conditioner import MultiViewConditioner
+from imaginaire.config import LazyDict
 from imaginaire.lazy_config import LazyCall as L
-from imaginaire.lazy_config import LazyDict
+from cosmos_predict2.models.text2image_dit import SACConfig
+from cosmos_predict2.configs.base.config_video2world import CosmosReason1Config, CosmosGuardrailConfig, EMAConfig, SolverTimestampConfig, TokenizerInterface, ConditioningStrategy
+from copy import deepcopy
 
-# Cosmos Predict2 Video2World 2B
-ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVGDiT)(
+@make_freezable
+@attrs.define(slots=False)
+class MultiviewPipelineConfig:
+    adjust_video_noise: bool
+    conditioner: LazyDict
+    conditioning_strategy: str
+    min_num_conditional_frames_per_view: int
+    max_num_conditional_frames_per_view: int
+    condition_locations: list[ConditionLocation]
+    # concat_view_embedding: bool
+    # view_condition_dim: int
+    # n_cameras_emb: int
+    sigma_conditional: float
+    net: LazyDict
+    tokenizer: LazyDict
+    prompt_refiner_config: CosmosReason1Config
+    guardrail_config: CosmosGuardrailConfig
+    precision: str
+    rectified_flow_t_scaling_factor: float
+    resize_online: bool
+    resolution: str
+    ema: EMAConfig
+    sigma_data: float = 1.0
+    state_ch: int = 16
+    state_t: int = 24
+    text_encoder_class: str = "T5"
+    input_video_key: str = "video"
+    input_image_key: str = "images"
+    timestamps: SolverTimestampConfig = L(SolverTimestampConfig)(
+        nfe=35,
+        t_min=0.01,
+        t_max=200.0,
+        order=7.0,
+        is_forward=False,
+    )
+    
+PREDICT2_MULTIVIEW_NET_2B_10FPS_7VIEWS_29FRAMES = L(MultiViewDiT)(
     max_img_h=240,
     max_img_w=240,
     max_frames=128,
@@ -49,26 +78,28 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B = L(ActionConditionedMinimalV1LVG
     atten_backend="minimal_a2a",
     # positional embedding settings
     pos_emb_cls="rope3d",
-    pos_emb_learnable=True,
+    pos_emb_learnable=False,
     pos_emb_interpolation="crop",
     use_adaln_lora=True,
     adaln_lora_dim=256,
     rope_h_extrapolation_ratio=3.0,
     rope_w_extrapolation_ratio=3.0,
-    rope_t_extrapolation_ratio=1.0,
+    rope_t_extrapolation_ratio=8.0 / 24.0,
     extra_per_block_abs_pos_emb=False,
     rope_enable_fps_modulation=False,
     sac_config=L(SACConfig)(
         every_n_blocks=1,
         mode="predict2_2b_720",
     ),
-    # NOTE: add action dimension
-    action_dim=7 * 12,
-)
+    state_t=8,
+    n_cameras_emb=7,
+    view_condition_dim=7,
+    concat_view_embedding=True
+)   
 
-ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
+PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES = MultiviewPipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(ActionConditionedConditioner)(
+    conditioner=L(MultiViewConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -82,7 +113,7 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
             output_key="padding_mask",
         ),
         text=L(TextAttr)(
-            dropout_rate=0.2,
+            dropout_rate=0.0,
             input_key=["t5_text_embeddings"],
         ),
         use_video_condition=L(BooleanFlag)(
@@ -90,18 +121,24 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
             input_key="fps",
             output_key="use_video_condition",
         ),
-        # NOTE: add additional action as condition
-        action=L(ReMapkey)(
-            input_key="action",
-            output_key="action",
+        view_indices_B_T=L(ReMapkey)(
+            input_key="latent_view_indices_B_T",
+            output_key="view_indices_B_T",
+            dropout_rate=0.0,
+            dtype=None,
+        ),
+        ref_cam_view_idx_sample_position=L(ReMapkey)(
+            input_key="ref_cam_view_idx_sample_position",
+            output_key="ref_cam_view_idx_sample_position",
             dropout_rate=0.0,
             dtype=None,
         ),
     ),
     conditioning_strategy=str(ConditioningStrategy.FRAME_REPLACE),
-    min_num_conditional_frames=1,
-    max_num_conditional_frames=1,
-    net=ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_NET_2B,
+    min_num_conditional_frames_per_view=0,
+    max_num_conditional_frames_per_view=1,
+    condition_locations=[ConditionLocation.FIRST_RANDOM_N],
+    net=PREDICT2_MULTIVIEW_NET_2B_10FPS_7VIEWS_29FRAMES,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
     resize_online=True,
@@ -110,15 +147,15 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     sigma_conditional=0.0001,
     sigma_data=1.0,
     state_ch=16,
-    state_t=4,
+    state_t=8,
     text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
+        temporal_window=16,
         load_mean_std=False,
         name="tokenizer",
         vae_pth="checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth",
     ),
-    # disable prompt refiner and guardrail for action conditional
     prompt_refiner_config=CosmosReason1Config(
         checkpoint_dir="checkpoints/nvidia/Cosmos-Reason1-7B",
         offload_model_to_cpu=True,
@@ -130,3 +167,5 @@ ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
         enabled=False,
     ),
 )
+
+PREDICT2_MULTIVIEW_PIPELINE_2B_720P_10FPS_7VIEWS_29FRAMES = deepcopy(PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES)

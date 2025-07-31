@@ -18,7 +18,6 @@ from typing import Optional, Type
 import attrs
 from torch.utils.data import IterableDataset
 
-from imaginaire import config
 from imaginaire.config import make_freezable
 from imaginaire.datasets.webdataset.augmentors.augmentor import Augmentor
 

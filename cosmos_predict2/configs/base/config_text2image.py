@@ -15,7 +15,8 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import ReMapkey, TextAttr, VideoConditioner
+from cosmos_predict2.conditioner import ReMapkey, TextAttr, TextConditioner
+from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface, CosmosImageTokenizer
 from imaginaire.config import make_freezable
@@ -48,16 +49,20 @@ class Text2ImagePipelineConfig:
     conditioner: LazyDict
     net: LazyDict
     tokenizer: LazyDict
+    guardrail_config: CosmosGuardrailConfig
     precision: str
     rectified_flow_t_scaling_factor: float
+    rectified_flow_loss_weight_uniform: bool
     resize_online: bool
     resolution: str
-    timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)
+    ema: EMAConfig
     sigma_data: float = 1.0
     state_ch: int = 16
     state_t: int = 24
     text_encoder_class: str = "T5"
-    guardrail_config: CosmosGuardrailConfig = attrs.field(factory=CosmosGuardrailConfig)
+    input_video_key: str = "video"
+    input_image_key: str = "images"
+    timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)
 
 
 # Cosmos Predict2 Text2Image 0.6B
@@ -150,6 +155,7 @@ PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
     num_blocks=28,
     num_heads=16,
     mlp_ratio=4.0,
+    atten_backend="minimal_a2a",
     # cross attention settings
     crossattn_emb_channels=1024,
     # positional embedding settings
@@ -172,7 +178,7 @@ PREDICT2_TEXT2IMAGE_NET_2B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -193,8 +199,10 @@ PREDICT2_TEXT2IMAGE_PIPELINE_2B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
+    ema=L(EMAConfig)(enabled=False),  # defaults to inference
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
@@ -249,7 +257,7 @@ PREDICT2_TEXT2IMAGE_NET_14B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_14B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -270,8 +278,10 @@ PREDICT2_TEXT2IMAGE_PIPELINE_14B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_14B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
+    ema=L(EMAConfig)(enabled=False),  # defaults to inference
     sigma_data=1.0,
     state_ch=16,
     state_t=24,

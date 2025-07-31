@@ -25,7 +25,7 @@ from torch.distributed.device_mesh import init_device_mesh
 from torch.distributed.tensor import DTensor
 from torch.nn.modules.module import _IncompatibleKeys
 
-from cosmos_predict2.conditioner import DataType, T2VCondition
+from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD_PIPELINE_2B, Video2WorldPipelineConfig
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
@@ -41,7 +41,6 @@ from imaginaire.utils import log
 class Predict2ModelManagerConfig:
     # Local path, use it in fast debug run
     dit_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
-    dit_ema_path: str = "checkpoints/nvidia/Cosmos-Predict2-2B-Video2World/model-720p-16fps.pt"
     # For inference
     text_encoder_path: str = ""  # not used in training.
 
@@ -55,7 +54,26 @@ class Predict2Video2WorldModelConfig:
     init_lora_weights: bool = True
 
     precision: str = "bfloat16"
-    input_data_key: str = "video"
+
+    def __attrs_post_init__(self):
+        """Validate LoRA configuration after initialization."""
+        if self.train_architecture == "lora":
+            if self.lora_rank <= 0:
+                raise ValueError(f"LoRA rank must be positive, got {self.lora_rank}")
+            if self.lora_alpha <= 0:
+                raise ValueError(f"LoRA alpha must be positive, got {self.lora_alpha}")
+            if not self.lora_target_modules.strip():
+                raise ValueError("LoRA target_modules cannot be empty")
+
+            # Warn about potentially inefficient configurations
+            if self.lora_rank > 64:
+                log.warning(f"High LoRA rank ({self.lora_rank}) may reduce training efficiency")
+            if self.lora_alpha != self.lora_rank:
+                log.info(
+                    f"LoRA alpha ({self.lora_alpha}) != rank ({self.lora_rank}), scaling factor: {self.lora_alpha/self.lora_rank}"
+                )
+
+    input_video_key: str = "video"
     input_image_key: str = "images"
     loss_reduce: str = "mean"
     loss_scale: float = 10.0
@@ -129,6 +147,8 @@ class Predict2Video2WorldModel(ImaginaireModel):
                     lora_target_modules=config.lora_target_modules,
                     init_lora_weights=config.init_lora_weights,
                 )
+            # Enhanced LoRA logging
+            self._log_lora_statistics()
         else:
             self.pipe.denoising_model().requires_grad_(True)
         total_params = sum(p.numel() for p in self.parameters())
@@ -211,31 +231,115 @@ class Predict2Video2WorldModel(ImaginaireModel):
 
     def add_lora_to_model(
         self,
-        model,
-        lora_rank=4,
-        lora_alpha=4,
-        lora_target_modules="q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2",
-        init_lora_weights=True,
-    ):
-        from peft import LoraConfig, inject_adapter_in_model
+        model: torch.nn.Module,
+        lora_rank: int = 4,
+        lora_alpha: int = 4,
+        lora_target_modules: str = "q_proj,k_proj,v_proj,output_proj,mlp.layer1,mlp.layer2",
+        init_lora_weights: bool = True,
+    ) -> None:
+        """Add LoRA (Low-Rank Adaptation) adapters to the model.
 
-        # Add LoRA to UNet
+        This function injects LoRA adapters into specified modules of the model,
+        enabling parameter-efficient fine-tuning by training only a small number
+        of additional parameters.
+
+        Args:
+            model: The PyTorch model to add LoRA adapters to
+            lora_rank: The rank of the LoRA adaptation matrices. Higher rank allows
+                      more expressiveness but uses more parameters (default: 4)
+            lora_alpha: Scaling parameter for LoRA. Controls the magnitude of the
+                       LoRA adaptation (default: 4)
+            lora_target_modules: Comma-separated string of module names to target
+                               for LoRA adaptation (default: attention and MLP layers)
+            init_lora_weights: Whether to initialize LoRA weights properly (default: True)
+
+        Raises:
+            ImportError: If PEFT library is not installed
+            ValueError: If invalid parameters are provided
+            RuntimeError: If LoRA injection fails
+        """
+        try:
+            from peft import LoraConfig, inject_adapter_in_model
+        except ImportError as e:
+            raise ImportError(
+                "PEFT library is required for LoRA training. Please install it with: pip install peft"
+            ) from e
+
+        # Validate parameters
+        if lora_rank <= 0:
+            raise ValueError(f"LoRA rank must be positive, got {lora_rank}")
+        if lora_alpha <= 0:
+            raise ValueError(f"LoRA alpha must be positive, got {lora_alpha}")
+
+        target_modules_list = [module.strip() for module in lora_target_modules.split(",")]
+        if not target_modules_list:
+            raise ValueError("LoRA target_modules cannot be empty")
+
+        # Validate target modules exist in model
+        model_module_names = set(name for name, _ in model.named_modules())
+        invalid_modules = []
+        for target_module in target_modules_list:
+            # Check if any module contains this target pattern
+            if not any(target_module in module_name for module_name in model_module_names):
+                invalid_modules.append(target_module)
+
+        if invalid_modules:
+            log.warning(f"Target modules not found in model: {invalid_modules}")
+
+        # Add LoRA to model
         self.lora_alpha = lora_alpha
+
+        log.info(f"Adding LoRA adapters: rank={lora_rank}, alpha={lora_alpha}, targets={target_modules_list}")
 
         lora_config = LoraConfig(
             r=lora_rank,
             lora_alpha=lora_alpha,
             init_lora_weights=init_lora_weights,
-            target_modules=lora_target_modules.split(","),
+            target_modules=target_modules_list,
         )
-        model = inject_adapter_in_model(lora_config, model)
-        for param in model.parameters():
-            # Upcast LoRA parameters into fp32
+
+        try:
+            model = inject_adapter_in_model(lora_config, model)
+        except Exception as e:
+            raise RuntimeError(f"Failed to inject LoRA adapters into model: {e}") from e
+
+        # Count and log LoRA parameters
+        lora_params = 0
+        total_params = 0
+        for name, param in model.named_parameters():
+            total_params += param.numel()
             if param.requires_grad:
+                lora_params += param.numel()
+                # Upcast LoRA parameters into fp32
                 param.data = param.to(torch.float32)
 
+        log.info(
+            f"LoRA injection successful: {lora_params:,} trainable parameters out of {total_params:,} total ({100*lora_params/total_params:.3f}%)"
+        )
+
+    def _log_lora_statistics(self) -> None:
+        """Log detailed LoRA parameter statistics."""
+        lora_params_by_type = {}
+        total_lora_params = 0
+
+        for name, param in self.pipe.dit.named_parameters():
+            if param.requires_grad and "lora" in name.lower():
+                param_type = "lora_A" if "lora_A" in name else "lora_B" if "lora_B" in name else "other_lora"
+                if param_type not in lora_params_by_type:
+                    lora_params_by_type[param_type] = 0
+                lora_params_by_type[param_type] += param.numel()
+                total_lora_params += param.numel()
+
+        if total_lora_params > 0:
+            log.info("LoRA parameter breakdown:")
+            for param_type, count in lora_params_by_type.items():
+                log.info(f"  {param_type}: {count:,} parameters")
+            log.info(f"  Total LoRA: {total_lora_params:,} parameters")
+        else:
+            log.warning("No LoRA parameters found in model")
+
     def setup_data_key(self) -> None:
-        self.input_data_key = self.config.input_data_key  # by default it is video key for Video diffusion model
+        self.input_video_key = self.config.input_video_key  # by default it is video key for Video diffusion model
         self.input_image_key = self.config.input_image_key
 
     def is_image_batch(self, data_batch: dict[str, torch.Tensor]) -> bool:
@@ -243,15 +347,15 @@ class Predict2Video2WorldModel(ImaginaireModel):
         Another comes from a dataloader which we by default assumes as video_data for video model training.
         """
         is_image = self.input_image_key in data_batch
-        is_video = self.input_data_key in data_batch
+        is_video = self.input_video_key in data_batch
         assert (
             is_image != is_video
-        ), "Only one of the input_image_key or input_data_key should be present in the data_batch."
+        ), "Only one of the input_image_key or input_video_key should be present in the data_batch."
         return is_image
 
     def _update_train_stats(self, data_batch: dict[str, torch.Tensor]) -> None:
         is_image = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image else self.input_data_key
+        input_key = self.input_image_key if is_image else self.input_video_key
         if isinstance(self.pipe.dit, WeightTrainingStat):
             if is_image:
                 self.pipe.dit.accum_image_sample_counter += data_batch[input_key].shape[0] * self.data_parallel_size
@@ -292,7 +396,7 @@ class Predict2Video2WorldModel(ImaginaireModel):
     def compute_loss_with_epsilon_and_sigma(
         self,
         x0_B_C_T_H_W: torch.Tensor,
-        condition: T2VCondition,
+        condition: TextCondition,
         epsilon_B_C_T_H_W: torch.Tensor,
         sigma_B_T: torch.Tensor,
     ) -> Tuple[dict, torch.Tensor, torch.Tensor, torch.Tensor]:
@@ -382,6 +486,10 @@ class Predict2Video2WorldModel(ImaginaireModel):
             raise ValueError(f"Invalid loss_reduce: {self.loss_reduce}")
 
         return output_batch, kendall_loss
+
+    @torch.no_grad()
+    def validation_step(self, data_batch: dict, data_batch_idx: int) -> tuple[dict, torch.Tensor]:
+        return self.training_step(data_batch, data_batch_idx)
 
     # ------------------ Checkpointing ------------------
 

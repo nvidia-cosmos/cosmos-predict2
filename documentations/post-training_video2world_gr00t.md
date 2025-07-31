@@ -125,7 +125,7 @@ checkpoints/posttraining/video2world/2b_groot_gr1_480/checkpoints/
 ├── latest_checkpoint.txt
 ```
 
-##### Cosmos-Predict2-14B-Video2World
+#### Cosmos-Predict2-14B-Video2World
 
 Run the following command to execute an example post-training job with `GR1` data with 4 nodes with 8 GPUs.
 ```bash
@@ -182,7 +182,7 @@ huggingface-cli download nvidia/EVAL-175 --repo-type dataset --local-dir dream_g
 ```bash
 python -m scripts.prepare_batch_input_json \
   --dataset_path dream_gen_benchmark/gr1_object/ \
-  --save_path results/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
+  --save_path output/dream_gen_benchmark/cosmos_predict2_14b_gr1_object/ \
   --output_path dream_gen_benchmark/gr1_object/batch_input.json
 ```
 

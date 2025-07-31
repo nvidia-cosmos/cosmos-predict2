@@ -34,7 +34,7 @@ from cosmos_predict2.configs.base.config_video2world import PREDICT2_VIDEO2WORLD
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from examples.video2world import _DEFAULT_NEGATIVE_PROMPT, validate_input_file
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 
 def parse_args() -> argparse.Namespace:
@@ -50,6 +50,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument(
         "--prompt",
@@ -68,6 +73,13 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default=_DEFAULT_NEGATIVE_PROMPT,
         help="Negative text prompt for video-to-world generation",
+    )
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
     )
     parser.add_argument(
         "--num_conditional_frames",
@@ -160,6 +172,7 @@ def setup_pipeline(args: argparse.Namespace):
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=False,  # Disable prompt refiner for GR00T
     )
 
@@ -167,8 +180,17 @@ def setup_pipeline(args: argparse.Namespace):
 
 
 def process_single_generation(
-    pipe, input_path, prompt, output_path, negative_prompt, num_conditional_frames, guidance, seed, prompt_prefix
-):
+    pipe: Video2WorldPipeline,
+    input_path: str,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    num_conditional_frames: int,
+    guidance: float,
+    seed: int,
+    prompt_prefix: str,
+) -> bool:
     # Validate input file
     if not validate_input_file(input_path, num_conditional_frames):
         log.warning(f"Input file validation failed: {input_path}")
@@ -178,13 +200,15 @@ def process_single_generation(
     full_prompt = prompt_prefix + prompt
     log.info(f"Running Video2WorldPipeline\ninput: {input_path}\nprompt: {full_prompt}")
 
-    video = pipe(
+    video, prompt_used = pipe(
         prompt=full_prompt,
         negative_prompt=negative_prompt,
+        aspect_ratio=aspect_ratio,
         input_path=input_path,
         num_conditional_frames=num_conditional_frames,
         guidance=guidance,
         seed=seed,
+        return_prompt=True,
     )
 
     if video is not None:
@@ -195,6 +219,17 @@ def process_single_generation(
         log.info(f"Saving generated video to: {output_path}")
         save_image_or_video(video, output_path, fps=16)
         log.success(f"Successfully saved video to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
+        if (
+            pipe.prompt_refiner is not None
+            and getattr(pipe.config, "prompt_refiner_config", None) is not None
+            and getattr(pipe.config.prompt_refiner_config, "enabled", False)
+        ):
+            prompts_to_save["refined_prompt"] = prompt_used
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 
@@ -222,6 +257,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
                 prompt=prompt,
                 output_path=output_video,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 num_conditional_frames=args.num_conditional_frames,
                 guidance=args.guidance,
                 seed=args.seed,
@@ -234,6 +270,7 @@ def generate_video(args: argparse.Namespace, pipe: Video2WorldPipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             num_conditional_frames=args.num_conditional_frames,
             guidance=args.guidance,
             seed=args.seed,

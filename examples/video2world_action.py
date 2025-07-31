@@ -16,7 +16,6 @@
 import argparse
 import json
 import os
-import pdb
 
 import mediapy as mp
 import numpy as np
@@ -27,10 +26,8 @@ os.environ["TOKENIZERS_PARALLELISM"] = "false"
 import torch
 from megatron.core import parallel_state
 
-from cosmos_predict2.configs.action_conditioned.config_action_conditioned import (
-    ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B,
-)
-from cosmos_predict2.pipelines.action_video2world import ActionConditionedVideo2WorldPipeline
+from cosmos_predict2.configs.action_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
+from cosmos_predict2.pipelines.video2world_action import Video2WorldActionConditionedPipeline
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
 
@@ -61,6 +58,11 @@ def parse_args() -> argparse.Namespace:
         type=str,
         default="",
         help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
     )
     parser.add_argument(
         "--input_video",
@@ -112,7 +114,7 @@ def parse_args() -> argparse.Namespace:
 def setup_pipeline(args: argparse.Namespace):
     log.info(f"Using model size: {args.model_size}")
     if args.model_size == "2B":
-        config = ACTION_CONDITIONED_PREDICT2_VIDEO2WORLD_PIPELINE_2B
+        config = PREDICT2_VIDEO2WORLD_PIPELINE_2B_ACTION_CONDITIONED
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned/model-480p-4fps.pth"
     else:
         raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
@@ -149,12 +151,13 @@ def setup_pipeline(args: argparse.Namespace):
 
     # Load models
     log.info(f"Initializing Video2WorldPipeline with model size: {args.model_size}")
-    pipe = ActionConditionedVideo2WorldPipeline.from_config(
+    pipe = Video2WorldActionConditionedPipeline.from_config(
         config=config,
         dit_path=dit_path,
         text_encoder_path=text_encoder_path,
         device="cuda",
         torch_dtype=torch.bfloat16,
+        load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
     )
 
@@ -212,7 +215,7 @@ def process_single_generation(
     return False
 
 
-def generate_video(args: argparse.Namespace, pipe: ActionConditionedVideo2WorldPipeline) -> None:
+def generate_video(args: argparse.Namespace, pipe: Video2WorldActionConditionedPipeline) -> None:
     process_single_generation(
         pipe=pipe,
         input_path=args.input_video,

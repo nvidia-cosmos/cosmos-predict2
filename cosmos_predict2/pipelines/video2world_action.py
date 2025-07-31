@@ -37,7 +37,7 @@ _VIDEO_EXTENSIONS = [".mp4"]
 NUM_CONDITIONAL_FRAMES_KEY: str = "num_conditional_frames"
 
 
-class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
+class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         super().__init__(device=device, torch_dtype=torch_dtype)
 
@@ -51,7 +51,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         load_prompt_refiner: bool = False,
     ) -> Any:
         # Create a pipe
-        pipe = ActionConditionedVideo2WorldPipeline(device=device, torch_dtype=torch_dtype)
+        pipe = Video2WorldActionConditionedPipeline(device=device, torch_dtype=torch_dtype)
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,
@@ -73,7 +73,9 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
             t_scaling_factor=config.rectified_flow_t_scaling_factor,
         )
 
-        pipe.scaling = RectifiedFlowScaling(pipe.sigma_data, config.rectified_flow_t_scaling_factor)
+        pipe.scaling = RectifiedFlowScaling(
+            pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
+        )
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
@@ -226,7 +228,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         solver_option: str = "2ab",
     ) -> torch.Tensor | None:
         # Parameter check
-        # height, width = VIDEO_RES_SIZE_INFO[self.config.resolution]["9,16"]  # type: ignore
+        # width, height = VIDEO_RES_SIZE_INFO[self.config.resolution]["16:9"]  # type: ignore
         # height, width = self.check_resize_height_width(height, width)
         assert num_conditional_frames in [1, 5], "num_conditional_frames must be 1 or 5"
         num_latent_conditional_frames = self.tokenizer.get_latent_num_frames(num_conditional_frames)
@@ -250,7 +252,7 @@ class ActionConditionedVideo2WorldPipeline(Video2WorldPipeline):
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
         is_image_batch = self.is_image_batch(data_batch)
-        input_key = self.input_image_key if is_image_batch else self.input_data_key
+        input_key = self.input_image_key if is_image_batch else self.input_video_key
         n_sample = data_batch[input_key].shape[0]
         _T, _H, _W = data_batch[input_key].shape[-3:]
         state_shape = [

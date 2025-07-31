@@ -24,7 +24,6 @@ import time
 
 import torch
 from megatron.core import parallel_state
-from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_0P6B,
@@ -33,7 +32,7 @@ from cosmos_predict2.configs.base.config_text2image import (
 )
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from imaginaire.utils import distributed, log, misc
-from imaginaire.utils.io import save_image_or_video
+from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 
@@ -46,6 +45,17 @@ def parse_args() -> argparse.Namespace:
         default="2B",
         help="Size of the model to use for text-to-image generation",
     )
+    parser.add_argument(
+        "--dit_path",
+        type=str,
+        default="",
+        help="Custom path to the DiT model checkpoint for post-trained models.",
+    )
+    parser.add_argument(
+        "--load_ema",
+        action="store_true",
+        help="Use EMA weights for generation.",
+    )
     parser.add_argument("--prompt", type=str, default=_DEFAULT_POSITIVE_PROMPT, help="Text prompt for image generation")
     parser.add_argument(
         "--batch_input_json",
@@ -54,6 +64,13 @@ def parse_args() -> argparse.Namespace:
         help="Path to JSON file containing batch inputs. Each entry should have 'prompt' and 'output_image' fields.",
     )
     parser.add_argument("--negative_prompt", type=str, default="", help="Negative text prompt for image generation")
+    parser.add_argument(
+        "--aspect_ratio",
+        choices=["1:1", "4:3", "3:4", "16:9", "9:16"],
+        default="16:9",
+        type=str,
+        help="Aspect ratio of the generated output (width:height)",
+    )
     parser.add_argument("--seed", type=int, default=0, help="Random seed for reproducibility")
     parser.add_argument(
         "--save_path",
@@ -72,7 +89,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
+def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePipeline:
     log.info(f"Using model size: {args.model_size}")
 
     if args.model_size == "0.6B":
@@ -86,6 +103,16 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt"
     else:
         raise ValueError("Invalid model size. Choose either '0.6B', '2B' or '14B'.")
+    if hasattr(args, "dit_path") and args.dit_path:
+        dit_path = args.dit_path
+
+    log.info(f"Using dit_path: {dit_path}")
+    # Only set up text encoder path if no encoder is provided
+    text_encoder_path = None if text_encoder is not None else "checkpoints/google-t5/t5-11b"
+    if text_encoder is not None:
+        log.info("Using provided text encoder")
+    else:
+        log.info(f"Using text encoder from: {text_encoder_path}")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -119,6 +146,7 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
                 dit_path=dit_path,
                 device="cuda",
                 torch_dtype=torch.bfloat16,
+                load_ema_to_reg=args.load_ema,
             )
             return pipe
         else:
@@ -150,13 +178,29 @@ def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
         pipe = Text2ImagePipeline.from_config(
             config=config,
             dit_path=dit_path,
+            text_encoder_path=text_encoder_path,
             device="cuda",
             torch_dtype=torch.bfloat16,
+            load_ema_to_reg=args.load_ema,
         )
+
+        # Set the provided text encoder if one was passed
+        if text_encoder is not None:
+            pipe.text_encoder = text_encoder
+
         return pipe
 
 
-def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, use_cuda_graphs, benchmark):
+def process_single_generation(
+    pipe: Text2ImagePipeline,
+    prompt: str,
+    output_path: str,
+    negative_prompt: str,
+    aspect_ratio: str,
+    seed: int,
+    use_cuda_graphs: bool,
+    benchmark: bool,
+) -> bool:
     log.info(f"Running Text2ImagePipeline\nprompt: {prompt}")
 
     # When benchmarking, run inference 4 times, exclude the 1st due to warmup and average time.
@@ -170,14 +214,18 @@ def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, 
         image = pipe(
             prompt=prompt,
             negative_prompt=negative_prompt,
+            aspect_ratio=aspect_ratio,
             seed=seed,
             use_cuda_graphs=use_cuda_graphs,
         )
         if benchmark and i > 0:
             torch.cuda.synchronize()
-            time_sum += time.time() - start_time
+            elapsed = time.time() - start_time
+            time_sum += elapsed
+            log.info(f"[iter {i} / {num_repeats - 1}] Generation time: {elapsed:.1f} seconds.")
     if benchmark:
-        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_sum / 3} seconds.")
+        time_avg = time_sum / (num_repeats - 1)
+        log.critical(f"The benchmarked generation time for Text2ImagePipeline is {time_avg:.1f} seconds.")
 
     if image is not None:
         # save the generated image
@@ -187,6 +235,11 @@ def process_single_generation(pipe, prompt, output_path, negative_prompt, seed, 
         log.info(f"Saving generated image to: {output_path}")
         save_image_or_video(image, output_path)
         log.success(f"Successfully saved image to: {output_path}")
+        # save the prompts used to generate the video
+        output_prompt_path = os.path.splitext(output_path)[0] + ".txt"
+        prompts_to_save = {"prompt": prompt, "negative_prompt": negative_prompt}
+        save_text_prompts(prompts_to_save, output_prompt_path)
+        log.success(f"Successfully saved prompt file to: {output_prompt_path}")
         return True
     return False
 
@@ -217,6 +270,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
                 prompt=prompt,
                 output_path=output_image,
                 negative_prompt=args.negative_prompt,
+                aspect_ratio=args.aspect_ratio,
                 seed=args.seed,
                 use_cuda_graphs=args.use_cuda_graphs,
                 benchmark=args.benchmark,
@@ -231,6 +285,7 @@ def generate_image(args: argparse.Namespace, pipe: Text2ImagePipeline) -> None:
             prompt=args.prompt,
             output_path=args.save_path,
             negative_prompt=args.negative_prompt,
+            aspect_ratio=args.aspect_ratio,
             seed=args.seed,
             use_cuda_graphs=args.use_cuda_graphs,
             benchmark=args.benchmark,

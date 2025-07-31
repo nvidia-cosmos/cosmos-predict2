@@ -20,35 +20,50 @@ cd cosmos-predict2
 When using an ARM platform, like GB200, special steps are required to install the `decord` package.
 You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
 The installation will be handled by the Conda scripts or Dockerfile.
-### Option 1: Conda environment
 
-Please make sure you have a Conda distribution installed ([instructions](https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html)).
+### Option 1: Virtual environment
 
-```bash
-# Create and activate the environment
-conda env create --file cosmos-predict2.yaml
-conda activate cosmos-predict2
+Install system dependencies:
+
+```sh
+# Install uv/just
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+uv tool install rust-just
 
 # Try to install decord when on ARM platform
 bash scripts/install_decord_arm.sh
-# Install dependencies
-pip install -r requirements-conda.txt
-pip install flash-attn==2.6.3 --no-build-isolation
-# Patch Transformer engine linking issues
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/
-ln -sf $CONDA_PREFIX/lib/python3.10/site-packages/nvidia/*/include/* $CONDA_PREFIX/include/python3.10
-pip install transformer-engine[pytorch]==1.13.0
-
-# Apex library for training (optional if inference only)
-pip install -v --disable-pip-version-check --no-cache-dir --no-build-isolation --config-settings "--build-option=--cpp_ext --cuda_ext" git+https://github.com/NVIDIA/apex.git
-
-# Verify setup
-CUDA_HOME=$CONDA_PREFIX python scripts/test_environment.py
 ```
 
-Make sure the `CUDA_HOME` environment variable points to your Conda installation directory by running:
-```bash
-export CUDA_HOME=$CONDA_PREFIX
+Install the package using your preferred environment:
+
+1. conda
+
+   Install system dependencies:
+
+   * conda: https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html
+
+   ```sh
+   just install-conda
+   conda activate cosmos-predict2
+   ```
+
+2. venv
+
+   Install system dependencies:
+
+   * CUDA 12.6: https://developer.nvidia.com/cuda-12-6-0-download-archive
+   * clang
+
+   ```sh
+   just install cu126
+   source .venv/bin/activate
+   ```
+
+[Optional] Install training dependencies
+
+```sh
+just install-training
 ```
 
 ### Option 2: Docker container
@@ -59,7 +74,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
    ```bash
    # Pull the Cosmos-Predict2 container
-   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0
+   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
    ```
 
 * **Option 2B: Build container from Dockerfile**
@@ -72,7 +87,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
 * **Running the container**
 
-   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.0` or `cosmos-predict2-local`:
+   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2` or `cosmos-predict2-local`:
 
    ```bash
    # Run the container with GPU support and mount necessary directories
@@ -120,10 +135,17 @@ python -m scripts.download_checkpoints --model_types video2world --model_sizes 2
 You can pass `--checkpoint_dir <path to ckpt>` if you want to control where to put the checkpoints.
 You can also add `--verify_md5` flag to verify MD5 checksums of downloaded files. If checksums don't match, models will be automatically redownloaded.
 
+To download models with [sparse attention](performance.md#sparse-attention-powered-by-natten), run the
+script with the `--natten` option:
+
+```bash
+python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B 14B --resolution 720 --fps 10 16 --natten
+```
+
 ## Troubleshooting
 
 ### CUDA/GPU Issues
-- **CUDA driver version insufficient**: Update NVIDIA drivers to latest version compatible with CUDA 12.4+
+- **CUDA driver version insufficient**: Update NVIDIA drivers to latest version compatible with CUDA 12.6+
 - **Out of Memory (OOM) errors**: Use 2B models instead of 14B, or reduce batch size/resolution
 - **Missing CUDA libraries**: Set paths with `export CUDA_HOME=$CONDA_PREFIX`
 

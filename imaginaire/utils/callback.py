@@ -21,7 +21,6 @@ from typing import TYPE_CHECKING, Any, Callable, Optional
 
 import omegaconf
 import torch
-import torch.distributed as dist
 import torch.utils.data
 import tqdm
 

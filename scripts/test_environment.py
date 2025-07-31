@@ -14,8 +14,12 @@
 # limitations under the License.
 
 import importlib
-import os
 import sys
+from argparse import ArgumentParser
+
+parser = ArgumentParser()
+parser.add_argument("--training", action="store_true", help="Check training packages")
+args = parser.parse_args()
 
 
 def check_packages(package_list, success_status=True):
@@ -49,7 +53,7 @@ def check_packages(package_list, success_status=True):
                 version = getattr(module, "__version__", None)
                 print_success(package, version)
                 try:
-                    from apex import multi_tensor_apply
+                    from apex import multi_tensor_apply  # noqa: F401
 
                     print_success("apex.multi_tensor_apply")
                 except ImportError:
@@ -64,7 +68,7 @@ def check_packages(package_list, success_status=True):
                 version = getattr(module, "__version__", None)
                 print_success(package, version)
                 try:
-                    import transformer_engine.pytorch
+                    import transformer_engine.pytorch  # noqa: F401
 
                     print_success("transformer_engine.pytorch")
                 except ImportError:
@@ -99,15 +103,17 @@ packages = [
     "transformer_engine",
     "megatron.core",
     ("flash_attn", "flash_attn_interface"),
+    "natten",
 ]
 packages_training = [
     "apex",
 ]
 
 all_success = check_packages(packages)
-training_success = check_packages(packages_training)
-if not training_success:
-    print("\033[93m[WARNING]\033[0m Training packages not found. Training features will be unavailable.")
+if args.training:
+    training_success = check_packages(packages_training)
+    if not training_success:
+        print("\033[93m[WARNING]\033[0m Training packages not found. Training features will be unavailable.")
 
 if all_success:
     print("-----------------------------------------------------------")

@@ -1,15 +1,8 @@
-# conda env create --file cosmos-predict2.yaml
 name: cosmos-predict2
 channels:
   - conda-forge
 dependencies:
   - python=3.10
-  - pip=25.0
-  - cmake
-  - ninja
-  - gcc=12.4.0
-  - gxx=12.4.0
-  - cuda=12.4
-  - cuda-nvcc=12.4
-  - cuda-toolkit=12.4
-  - libgl
+  - clang=20.1.8
+  - cuda=12.6
+  - libgl=1.7.0
