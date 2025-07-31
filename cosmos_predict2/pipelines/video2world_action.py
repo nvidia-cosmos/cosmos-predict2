@@ -130,6 +130,8 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
         if dit_path:
             state_dict = load_state_dict(dit_path)
             prefix_to_load = "net_ema." if load_ema_to_reg else "net."
+
+            log.info(f"Loading {'[ema]/regular' if load_ema_to_reg else 'ema/[regular]'} weights from {dit_path}")
             # drop net. prefix
             state_dict_dit_compatible = dict()
             for k, v in state_dict.items():
