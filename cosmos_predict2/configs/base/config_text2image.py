@@ -15,7 +15,7 @@
 
 import attrs
 
-from cosmos_predict2.conditioner import ReMapkey, TextAttr, TextConditioner
+from cosmos_predict2.conditioner import ReMapkey, TextAttr, TextConditioner, VideoConditioner
 from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface, CosmosImageTokenizer
@@ -123,8 +123,10 @@ PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_0P6B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
+    ema=L(EMAConfig)(enabled=False),  # defaults to inference
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
