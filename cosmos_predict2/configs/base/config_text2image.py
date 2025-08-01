@@ -102,7 +102,7 @@ PREDICT2_TEXT2IMAGE_NET_0P6B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -123,8 +123,10 @@ PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     net=PREDICT2_TEXT2IMAGE_NET_0P6B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
     resize_online=True,
     resolution="1024",
+    ema=L(EMAConfig)(enabled=False),  # defaults to inference
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
