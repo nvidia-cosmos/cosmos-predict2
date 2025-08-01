@@ -112,6 +112,7 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 
 | Models | Link | Download Command | Notes |
 |--------|------|------------------|-------|
+| Cosmos-Predict2-0.6B-Text2Image | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-0.6B-Text2Image) | `python -m scripts.download_checkpoints --model_types text2image --model_sizes 0.6B` | N/A |
 | Cosmos-Predict2-2B-Text2Image | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Text2Image) | `python -m scripts.download_checkpoints --model_types text2image --model_sizes 2B` | N/A |
 | Cosmos-Predict2-14B-Text2Image | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Text2Image) | `python -m scripts.download_checkpoints --model_types text2image --model_sizes 14B` | N/A |
 | Cosmos-Predict2-2B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World) | `python -m scripts.download_checkpoints --model_types video2world --model_sizes 2B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |

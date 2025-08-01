@@ -26,6 +26,7 @@ import torch
 from megatron.core import parallel_state
 
 from cosmos_predict2.configs.base.config_text2image import (
+    PREDICT2_TEXT2IMAGE_PIPELINE_0P6B,
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
 )
@@ -40,7 +41,7 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Text to Image Generation with Cosmos Predict2")
     parser.add_argument(
         "--model_size",
-        choices=["2B", "14B"],
+        choices=["0.6B", "2B", "14B"],
         default="2B",
         help="Size of the model to use for text-to-image generation",
     )
@@ -90,14 +91,18 @@ def parse_args() -> argparse.Namespace:
 
 def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePipeline:
     log.info(f"Using model size: {args.model_size}")
-    if args.model_size == "2B":
+
+    if args.model_size == "0.6B":
+        config = PREDICT2_TEXT2IMAGE_PIPELINE_0P6B
+        dit_path = "checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/model.pt"
+    elif args.model_size == "2B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_2B
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model.pt"
     elif args.model_size == "14B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_14B
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-14B-Text2Image/model.pt"
     else:
-        raise ValueError("Invalid model size. Choose either '2B' or '14B'.")
+        raise ValueError("Invalid model size. Choose either '0.6B', '2B' or '14B'.")
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
 

@@ -27,8 +27,8 @@ def parse_args():
         "--model_sizes",
         nargs="*",
         default=["2B", "14B"],
-        choices=["2B", "14B"],
-        help="Which model sizes to download. Possible values: 7B, 14B",
+        choices=["0.6B", "2B", "14B"],
+        help="Which model sizes to download. Possible values: 2B, 14B",
     )
     parser.add_argument(
         "--model_types",
@@ -83,6 +83,7 @@ def parse_args():
 
 MD5_CHECKSUM_LOOKUP = {
     # Cosmos-Predict2 models
+    "nvidia/Cosmos-Predict2-0.6B-Text2Image/model.pt": "f93f9655fce91840723cdb28ebbfa1fe",
     "nvidia/Cosmos-Predict2-2B-Text2Image/model.pt": "0336b218dffe32848d075ba7606c522b",
     "nvidia/Cosmos-Predict2-14B-Text2Image/model.pt": "3bc68c3384b4985120b13f964e9d6c03",
     # 8 variants of Video2World models
@@ -94,6 +95,7 @@ MD5_CHECKSUM_LOOKUP = {
     "nvidia/Cosmos-Predict2-14B-Video2World/model-720p-10fps.pt": "34730e3d5e65c4c590f3a88ca3fd4e74",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-10fps.pt": "b1dcd8adbe82e69496532d1e237c7022",
     "nvidia/Cosmos-Predict2-14B-Video2World/model-480p-16fps.pt": "53a04f51880272d9f4a5c4460b82966d",
+    "nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer/tokenizer.pth": "6eddc5eaf9e9e527803184f6daa65d25",
     "nvidia/Cosmos-Predict2-2B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-14B-Text2Image/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
     "nvidia/Cosmos-Predict2-2B-Video2World/tokenizer/tokenizer.pth": "854fcb755005951fa5b329799af6199f",
@@ -182,7 +184,7 @@ def main(args):
     os.makedirs(args.checkpoint_dir, exist_ok=True)
 
     # Download the Cosmos-Predict2 models
-    model_size_mapping = {"2B": "Cosmos-Predict2-2B", "14B": "Cosmos-Predict2-14B"}
+    model_size_mapping = {"0.6B": "Cosmos-Predict2-0.6B", "2B": "Cosmos-Predict2-2B", "14B": "Cosmos-Predict2-14B"}
     model_type_mapping = {
         "text2image": "Text2Image",
         "video2world": "Video2World",

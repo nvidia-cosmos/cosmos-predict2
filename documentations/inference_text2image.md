@@ -45,7 +45,7 @@ python -m examples.text2image \
     --model_size 2B \
     --save_path output/text2image_2b.jpg
 ```
-The 14B model can be run similarly by changing the model size parameter.
+The 0.6B or 14B model can be run similarly by changing the model size parameter.
 
 ### Batch Image Generation
 
@@ -92,7 +92,7 @@ Input and output parameters:
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_image' fields
 
 Model selection:
-- `--model_size`: Size of the model to use (choices: "2B", "14B", default: "2B")
+- `--model_size`: Size of the model to use (choices: "0.6B", "2B", "14B", default: "2B")
 - `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
 - `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
 
