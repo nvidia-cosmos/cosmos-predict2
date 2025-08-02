@@ -16,6 +16,9 @@
 import argparse
 import json
 import os
+import time
+
+import numpy as np
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -30,9 +33,18 @@ from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
 )
-from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
+from cosmos_predict2.pipelines.text2image import (
+    Text2ImagePipeline,
+)
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
+
+# Import auto-deploy function
+try:
+    from cosmos_predict2.utils.auto_deploy import ad_optimize_dit
+except ImportError:
+    ad_optimize_dit = None
+
 
 _DEFAULT_POSITIVE_PROMPT = "A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 
@@ -85,6 +97,25 @@ def parse_args() -> argparse.Namespace:
         "--benchmark",
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
+    )
+    # Auto-Deploy flags
+    parser.add_argument(
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
+    )
+    parser.add_argument(
+        "--auto_deploy_backend",
+        type=str,
+        choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
+        default="torch-opt",
+        help="Auto-deploy backend for model optimization.",
+    )
+    parser.add_argument(
+        "--dit_input_path",
+        type=str,
+        default="/tmp/t2i_dit_inputs.pt",
+        help="Path to save/load DiT inputs for auto-deploy compilation. If not provided, uses default based on pipeline type.",
     )
     return parser.parse_args()
 
@@ -306,6 +337,14 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
+
+        # Optional: auto-deploy optimization
+        if args.auto_deploy:
+            if ad_optimize_dit:
+                ad_optimize_dit(pipe, args)
+            else:
+                log.warning("Auto-deploy optimization is enabled, but ad_optimize_dit is not available. Skipping.")
+
         generate_image(args, pipe)
     finally:
         # Make sure to clean up the distributed environment

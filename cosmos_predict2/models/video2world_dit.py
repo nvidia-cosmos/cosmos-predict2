@@ -19,6 +19,7 @@ import torch
 
 from cosmos_predict2.conditioner import DataType
 from cosmos_predict2.models.text2image_dit import MiniTrainDIT
+from imaginaire.utils import log
 
 
 class MinimalV1LVGDiT(MiniTrainDIT):
@@ -26,6 +27,7 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         assert "in_channels" in kwargs, "in_channels must be provided"
         kwargs["in_channels"] += 1  # Add 1 for the condition mask
         super().__init__(*args, **kwargs)
+        self.save_input_path = None  # For auto_deploy input capture
 
     def forward(
         self,
@@ -39,6 +41,26 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         use_cuda_graphs: bool = False,
         **kwargs,
     ) -> torch.Tensor | List[torch.Tensor] | Tuple[torch.Tensor, List[torch.Tensor]]:
+        
+        # Save inputs if path is set (for auto_deploy compilation)
+        if self.save_input_path:
+            # Save core arguments AND critical kwargs for accurate video conditioning
+            inputs_to_save = {
+                "x_B_C_T_H_W": x_B_C_T_H_W.detach().cpu(),
+                "timesteps_B_T": timesteps_B_T.detach().cpu(),
+                "crossattn_emb": crossattn_emb.detach().cpu() if crossattn_emb is not None else None,
+                "fps": fps.detach().cpu() if fps is not None else None,
+                "padding_mask": padding_mask.detach().cpu() if padding_mask is not None else None,
+                "condition_video_input_mask_B_C_T_H_W": condition_video_input_mask_B_C_T_H_W.detach().cpu() if condition_video_input_mask_B_C_T_H_W is not None else None,
+                "data_type": data_type,
+                "use_cuda_graphs": use_cuda_graphs,
+                # Include critical video conditioning parameters
+                "gt_frames": kwargs.get("gt_frames").detach().cpu() if kwargs.get("gt_frames") is not None else None,
+                "use_video_condition": kwargs.get("use_video_condition"),
+            }
+            torch.save(inputs_to_save, self.save_input_path)
+            self.save_input_path = None
+
         del kwargs
 
         if data_type == DataType.VIDEO:

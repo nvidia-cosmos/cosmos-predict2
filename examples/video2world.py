@@ -21,7 +21,6 @@ import os
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
 import time
-
 import torch
 from megatron.core import parallel_state
 
@@ -33,6 +32,13 @@ from cosmos_predict2.configs.base.config_video2world import (
 )
 from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
 from imaginaire.utils import distributed, log, misc
+
+# Import auto-deploy function
+try:
+    from cosmos_predict2.utils.auto_deploy import ad_optimize_dit
+except ImportError:
+    ad_optimize_dit = None
+
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
 
 _DEFAULT_NEGATIVE_PROMPT = "The video captures a series of frames showing ugly scenes, static with no motion, motion blur, over-saturation, shaky footage, low resolution, grainy texture, pixelated images, poorly lit areas, underexposed and overexposed scenes, poor color balance, washed out colors, choppy sequences, jerky movements, low frame rate, artifacting, color banding, unnatural transitions, outdated special effects, fake elements, unconvincing visuals, poorly edited content, jump cuts, visual noise, and flickering. Overall, the video is of poor quality."
@@ -172,6 +178,26 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run Video2World + NATTEN (sparse attention variant).",
     )
+    # Auto-Deploy flags
+    parser.add_argument(
+        "--auto_deploy",
+        action="store_true",
+        help="Enable auto-deploy optimization.",
+    )
+    parser.add_argument(
+        "--auto_deploy_backend",
+        type=str,
+        choices=["torch-simple", "torch-compile", "torch-cudagraph", "torch-opt"],
+        default="torch-opt",
+        help="Auto-deploy backend for model optimization.",
+    )
+    parser.add_argument(
+        "--dit_input_path",
+        type=str,
+        default="/tmp/v2w_dit_inputs.pt",
+        help="Path to save/load DiT inputs for auto-deploy compilation. If not provided, uses default based on pipeline type.",
+    )
+
     return parser.parse_args()
 
 
@@ -427,7 +453,21 @@ if __name__ == "__main__":
     args = parse_args()
     try:
         pipe = setup_pipeline(args)
+
+        # Optional: auto-deploy optimization
+        if args.auto_deploy:
+            if ad_optimize_dit:
+                ad_optimize_dit(pipe, args)
+            else:
+                log.warning("Auto-deploy optimization skipped. 'ad_optimize_dit' module not found.")
+
         generate_video(args, pipe)
+
+        # Clean up pipeline
+        log.info("Cleaning up video2world pipeline...")
+        del pipe
+        torch.cuda.empty_cache()
+
     finally:
         # Make sure to clean up the distributed environment
         cleanup_distributed()
