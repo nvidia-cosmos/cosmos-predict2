@@ -16,12 +16,15 @@ install-training:
     ./.venv/bin/python scripts/test_environment.py --training
 
 # Create a new conda environment
-_conda-env:
+_conda-env conda='conda':
+    #!/usr/bin/env bash
+    set -euo pipefail
     rm -rf .venv
-    conda env create -y --no-default-packages -f cosmos-predict2.yaml
-    ln -sf "$(conda info --base)/envs/cosmos-predict2" .venv
+    INFO=$({{ conda }} env create -y -f cosmos-predict2.yaml --json)
+    VENV=$(echo $INFO | jq -r '."prefix"')
+    ln -sf $VENV .venv
 
 # Install inference in a new conda environment
-install-conda:
-    just -f {{ justfile() }} _conda-env
+install-conda conda='conda':
+    just -f {{ justfile() }} _conda-env {{ conda }}
     just -f {{ justfile() }} install cu126
