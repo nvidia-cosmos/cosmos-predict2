@@ -74,7 +74,7 @@ predict2_video2world_training_2b_video2world_data = dict(
         )
     ),
     model_parallel=dict(
-        context_parallel_size=1,
+        context_parallel_size=2,
     ),
     dataloader_train=dataloader_video_train,
     trainer=dict(
