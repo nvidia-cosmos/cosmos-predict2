@@ -32,13 +32,13 @@ We support post-training the models with example datasets.
 ### 1. Preparing Data
 
 You can use [Cosmos-Curate](https://github.com/nvidia-cosmos/cosmos-curate) to generate the ready-to-train dataset from your raw videos.
-- First follow the [user guide here](https://github.com/nvidia-cosmos/cosmos-curate/blob/main/docs/client/END_USER_GUIDE.md)
+- First follow the [user guide here](https://github.com/nvidia-cosmos/cosmos-curate/blob/main/docs/client/END_USER_GUIDE.md#generate-dataset-for-cosmos-predict2-post-training)
 and the specific instructions in [Generate Dataset for Cosmos-Predict2 Post-Training section]() to prepare the dataset.
 - Then copy the generated `cosmos_predict2_video2world_dataset/` directory into `datasets/` directory in this repo.
 
 Alternatively, in case you want to prepare the dataset without `Cosmos-Curate`,
 the post-training data is expected to contain paired prompt and video files.
-For example, a custom dataset can be saved in a following structure.
+For example, a custom vidoe2world dataset can be saved in a following structure.
 
 Dataset folder format:
 ```
@@ -69,8 +69,8 @@ datasets/cosmos_predict2_video2world_dataset/
 
 ### 2. Creating Configs for Training
 
-Note we provide an example config file for post-training with custom data
-at [cosmos_predict2/configs/base/experiment/custom_data.py](../cosmos_predict2/configs/base/experiment/custom_data.py)
+Note we provide an example config file for post-training with custom video2world data
+at [cosmos_predict2/configs/base/experiment/video2world_data.py](../cosmos_predict2/configs/base/experiment/video2world_data.py)
 that includes the sample code below.
 But the walk-through below will help you understand how to configure the training.
 
@@ -78,7 +78,7 @@ First, define dataloader from the prepared dataset.
 
 For example,
 ```python
-# custom dataset example
+# custom video2world dataset example
 example_video_dataset = L(Dataset)(
     dataset_dir="datasets/cosmos_predict2_video2world_dataset",
     num_frames=93,
@@ -98,7 +98,7 @@ dataloader_video_train = L(DataLoader)(
 With the `dataloader_video_train`, create a config for a training job.
 Here's a post-training example for video2world 2B model.
 ```python
-predict2_video2world_training_2b_custom_data = dict(
+predict2_video2world_training_2b_video2world_data = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
@@ -110,7 +110,7 @@ predict2_video2world_training_2b_custom_data = dict(
     job=dict(
         project="posttraining",
         group="video2world",
-        name="2b_custom_data",
+        name="2b_video2world",
     ),
     model=dict(
         config=dict(
@@ -150,8 +150,8 @@ predict2_video2world_training_2b_custom_data = dict(
 The config should be registered to ConfigStore.
 ```python
 for _item in [
-    # 2b, custom data
-    predict2_video2world_training_2b_custom_data,
+    # 2b, video2world data
+    predict2_video2world_training_2b_video2world_data,
 ]:
     # Get the experiment name from the global variable.
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]
@@ -226,19 +226,19 @@ In addition to the overrided values, the rest of the config setup overwrites or 
 
 ### 3. Run a Training Job.
 
-Run the following command to execute an example post-training job with the custom data.
+Run the following command to execute an example post-training job with the custom video2world data.
 ```bash
-EXP=predict2_video2world_training_2b_custom_data
+EXP=predict2_video2world_training_2b_video2world_data
 torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=${EXP}
 ```
 
 The above command will train the entire model. If you are interested in training with LoRA, attach `model.config.train_architecture=lora` to the training command.
 
 The checkpoints will be saved to `checkpoints/PROJECT/GROUP/NAME`.
-In the above example, `PROJECT` is `posttraining`, `GROUP` is `video2world`, `NAME` is `2b_custom_data`.
+In the above example, `PROJECT` is `posttraining`, `GROUP` is `video2world`, `NAME` is `2b_video2world_data`.
 
 ```
-checkpoints/posttraining/video2world/2b_custom_data/checkpoints/
+checkpoints/posttraining/video2world/2b_video2world_data/checkpoints/
 ├── model/
 │   ├── iter_{NUMBER}.pt
 ├── optim/
@@ -257,7 +257,7 @@ Use `--dit_path` argument to specify the path to the post-trained checkpoint.
 ```bash
 python examples/video2world.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/2b_custom_data/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/2b_video2world_data/checkpoints/model/iter_000001000.pt" \
   --prompt "A descriptive prompt for physical AI." \
   --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \
   --save_path output/cosmos_nemo_assets/generated_video_from_post-training.mp4
@@ -267,7 +267,7 @@ To load EMA weights from the post-trained checkpoint, add argument `--load_ema`.
 ```bash
 CUDA_HOME=$CONDA_PREFIX PYTHONPATH=$(pwd) python examples/video2world.py \
   --model_size 2B \
-  --dit_path "checkpoints/posttraining/video2world/2b_custom_data/checkpoints/model/iter_000001000.pt" \
+  --dit_path "checkpoints/posttraining/video2world/2b_video2world_data/checkpoints/model/iter_000001000.pt" \
   --load_ema \
   --prompt "A descriptive prompt for physical AI." \
   --input_path "assets/video2world_cosmos_nemo_assets/output_Digit_Lift_movie.jpg" \

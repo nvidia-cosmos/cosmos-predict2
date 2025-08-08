@@ -49,8 +49,8 @@ dataloader_video_train = L(DataLoader)(
     pin_memory=True,
 )
 
-# torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_2b_custom_data
-predict2_video2world_training_2b_custom_data = dict(
+# torchrun --nproc_per_node=8 --master_port=12341 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_2b_video2world_data
+predict2_video2world_training_2b_video2world_data = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_2b"},
         {"override /optimizer": "fusedadamw"},
@@ -62,7 +62,7 @@ predict2_video2world_training_2b_custom_data = dict(
     job=dict(
         project="posttraining",
         group="video2world",
-        name="2b_custom_data",
+        name="2b_video2world_data",
     ),
     model=dict(
         config=dict(
@@ -98,8 +98,8 @@ predict2_video2world_training_2b_custom_data = dict(
     ),
 )
 
-# torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_14b_custom_data
-predict2_video2world_training_14b_custom_data = dict(
+# torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_endpoint $MASTER_ADDR:1234 -m scripts.train --config=cosmos_predict2/configs/base/config.py -- experiment=predict2_video2world_training_14b_video2world_data
+predict2_video2world_training_14b_video2world_data = dict(
     defaults=[
         {"override /model": "predict2_video2world_fsdp_14b"},
         {"override /optimizer": "fusedadamw"},
@@ -111,7 +111,7 @@ predict2_video2world_training_14b_custom_data = dict(
     job=dict(
         project="posttraining",
         group="video2world",
-        name="14b_custom_data",
+        name="14b_video2world_data",
     ),
     model=dict(
         config=dict(
@@ -149,10 +149,10 @@ predict2_video2world_training_14b_custom_data = dict(
 )
 
 for _item in [
-    # 2b, custom_data
-    predict2_video2world_training_2b_custom_data,
-    # 14b, custom_data
-    predict2_video2world_training_14b_custom_data,
+    # 2b, video2world_data
+    predict2_video2world_training_2b_video2world_data,
+    # 14b, video2world_data
+    predict2_video2world_training_14b_video2world_data,
 ]:
     # Get the experiment name from the global variable.
     experiment_name = [name.lower() for name, value in globals().items() if value is _item][0]
