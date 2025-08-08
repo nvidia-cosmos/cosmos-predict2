@@ -134,7 +134,12 @@ class Dataset(Dataset):
 
             # Just add these to fit the interface
             with open(t5_embedding_path, "rb") as f:
-                t5_embedding = pickle.load(f)[0]  # [n_tokens, _T5_EMBED_DIM]
+                t5_embedding_raw = pickle.load(f)
+                assert isinstance(t5_embedding_raw, list)
+                assert len(t5_embedding_raw) == 1
+                t5_embedding = t5_embedding_raw[0]  # [n_tokens, _T5_EMBED_DIM]
+                assert isinstance(t5_embedding, np.ndarray)
+                assert len(t5_embedding.shape) == 2
             n_tokens = t5_embedding.shape[0]
             if n_tokens < _NUM_T5_TOKENS:
                 t5_embedding = np.concatenate(
