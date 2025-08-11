@@ -33,7 +33,6 @@ from imaginaire.constants import (
     CosmosPredict2Text2ImageModelSize,
     CosmosPredict2Video2WorldAspectRatio,
     get_cosmos_predict2_text2image_checkpoint,
-    get_t5_model_dir,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
@@ -98,7 +97,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePipeline:
+def setup_pipeline(args: argparse.Namespace) -> Text2ImagePipeline:
     config = get_cosmos_predict2_text2image_pipeline(model_size=args.model_size, fast_tokenizer=args.use_fast_tokenizer)
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
@@ -107,12 +106,6 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
             model_size=args.model_size, fast_tokenizer=args.use_fast_tokenizer
         )
     log.info(f"Using dit_path: {dit_path}")
-    # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else get_t5_model_dir()
-    if text_encoder is not None:
-        log.info("Using provided text encoder")
-    else:
-        log.info(f"Using text encoder from: {text_encoder_path}")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -178,15 +171,10 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
         pipe = Text2ImagePipeline.from_config(
             config=config,
             dit_path=dit_path,
-            text_encoder_path=text_encoder_path,
             device="cuda",
             torch_dtype=torch.bfloat16,
             load_ema_to_reg=args.load_ema,
         )
-
-        # Set the provided text encoder if one was passed
-        if text_encoder is not None:
-            pipe.text_encoder = text_encoder
 
         return pipe
 

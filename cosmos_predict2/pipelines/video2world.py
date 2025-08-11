@@ -31,7 +31,6 @@ from torch.distributed.fsdp import FSDPModule, fully_shard
 from tqdm import tqdm
 
 from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
-from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
 from cosmos_predict2.conditioner import DataType, TextCondition
 from cosmos_predict2.configs.base.config_video2world import ConditioningStrategy, Video2WorldPipelineConfig
 from cosmos_predict2.datasets.utils import VIDEO_RES_SIZE_INFO
@@ -43,6 +42,10 @@ from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_tensor, cat_outputs_cp, split_inputs_cp
 from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
+from imaginaire.auxiliary.text_encoder import (
+    CosmosTextEncoder,
+    get_text_encoder,
+)
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -252,7 +255,7 @@ def read_and_process_video(
 class Video2WorldPipeline(BasePipeline):
     def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
         super().__init__(device=device, torch_dtype=torch_dtype)
-        self.text_encoder: CosmosT5TextEncoder = None
+        self.text_encoder: CosmosTextEncoder = None
         self.dit: torch.nn.Module = None
         self.dit_ema: torch.nn.Module = None
         self.tokenizer: TokenizerInterface = None
@@ -269,7 +272,6 @@ class Video2WorldPipeline(BasePipeline):
     def from_config(
         config: Video2WorldPipelineConfig,
         dit_path: str = "",
-        text_encoder_path: str = "",
         offload_text_encoder: bool = False,
         downcast_text_encoder: bool = False,
         device: str = "cuda",
@@ -311,25 +313,11 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # 4. Load text encoder
-        if text_encoder_path:
-            # inference
-            if downcast_text_encoder:
-                # Cast text encoder to pipeline precision
-                text_encoder_dtype = pipe.precision
-            else:
-                # Keep original precision from checkpoint
-                text_encoder_dtype = None
-
-            pipe.text_encoder = CosmosT5TextEncoder(
-                device=device,  # device here must be final device used to run embedding
-                cache_dir=text_encoder_path,
-                torch_dtype=text_encoder_dtype,
-            )
-            text_encoder_device = "cpu" if offload_text_encoder else device
-            pipe.text_encoder.to(device=text_encoder_device)
-        else:
-            # training
-            pipe.text_encoder = None
+        pipe.text_encoder = get_text_encoder(
+            config=config.text_encoder,
+            device="cpu" if offload_text_encoder else device,
+            torch_dtype=pipe.precision if downcast_text_encoder else None,
+        )
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
@@ -467,7 +455,7 @@ class Video2WorldPipeline(BasePipeline):
     def denoising_model(self) -> torch.nn.Module:
         return self.dit
 
-    def encode_prompt(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False) -> torch.Tensor:
+    def encode_prompt(self, prompts: str | list[str], max_length: int = 512) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
         if isinstance(prompts, str):
@@ -476,7 +464,7 @@ class Video2WorldPipeline(BasePipeline):
         if offload_to_host:
             self.text_encoder.to(device="cuda")
 
-        embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
+        embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length)
 
         if offload_to_host:
             self.text_encoder.to(device="cpu")

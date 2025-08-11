@@ -40,6 +40,7 @@ from cosmos_predict2.module.neighborhood_attn import NeighborhoodAttention
 from cosmos_predict2.networks.model_weights_stats import WeightTrainingStat
 from cosmos_predict2.networks.selective_activation_checkpoint import SACConfig as _SACConfig
 from cosmos_predict2.utils.context_parallel import split_inputs_cp
+from imaginaire.constants import TEXT_ENCODER_CLASS, TextEncoderClass
 from imaginaire.utils import log
 from imaginaire.utils.graph import create_cuda_graph
 
@@ -1174,6 +1175,8 @@ class MiniTrainDIT(WeightTrainingStat):
         atten_backend: str = "transformer_engine",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
+        use_crossattn_projection: bool = TEXT_ENCODER_CLASS is TextEncoderClass.COSMOS_REASON1,
+        crossattn_proj_in_channels: int = 100352,
         # positional embedding settings
         pos_emb_cls: str = "sincos",
         pos_emb_learnable: bool = False,
@@ -1278,6 +1281,14 @@ class MiniTrainDIT(WeightTrainingStat):
             use_adaln_lora=self.use_adaln_lora,
             adaln_lora_dim=self.adaln_lora_dim,
         )
+
+        if use_crossattn_projection:
+            self.crossattn_proj = nn.Sequential(
+                nn.Linear(crossattn_proj_in_channels, crossattn_emb_channels, bias=True),
+                nn.GELU(),
+            )
+        else:
+            self.crossattn_proj = None
 
         self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
         self.init_weights()
@@ -1438,6 +1449,9 @@ class MiniTrainDIT(WeightTrainingStat):
             fps=fps,
             padding_mask=padding_mask,
         )
+
+        if self.crossattn_proj is not None:
+            crossattn_emb = self.crossattn_proj(crossattn_emb)
 
         if timesteps_B_T.ndim == 1:
             timesteps_B_T = timesteps_B_T.unsqueeze(1)

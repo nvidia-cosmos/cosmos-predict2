@@ -13,27 +13,52 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+"""Cosmos Predict2 package configuration."""
+
+import argparse
+import enum
+import os
+import shlex
 from typing import Literal
 
-
-def get_checkpoints_dir() -> str:
-    return "checkpoints"
+from imaginaire.utils import log
 
 
-def get_t5_model_dir() -> str:
-    return f"{get_checkpoints_dir()}/google-t5/t5-11b"
+class TextEncoderClass(str, enum.Enum):
+    COSMOS_REASON1 = "cosmos_reason1"
+    T5 = "t5"
 
 
-def get_llama_guard3_model_dir() -> str:
-    return f"{get_checkpoints_dir()}/meta-llama/Llama-Guard-3-8B"
+_parser = argparse.ArgumentParser(description=__doc__)
+_parser.add_argument("--checkpoints", default="checkpoints", help="Path to the checkpoints directory")
+_parser.add_argument(
+    "--text_encoder",
+    default=TextEncoderClass.T5,
+    type=TextEncoderClass,
+    choices=list(TextEncoderClass),
+    help="Text encoder to use",
+)
+_args = shlex.split(os.environ.get("COSMOS_PREDICT2_ARGS", ""))
+_args = _parser.parse_args(_args)
+log.info(f"Cosmos Predict2 args: {_args}")
 
 
-def get_cosmos_guardrail1_model_dir() -> str:
-    return f"{get_checkpoints_dir()}/nvidia/Cosmos-Guardrail1"
+# Feature flags
+TEXT_ENCODER_CLASS: TextEncoderClass = _args.text_encoder
 
+# Checkpoints
+CHECKPOINTS_DIR = _args.checkpoints
 
-def get_cosmos_reason1_model_dir() -> str:
-    return f"{get_checkpoints_dir()}/nvidia/Cosmos-Reason1-7B"
+T5_MODEL_DIR = f"{CHECKPOINTS_DIR}/google-t5/t5-11b"
+
+LLAMA_GUARD3_MODEL_DIR = f"{CHECKPOINTS_DIR}/meta-llama/Llama-Guard-3-8B"
+
+COSMOS_GUARDRAIL1_MODEL_DIR = f"{CHECKPOINTS_DIR}/nvidia/Cosmos-Guardrail1"
+
+COSMOS_REASON1_MODEL_DIR = f"{CHECKPOINTS_DIR}/nvidia/Cosmos-Reason1-7B"
+_COSMOS_REASON1_PRIVATE_MODEL_DIR = f"{CHECKPOINTS_DIR}/nvidia/Cosmos-Reason1-Private"
+COSMOS_REASON1_PRIVATE_TOKENIZER = f"{_COSMOS_REASON1_PRIVATE_MODEL_DIR}/tokenizer"
+COSMOS_REASON1_PRIVATE_CHECKPOINT = f"{_COSMOS_REASON1_PRIVATE_MODEL_DIR}/reason1_internal_real.pt"
 
 
 CosmosPredict2Text2ImageModelSize = Literal["0.6B", "2B", "14B"]
@@ -43,7 +68,7 @@ CosmosPredict2Text2ImageModelType = Literal["Text2Image"]
 def _get_cosmos_predict2_text2image_model_dir(
     *, model_size: CosmosPredict2Text2ImageModelSize, model_type: CosmosPredict2Text2ImageModelType = "Text2Image"
 ) -> str:
-    return f"{get_checkpoints_dir()}/nvidia/Cosmos-Predict2-{model_size}-{model_type}"
+    return f"{CHECKPOINTS_DIR}/nvidia/Cosmos-Predict2-{model_size}-{model_type}"
 
 
 def get_cosmos_predict2_text2image_tokenizer(
@@ -84,7 +109,7 @@ def _get_cosmos_predict2_video2world_model_dir(
     model_size: CosmosPredict2Video2WorldModelSize,
     model_type: CosmosPredict2Video2WorldModelType = "Video2World",
 ) -> str:
-    return f"{get_checkpoints_dir()}/nvidia/Cosmos-Predict2-{model_size}-{model_type}"
+    return f"{CHECKPOINTS_DIR}/nvidia/Cosmos-Predict2-{model_size}-{model_type}"
 
 
 def get_cosmos_predict2_video2world_tokenizer(
