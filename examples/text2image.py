@@ -50,6 +50,9 @@ def parse_args() -> argparse.Namespace:
         help="Size of the model to use for text-to-image generation",
     )
     parser.add_argument(
+        "--distill_steps", type=int, choices=[0, 1, 2, 3, 4], default=0, help="1~4 for timestep-distilled inference"
+    )
+    parser.add_argument(
         "--dit_path",
         type=str,
         default="",
@@ -104,7 +107,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
         dit_path = args.dit_path
     else:
         dit_path = get_cosmos_predict2_text2image_checkpoint(
-            model_size=args.model_size, fast_tokenizer=args.use_fast_tokenizer
+            model_size=args.model_size, fast_tokenizer=args.use_fast_tokenizer, distilled=args.distill_steps > 0
         )
     log.info(f"Using dit_path: {dit_path}")
     # Only set up text encoder path if no encoder is provided
@@ -147,6 +150,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
                 device="cuda",
                 torch_dtype=torch.bfloat16,
                 load_ema_to_reg=args.load_ema,
+                distill_steps=args.distill_steps,
             )
             return pipe
         else:
@@ -182,6 +186,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePip
             device="cuda",
             torch_dtype=torch.bfloat16,
             load_ema_to_reg=args.load_ema,
+            distill_steps=args.distill_steps,
         )
 
         # Set the provided text encoder if one was passed
