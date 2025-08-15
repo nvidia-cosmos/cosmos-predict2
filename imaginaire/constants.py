@@ -36,7 +36,7 @@ def get_cosmos_reason1_model_dir() -> str:
     return f"{get_checkpoints_dir()}/nvidia/Cosmos-Reason1-7B"
 
 
-CosmosPredict2Text2ImageModelSize = Literal["2B", "14B"]
+CosmosPredict2Text2ImageModelSize = Literal["0.6B", "2B", "14B"]
 CosmosPredict2Text2ImageModelType = Literal["Text2Image"]
 
 
@@ -54,13 +54,16 @@ def get_cosmos_predict2_text2image_tokenizer(
 
 
 def get_cosmos_predict2_text2image_checkpoint(
-    *, model_size: CosmosPredict2Text2ImageModelSize, model_type: CosmosPredict2Text2ImageModelType = "Text2Image"
+    *,
+    model_size: CosmosPredict2Text2ImageModelSize,
+    model_type: CosmosPredict2Text2ImageModelType = "Text2Image",
+    distilled=False,
 ) -> str:
     model_dir = _get_cosmos_predict2_text2image_model_dir(model_size=model_size, model_type=model_type)
-    return f"{model_dir}/model.pt"
+    return f"{model_dir}/model.pt" if not distilled else f"{model_dir}/model_distilled.pt"
 
 
-CosmosPredict2Video2WorldModelSize = Literal["0.6B", "2B", "14B"]
+CosmosPredict2Video2WorldModelSize = Literal["2B", "14B"]
 CosmosPredict2Video2WorldResolution = Literal["480", "720"]
 CosmosPredict2Video2WorldFPS = Literal[10, 16]
 CosmosPredict2Video2WorldAspectRatio = Literal["1:1", "4:3", "3:4", "16:9", "9:16"]
