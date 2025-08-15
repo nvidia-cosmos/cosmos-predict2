@@ -47,6 +47,17 @@ python -m examples.text2image \
 ```
 The 0.6B or 14B model can be run similarly by changing the model size parameter.
 
+#### Single Image Generation with fast image tokenizer
+```bash
+python -m examples.text2image \
+    --prompt "${PROMPT_}" \
+    --model_size 0.6B \
+    --save_path output/text2image_0p6b_tokenizer_fast.jpg \
+    --use_fast_tokenizer
+```
+Fast tokenizer is available only for 0.6B model.
+
+
 ### Batch Image Generation
 
 For generating multiple images with different prompts, you can use a JSON file with batch inputs. The JSON file should contain an array of objects, where each object has:
@@ -95,6 +106,7 @@ Model selection:
 - `--model_size`: Size of the model to use (choices: "0.6B", "2B", "14B", default: "2B")
 - `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
 - `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
+- `--use_fast_tokenizer`: Whether to use fast image tokenizer for generation. This option is available only for 0.6B model.
 
 Generation parameters:
 - `--seed`: Random seed for reproducible results (default: 0)

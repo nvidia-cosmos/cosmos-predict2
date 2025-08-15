@@ -102,7 +102,52 @@ PREDICT2_TEXT2IMAGE_NET_0P6B = L(MiniTrainDIT)(
 
 PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     adjust_video_noise=True,
-    conditioner=L(VideoConditioner)(
+    conditioner=L(TextConditioner)(
+        fps=L(ReMapkey)(
+            dropout_rate=0.0,
+            dtype=None,
+            input_key="fps",
+            output_key="fps",
+        ),
+        padding_mask=L(ReMapkey)(
+            dropout_rate=0.0,
+            dtype=None,
+            input_key="padding_mask",
+            output_key="padding_mask",
+        ),
+        text=L(TextAttr)(
+            dropout_rate=0.2,
+            input_key=["t5_text_embeddings"],
+        ),
+    ),
+    net=PREDICT2_TEXT2IMAGE_NET_0P6B,
+    precision="bfloat16",
+    rectified_flow_t_scaling_factor=1.0,
+    rectified_flow_loss_weight_uniform=True,
+    resize_online=True,
+    resolution="1024",
+    ema=L(EMAConfig)(enabled=False),  # defaults to inference
+    sigma_data=1.0,
+    state_ch=16,
+    state_t=24,
+    text_encoder_class="T5",
+    tokenizer=L(TokenizerInterface)(
+        chunk_duration=81,
+        load_mean_std=False,
+        name="tokenizer",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer/tokenizer.pth",
+    ),
+    guardrail_config=CosmosGuardrailConfig(
+        checkpoint_dir="checkpoints/",
+        offload_model_to_cpu=True,
+        enabled=True,
+    ),
+)
+
+# Config for using fast tokenizer
+PREDICT2_TEXT2IMAGE_PIPELINE_0P6B_FAST_TOKENIZER = Text2ImagePipelineConfig(
+    adjust_video_noise=True,
+    conditioner=L(TextConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,
             dtype=None,
@@ -133,7 +178,7 @@ PREDICT2_TEXT2IMAGE_PIPELINE_0P6B = Text2ImagePipelineConfig(
     text_encoder_class="T5",
     tokenizer=L(CosmosImageTokenizer)(
         name="tokenizer",
-        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer/tokenizer.pth",
+        vae_pth="checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/tokenizer_fast/tokenizer.pth",
     ),
     guardrail_config=CosmosGuardrailConfig(
         checkpoint_dir="checkpoints/",

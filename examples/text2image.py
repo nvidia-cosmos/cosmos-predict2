@@ -29,6 +29,7 @@ from cosmos_predict2.configs.base.config_text2image import (
     PREDICT2_TEXT2IMAGE_PIPELINE_0P6B,
     PREDICT2_TEXT2IMAGE_PIPELINE_2B,
     PREDICT2_TEXT2IMAGE_PIPELINE_14B,
+    PREDICT2_TEXT2IMAGE_PIPELINE_0P6B_FAST_TOKENIZER
 )
 from cosmos_predict2.pipelines.text2image import Text2ImagePipeline
 from imaginaire.utils import distributed, log, misc
@@ -86,15 +87,27 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run the generation in benchmark mode. It means that generation will be rerun a few times and the average generation time will be shown.",
     )
+    parser.add_argument(
+        "--use_fast_tokenizer",
+        action="store_true",
+        help="Use fast tokenizer for generation.",
+    )
     return parser.parse_args()
 
 
 def setup_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImagePipeline:
     log.info(f"Using model size: {args.model_size}")
 
+    if args.use_fast_tokenizer:
+        assert args.model_size == "0.6B", "Fast tokenizer is only supported for 0.6B model"
+
     if args.model_size == "0.6B":
-        config = PREDICT2_TEXT2IMAGE_PIPELINE_0P6B
-        dit_path = "checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/model.pt"
+        if args.use_fast_tokenizer:
+            config = PREDICT2_TEXT2IMAGE_PIPELINE_0P6B_FAST_TOKENIZER
+            dit_path = "checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/model_fast_tokenizer.pt"
+        else:
+            config = PREDICT2_TEXT2IMAGE_PIPELINE_0P6B
+            dit_path = "checkpoints/nvidia/Cosmos-Predict2-0.6B-Text2Image/model.pt"
     elif args.model_size == "2B":
         config = PREDICT2_TEXT2IMAGE_PIPELINE_2B
         dit_path = "checkpoints/nvidia/Cosmos-Predict2-2B-Text2Image/model.pt"
