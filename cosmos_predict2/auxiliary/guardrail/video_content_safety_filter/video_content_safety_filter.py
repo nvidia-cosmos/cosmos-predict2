@@ -25,7 +25,7 @@ from cosmos_predict2.auxiliary.guardrail.common.core import ContentSafetyGuardra
 from cosmos_predict2.auxiliary.guardrail.common.io_utils import get_video_filepaths, read_video
 from cosmos_predict2.auxiliary.guardrail.video_content_safety_filter.model import ModelConfig, VideoSafetyModel
 from cosmos_predict2.auxiliary.guardrail.video_content_safety_filter.vision_encoder import SigLIPEncoder
-from imaginaire.constants import get_cosmos_guardrail1_model_dir
+from imaginaire.constants import COSMOS_GUARDRAIL1_MODEL_DIR
 from imaginaire.utils import log, misc
 
 # Define the class index to class name mapping for multi-class classification
@@ -193,7 +193,7 @@ def main(args):
         return
 
     video_filter = VideoContentSafetyFilter(
-        checkpoint_dir=f"{get_cosmos_guardrail1_model_dir()}/video_content_safety_filter"
+        checkpoint_dir=f"{COSMOS_GUARDRAIL1_MODEL_DIR}/video_content_safety_filter"
     )
     runner = GuardrailRunner(safety_models=[video_filter], generic_safe_msg="Video is safe")
 

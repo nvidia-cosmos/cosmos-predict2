@@ -19,19 +19,16 @@ import pickle
 
 import numpy as np
 
-from imaginaire.auxiliary.text_encoder import CosmosT5TextEncoder
-from imaginaire.constants import T5_MODEL_DIR
+from imaginaire.auxiliary.text_encoder import CosmosReason1TextEncoder, CosmosReason1TextEncoderConfig
 
 """example command
-python -m scripts.get_t5_embeddings --dataset_path datasets/hdvila
+python -m scripts.get_cr1_embeddings --dataset_path datasets/hdvila
 """
 
 
 def parse_args() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="Compute T5 embeddings for text prompts")
+    parser = argparse.ArgumentParser(description="Compute CR1 embeddings for text prompts")
     parser.add_argument("--dataset_path", type=str, default="datasets/hdvila", help="Root path to the dataset")
-    parser.add_argument("--max_length", type=int, default=512, help="Maximum length of the text embedding")
-    parser.add_argument("--cache_dir", type=str, default=T5_MODEL_DIR, help="Directory to cache the T5 model")
     return parser.parse_args()
 
 
@@ -41,22 +38,23 @@ def main(args) -> None:
         os.path.join(metas_dir, filename) for filename in sorted(os.listdir(metas_dir)) if filename.endswith(".txt")
     ]
 
-    t5_xxl_dir = os.path.join(args.dataset_path, "t5_xxl")
-    os.makedirs(t5_xxl_dir, exist_ok=True)
+    cr1_dir = os.path.join(args.dataset_path, "cr1")
+    os.makedirs(cr1_dir, exist_ok=True)
 
-    # Initialize T5
-    encoder = CosmosT5TextEncoder(cache_dir=args.cache_dir, local_files_only=True)
+    # Initialize CR1
+    encoder_config = CosmosReason1TextEncoderConfig()
+    encoder = CosmosReason1TextEncoder(config=encoder_config)
 
     for meta_filename in metas_list:
-        t5_xxl_filename = os.path.join(t5_xxl_dir, os.path.basename(meta_filename).replace(".txt", ".pickle"))
-        if os.path.exists(t5_xxl_filename):
+        cr1_filename = os.path.join(cr1_dir, os.path.basename(meta_filename).replace(".txt", ".pickle"))
+        if os.path.exists(cr1_filename):
             # Skip if the file already exists
             continue
 
         with open(meta_filename) as fp:
             prompt = fp.read().strip()
 
-        # Compute T5 embeddings
+        # Compute CR1 embeddings
         max_length = args.max_length
         encoded_text, mask_bool = encoder.encode_prompts(
             prompt, max_length=max_length, return_mask=True
@@ -69,8 +67,8 @@ def main(args) -> None:
         # trim zeros to save space
         encoded_text = [encoded_text[batch_id][: lengths[batch_id]] for batch_id in range(encoded_text.shape[0])]
 
-        # Save T5 embeddings as pickle file
-        with open(t5_xxl_filename, "wb") as fp:
+        # Save CR1 embeddings as pickle file
+        with open(cr1_filename, "wb") as fp:
             pickle.dump(encoded_text, fp)
 
 

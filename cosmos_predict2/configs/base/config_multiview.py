@@ -30,16 +30,17 @@ from cosmos_predict2.configs.base.config_video2world import (
 )
 from cosmos_predict2.models.multiview_dit import MultiViewDiT
 from cosmos_predict2.models.text2image_dit import SACConfig
+from imaginaire.auxiliary.text_encoder import CosmosT5TextEncoderConfig, CosmosTextEncoderConfig
 from imaginaire.config import LazyDict, make_freezable
 from imaginaire.constants import (
+    COSMOS_REASON1_MODEL_DIR,
     CosmosPredict2MultiviewFPS,
     CosmosPredict2MultiviewFrames,
     CosmosPredict2MultiviewResolution,
     CosmosPredict2MultiviewViews,
     CosmosPredict2Video2WorldModelSize,
-    get_checkpoints_dir,
+    CHECKPOINTS_DIR,
     get_cosmos_predict2_video2world_tokenizer,
-    get_cosmos_reason1_model_dir,
 )
 from imaginaire.lazy_config import LazyCall as L
 
@@ -69,7 +70,7 @@ class MultiviewPipelineConfig:
     sigma_data: float = 1.0
     state_ch: int = 16
     state_t: int = 24
-    text_encoder_class: str = "T5"
+    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=CosmosT5TextEncoderConfig)
     input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = L(SolverTimestampConfig)(  # noqa: RUF009
@@ -167,7 +168,7 @@ _PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES = MultiviewPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=8,
-    text_encoder_class="T5",
+    text_encoder=CosmosT5TextEncoderConfig(),
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         temporal_window=16,
@@ -176,12 +177,12 @@ _PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES = MultiviewPipelineConfig(
         vae_pth=get_cosmos_predict2_video2world_tokenizer(model_size="2B"),
     ),
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=False,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=False,
     ),

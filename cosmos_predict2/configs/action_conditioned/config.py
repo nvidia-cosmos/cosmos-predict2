@@ -26,13 +26,15 @@ from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_action_dit import ActionConditionedMinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
+from imaginaire.auxiliary.text_encoder import CosmosT5TextEncoderConfig
 from imaginaire.constants import (
+    COSMOS_REASON1_MODEL_DIR,
     CosmosPredict2ActionConditionedFPS,
     CosmosPredict2ActionConditionedModelSize,
     CosmosPredict2ActionConditionedResolution,
-    get_checkpoints_dir,
+    CHECKPOINTS_DIR,
     get_cosmos_predict2_video2world_tokenizer,
-    get_cosmos_reason1_model_dir,
+    COSMOS_REASON1_MODEL_DIR,
 )
 from imaginaire.lazy_config import LazyCall as L
 
@@ -116,7 +118,7 @@ _PREDICT2_ACTION_CONDITIONED_PIPELINE_2B = Video2WorldPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=4,
-    text_encoder_class="T5",
+    text_encoder=CosmosT5TextEncoderConfig(),
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         load_mean_std=False,
@@ -125,12 +127,12 @@ _PREDICT2_ACTION_CONDITIONED_PIPELINE_2B = Video2WorldPipelineConfig(
     ),
     # disable prompt refiner and guardrail for action conditional
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=False,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=False,
     ),
