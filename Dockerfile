@@ -18,7 +18,7 @@ FROM nvcr.io/nvidia/pytorch:25.04-py3
 ARG TARGETPLATFORM
 
 # Install basic tools
-RUN apt-get update && apt-get install -y git tree ffmpeg wget
+RUN apt-get -y update && apt-get install -y git tree ffmpeg wget
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
 RUN if [[ ${TARGETPLATFORM} == 'linux/amd64' ]]; then ln -s /lib64/libcuda.so.1 /lib64/libcuda.so; fi
 RUN apt-get install -y libglib2.0-0
@@ -33,7 +33,7 @@ RUN patch /usr/local/lib/python3.12/dist-packages/transformer_engine/pytorch/att
 # Installing decord from source on ARM
 COPY Video_Codec_SDK_13.0.19.zip* /workspace/Video_Codec_SDK_13.0.19.zip
 RUN if [[ ${TARGETPLATFORM} == 'linux/arm64' ]]; then export DEBIAN_FRONTEND=noninteractive && \
-apt-get update && \
+apt-get -y update && \
 apt-get install -y build-essential python3-dev python3-setuptools make cmake \
                    ffmpeg libavcodec-dev libavfilter-dev libavformat-dev libavutil-dev git ssh unzip nano python3-pip && \
 git clone --recursive https://github.com/dmlc/decord && \
