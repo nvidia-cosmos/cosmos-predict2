@@ -297,6 +297,7 @@ if __name__ == "__main__":
 
         log.info("Step 1: Initializing text2image pipeline...")
         args.dit_path = args.dit_path_text2image
+        args.use_fast_tokenizer = False # use_fast_tokenizer is currently support only for 0.6B text2image. It is not supported for text2world models (2B / 14B).
         text2image_pipe = setup_text2image_pipeline(args)
 
         # Handle the case where setup_text2image_pipeline returns None for non-rank-0 processes

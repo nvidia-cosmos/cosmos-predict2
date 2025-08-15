@@ -54,6 +54,7 @@ REPO_ID_MAPPING = {
     "nvidia/Cosmos-Predict2-2B-Multiview": "52f3731663eecdc998d9608f9b21ac4dcbdea6f1",
     "nvidia/Cosmos-Predict2-2B-Text2Image": "acdb5fde992a73ef0355f287977d002cbfd127e0",
     "nvidia/Cosmos-Predict2-2B-Video2World": "f50c09f5d8ab133a90cac3f4886a6471e9ba3f18",
+    "nvidia/Cosmos-Predict2-0.6B-Text2Image": "80e9f1599778499e9b5435179861871b5a3561d4",
     "nvidia/Cosmos-Reason1-7B": "8fe96c1fa10db9e666b6fa6a87fea57dd9635649",
 }
 
