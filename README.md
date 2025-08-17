@@ -1,3 +1,20 @@
+---
+jupyter:
+  jupytext:
+    formats: ipynb,md
+    text_representation:
+      extension: .md
+      format_name: markdown
+      format_version: '1.3'
+      jupytext_version: 1.17.0
+  kernelspec:
+    display_name: Python 3
+    language: python
+    name: python3
+---
+
+> This document is best viewed as a [Jupyter Notebook](./README.ipynb).
+
 <p align="center">
     <img src="assets/nvidia-cosmos-header.png" alt="NVIDIA Cosmos Header">
 </p>
@@ -64,12 +81,17 @@ Run example inference scripts:
 
 ```python
 !./scripts/hf_text2image.py output/hf_text2image --prompt "assets/text2image/example_prompt.txt" -v
+from IPython.display import Image
+Image(filename='output/hf_text2image/output.png')
 ```
 
 * [Video2World](scripts/hf_video2world.py)
 
 ```python
 !./scripts/hf_video2world.py output/hf_video2world --prompt "assets/video2world/example_prompt.txt" --image "assets/video2world/example_input.jpg" -v
+
+from IPython.display import Video
+Video(filename='output/hf_video2world/output.mp4')
 ```
 
 ## Quick Start
