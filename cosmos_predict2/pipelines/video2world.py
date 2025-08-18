@@ -458,9 +458,6 @@ class Video2WorldPipeline(BasePipeline):
     def encode_prompt(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
-        if isinstance(prompts, str):
-            prompts = [prompts]
-
         if offload_to_host:
             self.text_encoder.to(device="cuda")
 

@@ -67,7 +67,7 @@ class EmbeddingConcatStrategy(str, Enum):
         return self.value
 
 
-class CosmosTextEncoderBase(abc.ABC):
+class CosmosTextEncoderBase(torch.nn.Module, abc.ABC):
     @overload
     def encode_prompts(self, prompts: str, max_length: int, return_mask: Literal[False]) -> torch.Tensor: ...
     @overload
@@ -135,7 +135,7 @@ class CosmosReason1TextEncoderConfig:
     )
 
 
-class CosmosReason1TextEncoder(torch.nn.Module):
+class CosmosReason1TextEncoder(CosmosTextEncoderBase):
     def __init__(
         self, config: CosmosReason1TextEncoderConfig, device: str = "cuda", torch_dtype: torch.dtype | None = None
     ):
@@ -305,7 +305,7 @@ class CosmosT5TextEncoderConfig:
     ckpt_path: str = T5_MODEL_DIR
 
 
-class CosmosT5TextEncoder(torch.nn.Module):
+class CosmosT5TextEncoder(CosmosTextEncoderBase):
     """Handles T5 text encoding operations."""
 
     def __init__(
@@ -333,11 +333,11 @@ class CosmosT5TextEncoder(torch.nn.Module):
     def model(self) -> Self:
         return self
 
+    @override
     @torch.inference_mode()
     def encode_prompts(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False):
         if isinstance(prompts, str):
             prompts = [prompts]
-
         if not prompts:
             raise ValueError("The input prompt list is empty.")
 
