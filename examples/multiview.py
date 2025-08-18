@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder
 from imaginaire.constants import (
     CosmosPredict2MultiviewFPS,
     CosmosPredict2MultiviewModelSize,
@@ -66,7 +67,7 @@ def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
     return True
 
 
-def setup_pipeline(args: argparse.Namespace):
+def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     views = 7
     frames = 29
     config = get_cosmos_predict2_multiview_pipeline(
@@ -124,10 +125,15 @@ def setup_pipeline(args: argparse.Namespace):
     pipe = MultiviewPipeline.from_config(
         config=config,
         dit_path=dit_path,
+        use_text_encoder=text_encoder is None,
         device="cuda",
         torch_dtype=torch.bfloat16,
         load_prompt_refiner=config.prompt_refiner_config.enabled,
     )
+
+    # Set the provided text encoder if one was passed
+    if text_encoder is not None:
+        pipe.text_encoder = text_encoder
 
     return pipe
 

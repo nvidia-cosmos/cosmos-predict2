@@ -30,11 +30,12 @@ from cosmos_predict2.configs.base.config_video2world import (
     get_cosmos_predict2_video2world_pipeline,
 )
 from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
-from imaginaire.auxiliary.text_encoder import get_cosmos_text_encoder
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, get_cosmos_text_encoder
 from imaginaire.constants import (
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
     CosmosPredict2Video2WorldResolution,
+    get_cosmos_predict2_video2world_checkpoint,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
@@ -74,7 +75,9 @@ def add_lora_to_model(
     return model
 
 
-def setup_lora_pipeline(config: Video2WorldPipelineConfig, dit_path: str, args: argparse.Namespace):
+def setup_lora_pipeline(
+    config: Video2WorldPipelineConfig, dit_path: str, use_text_encoder: bool, args: argparse.Namespace
+):
     """
     Set up a pipeline with LoRA support.
     This function creates the pipeline, adds LoRA, then loads the checkpoint.
@@ -117,7 +120,10 @@ def setup_lora_pipeline(config: Video2WorldPipelineConfig, dit_path: str, args: 
         f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
     )
     # 4. Load text encoder
-    pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device="cuda")
+    if use_text_encoder:
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device="cuda")
+    else:
+        pipe.text_encoder = None
     # 5. Initialize conditioner
     pipe.conditioner = instantiate(config.conditioner)
     assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (
@@ -374,12 +380,16 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace):
+def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps
     )
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
+    else:
+        dit_path = get_cosmos_predict2_video2world_checkpoint(
+            model_size=args.model_size, resolution=args.resolution, fps=args.fps
+        )
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
     torch.backends.cudnn.deterministic = False
@@ -419,16 +429,20 @@ def setup_pipeline(args: argparse.Namespace):
     if args.use_lora:
         # For LoRA inference, we need to add LoRA before loading the checkpoint
         log.info("LoRA inference mode detected - using custom pipeline loading")
-        pipe = setup_lora_pipeline(config, dit_path, args)
+        pipe = setup_lora_pipeline(config=config, dit_path=dit_path, use_text_encoder=text_encoder is None, args=args)
     else:
         # Standard inference
         pipe = Video2WorldPipeline.from_config(
             config=config,
             dit_path=dit_path,
+            use_text_encoder=text_encoder is None,
             device="cuda",
             torch_dtype=torch.bfloat16,
             load_prompt_refiner=True,
         )
+    # Set the provided text encoder if one was passed
+    if text_encoder is not None:
+        pipe.text_encoder = text_encoder
     return pipe
 
 

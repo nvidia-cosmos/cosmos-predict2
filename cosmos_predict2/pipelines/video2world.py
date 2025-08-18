@@ -272,6 +272,7 @@ class Video2WorldPipeline(BasePipeline):
     def from_config(
         config: Video2WorldPipelineConfig,
         dit_path: str = "",
+        use_text_encoder: bool = True,
         offload_text_encoder: bool = False,
         downcast_text_encoder: bool = False,
         device: str = "cuda",
@@ -313,11 +314,14 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_cosmos_text_encoder(
-            config=config.text_encoder,
-            device="cpu" if offload_text_encoder else device,
-            torch_dtype=pipe.precision if downcast_text_encoder else None,
-        )
+        if use_text_encoder:
+            pipe.text_encoder = get_cosmos_text_encoder(
+                config=config.text_encoder,
+                device="cpu" if offload_text_encoder else device,
+                torch_dtype=pipe.precision if downcast_text_encoder else None,
+            )
+        else:
+            pipe.text_encoder = None
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)

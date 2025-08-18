@@ -17,6 +17,7 @@ import argparse
 import json
 import os
 
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder
 from imaginaire.constants import (
     CosmosPredict2Video2WorldAspectRatio,
     CosmosPredict2Video2WorldFPS,
@@ -188,7 +189,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace):
+def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps, natten=getattr(args, "natten", False)
     )
@@ -248,6 +249,7 @@ def setup_pipeline(args: argparse.Namespace):
     pipe = Video2WorldPipeline.from_config(
         config=config,
         dit_path=dit_path,
+        use_text_encoder=text_encoder is None,
         offload_text_encoder=args.offload_text_encoder,
         downcast_text_encoder=args.downcast_text_encoder,
         device="cuda",
@@ -255,6 +257,10 @@ def setup_pipeline(args: argparse.Namespace):
         load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
     )
+
+    # Set the provided text encoder if one was passed
+    if text_encoder is not None:
+        pipe.text_encoder = text_encoder
 
     return pipe
 

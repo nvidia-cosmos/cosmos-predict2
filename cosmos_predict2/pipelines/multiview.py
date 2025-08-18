@@ -173,6 +173,7 @@ class MultiviewPipeline(Video2WorldPipeline):
     def from_config(
         config: MultiviewPipelineConfig,
         dit_path: str = "",
+        use_text_encoder: bool = True,
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
         load_ema_to_reg: bool = False,
@@ -211,7 +212,10 @@ class MultiviewPipeline(Video2WorldPipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
+        if use_text_encoder:
+            pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
+        else:
+            pipe.text_encoder = None
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
