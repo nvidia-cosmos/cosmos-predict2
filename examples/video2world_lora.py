@@ -30,7 +30,7 @@ from cosmos_predict2.configs.base.config_video2world import (
     get_cosmos_predict2_video2world_pipeline,
 )
 from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
-from imaginaire.auxiliary.text_encoder import get_text_encoder
+from imaginaire.auxiliary.text_encoder import get_cosmos_text_encoder
 from imaginaire.constants import (
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
@@ -117,7 +117,7 @@ def setup_lora_pipeline(config: Video2WorldPipelineConfig, dit_path: str, args: 
         f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
     )
     # 4. Load text encoder
-    pipe.text_encoder = get_text_encoder(config=config.text_encoder, device="cuda")
+    pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device="cuda")
     # 5. Initialize conditioner
     pipe.conditioner = instantiate(config.conditioner)
     assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (

@@ -44,7 +44,7 @@ from cosmos_predict2.utils.context_parallel import broadcast, broadcast_split_te
 from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
 from imaginaire.auxiliary.text_encoder import (
     CosmosTextEncoder,
-    get_text_encoder,
+    get_cosmos_text_encoder,
 )
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
@@ -313,7 +313,7 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_text_encoder(
+        pipe.text_encoder = get_cosmos_text_encoder(
             config=config.text_encoder,
             device="cpu" if offload_text_encoder else device,
             torch_dtype=pipe.precision if downcast_text_encoder else None,

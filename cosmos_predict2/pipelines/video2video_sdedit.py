@@ -34,7 +34,7 @@ from cosmos_predict2.pipelines.text2image import Text2ImagePipeline, get_sample_
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline, read_and_process_image, read_and_process_video
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.utils.context_parallel import cat_outputs_cp, split_inputs_cp
-from imaginaire.auxiliary.text_encoder import get_text_encoder
+from imaginaire.auxiliary.text_encoder import get_cosmos_text_encoder
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -249,7 +249,7 @@ class Text2ImageSDEditPipeline(Text2ImagePipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_text_encoder(config=config.text_encoder, device=device)
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
@@ -487,7 +487,7 @@ class Video2WorldSDEditPipeline(Video2WorldPipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_text_encoder(config=config.text_encoder, device=device)
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)

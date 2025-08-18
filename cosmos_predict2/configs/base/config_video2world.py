@@ -31,7 +31,6 @@ from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from imaginaire.auxiliary.text_encoder import (
     CosmosTextEncoderConfig,
-    get_text_encoder_config,
 )
 from imaginaire.config import make_freezable
 from imaginaire.constants import (
@@ -84,7 +83,7 @@ class Video2WorldPipelineConfig:
     sigma_data: float = 1.0
     state_ch: int = 16
     state_t: int = 24
-    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=get_text_encoder_config)
+    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=CosmosTextEncoderConfig)
     input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)

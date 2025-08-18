@@ -344,29 +344,17 @@ class CosmosT5TextEncoder(torch.nn.Module):
         return encoded_text
 
 
-CosmosTextEncoderConfig: TypeAlias = CosmosReason1TextEncoderConfig | CosmosT5TextEncoderConfig
+@attrs.define(slots=False)
+class CosmosTextEncoderConfig:
+    text_encoder_class: TextEncoderClass = TEXT_ENCODER_CLASS
+    cosmos_reason1_text_encoder: CosmosReason1TextEncoderConfig = attrs.field(factory=CosmosReason1TextEncoderConfig)
+    cosmos_t5_text_encoder: CosmosT5TextEncoderConfig = attrs.field(factory=CosmosT5TextEncoderConfig)
+
+
 CosmosTextEncoder: TypeAlias = CosmosReason1TextEncoder | CosmosT5TextEncoder
 
 
-def get_text_encoder_config(text_encoder_class: TextEncoderClass = TEXT_ENCODER_CLASS) -> CosmosTextEncoderConfig:
-    """
-    Get the text encoder config for the given text encoder class.
-
-    Args:
-        text_encoder_class: The text encoder class.
-
-    Returns:
-        The text encoder config.
-    """
-    if text_encoder_class == TextEncoderClass.COSMOS_REASON1:
-        return CosmosReason1TextEncoderConfig()
-    elif text_encoder_class == TextEncoderClass.T5:
-        return CosmosT5TextEncoderConfig()
-    else:
-        raise ValueError(f"Invalid text encoder class: {text_encoder_class}")
-
-
-def get_text_encoder(
+def get_cosmos_text_encoder(
     config: CosmosTextEncoderConfig, device: str = "cuda", torch_dtype: torch.dtype | None = None
 ) -> CosmosTextEncoder | None:
     """Create a text encoder from a config.
@@ -374,16 +362,19 @@ def get_text_encoder(
     Args:
         config: The config for the text encoder.
         device: The device to use for computations.
+        torch_dtype: The torch dtype to use for computations.
 
     Returns:
         A text encoder instance.
     """
 
-    if not config.ckpt_path:
-        return None
-    if isinstance(config, CosmosReason1TextEncoderConfig):
-        return CosmosReason1TextEncoder(config=config, device=device)
-    elif isinstance(config, CosmosT5TextEncoderConfig):
-        return CosmosT5TextEncoder(config=config, device=device, torch_dtype=torch_dtype)
+    if config.text_encoder_class == TextEncoderClass.COSMOS_REASON1:
+        if not config.cosmos_reason1_text_encoder.ckpt_path:
+            return None
+        return CosmosReason1TextEncoder(config=config.cosmos_reason1_text_encoder, device=device)
+    elif config.text_encoder_class == TextEncoderClass.T5:
+        if not config.cosmos_t5_text_encoder.ckpt_path:
+            return None
+        return CosmosT5TextEncoder(config=config.cosmos_t5_text_encoder, device=device, torch_dtype=torch_dtype)
     else:
-        raise ValueError(f"Invalid text encoder config type: {type(config)}")
+        raise ValueError(f"Invalid text encoder config type: {config.text_encoder_class}")

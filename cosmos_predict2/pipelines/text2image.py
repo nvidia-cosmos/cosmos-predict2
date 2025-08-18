@@ -35,7 +35,7 @@ from cosmos_predict2.pipelines.base import BasePipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
-from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, get_text_encoder
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, get_cosmos_text_encoder
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.ema import FastEmaModelUpdater
@@ -124,7 +124,7 @@ class Text2ImagePipeline(BasePipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_text_encoder(config=config.text_encoder, device=device)
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)

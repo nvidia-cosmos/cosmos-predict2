@@ -44,7 +44,7 @@ from cosmos_predict2.utils.context_parallel import (
     cat_outputs_cp,
     split_inputs_cp,
 )
-from imaginaire.auxiliary.text_encoder import get_text_encoder
+from imaginaire.auxiliary.text_encoder import get_cosmos_text_encoder
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -211,7 +211,7 @@ class MultiviewPipeline(Video2WorldPipeline):
         )
 
         # 4. Load text encoder
-        pipe.text_encoder = get_text_encoder(config=config.text_encoder, device=device)
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device=device)
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)

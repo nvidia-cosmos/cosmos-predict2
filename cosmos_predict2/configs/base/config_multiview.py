@@ -32,7 +32,6 @@ from cosmos_predict2.models.multiview_dit import MultiViewDiT
 from cosmos_predict2.models.text2image_dit import SACConfig
 from imaginaire.auxiliary.text_encoder import (
     CosmosTextEncoderConfig,
-    get_text_encoder_config,
 )
 from imaginaire.config import LazyDict, make_freezable
 from imaginaire.constants import (
@@ -73,7 +72,7 @@ class MultiviewPipelineConfig:
     sigma_data: float = 1.0
     state_ch: int = 16
     state_t: int = 24
-    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=get_text_encoder_config)
+    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=CosmosTextEncoderConfig)
     input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = L(SolverTimestampConfig)(  # noqa: RUF009
