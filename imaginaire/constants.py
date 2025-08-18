@@ -40,7 +40,7 @@ _parser.add_argument(
 )
 _args = shlex.split(os.environ.get("COSMOS_PREDICT2_ARGS", ""))
 _args = _parser.parse_args(_args)
-log.info(f"Cosmos Predict2 args: {_args}")
+log.debug(f"Cosmos Predict2 args: {_args}")
 
 
 # Feature flags

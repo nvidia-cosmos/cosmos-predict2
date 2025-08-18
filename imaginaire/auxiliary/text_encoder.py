@@ -13,9 +13,10 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import abc
 import functools
 from enum import Enum
-from typing import Any, TypeAlias
+from typing import Any, Literal, TypeAlias, overload
 
 import attrs
 import torch
@@ -24,7 +25,7 @@ from torch import nn
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict, set_model_state_dict
 from torch.distributed.checkpoint.stateful import Stateful
 from transformers import T5EncoderModel, T5TokenizerFast
-from typing_extensions import Self
+from typing_extensions import Self, override
 
 from imaginaire.configs.reason1.model_config_qwen import QwenModelConfig, QwenVisionConfig
 from imaginaire.constants import COSMOS_REASON1_PRIVATE_CHECKPOINT, T5_MODEL_DIR, TEXT_ENCODER_CLASS, TextEncoderClass
@@ -64,6 +65,43 @@ class EmbeddingConcatStrategy(str, Enum):
 
     def __str__(self) -> str:
         return self.value
+
+
+class CosmosTextEncoderBase(abc.ABC):
+    @overload
+    def encode_prompts(self, prompts: str, max_length: int, return_mask: Literal[False]) -> torch.Tensor: ...
+    @overload
+    def encode_prompts(
+        self, prompts: list[str], max_length: int, return_mask: Literal[True]
+    ) -> tuple[torch.Tensor, torch.Tensor]: ...
+    @abc.abstractmethod
+    def encode_prompts(
+        self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False
+    ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
+        """Encodes text prompts into hidden state representations.
+
+        This function tokenizes the input prompts, processes them through a T5 text encoder,
+        and returns the last hidden states. The encoded outputs beyond the actual sequence
+        length are zero-padded. All prompts in a batch are padded to max_length.
+
+        Args:
+            prompts: Input text to encode. Can be a single string or a list of strings.
+            max_length: Maximum sequence length for tokenization and padding. Longer
+                sequences will be truncated. Defaults to 512.
+            return_mask: If True, returns the attention mask along with encoded text.
+                Defaults to False.
+
+        Returns:
+            If return_mask is False:
+                torch.Tensor: Encoded text embeddings of shape (batch_size, max_length, hidden_size).
+            If return_mask is True:
+                tuple[torch.Tensor, torch.Tensor]: A tuple containing:
+                    - Encoded text embeddings of shape (batch_size, max_length, hidden_size)
+                    - Attention mask of shape (batch_size, max_length) as boolean tensor
+
+        Raises:
+            ValueError: If the input prompts list is empty.
+        """
 
 
 @attrs.define(slots=False)
@@ -247,9 +285,14 @@ class CosmosReason1TextEncoder(torch.nn.Module):
 
         return text_embeddings
 
-    def encode_prompts(self, prompts: str | list[str], max_length: int = 512) -> torch.Tensor:
+    @override
+    def encode_prompts(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False):
         if isinstance(prompts, str):
             prompts = [prompts]
+        if not prompts:
+            raise ValueError("The input prompt list is empty.")
+        if return_mask:
+            raise NotImplementedError("return_mask is not supported for CosmosReason1TextEncoder")
         return self.compute_text_embeddings_online(prompts)
 
 
@@ -291,29 +334,7 @@ class CosmosT5TextEncoder(torch.nn.Module):
         return self
 
     @torch.inference_mode()
-    def encode_prompts(self, prompts: str | list[str], max_length: int = 512) -> torch.Tensor:
-        """Encodes text prompts into hidden state representations using a T5 encoder.
-
-        This function tokenizes the input prompts, processes them through a T5 text encoder,
-        and returns the last hidden states. The encoded outputs beyond the actual sequence
-        length are zero-padded. All prompts in a batch are padded to max_length.
-
-        Args:
-            prompts: Input text to encode. Can be a single string or a list of strings.
-            max_length: Maximum sequence length for tokenization and padding. Longer
-                sequences will be truncated. Defaults to 512.
-
-        Returns:
-            torch.Tensor: Encoded text embeddings of shape (batch_size, max_length, hidden_size).
-
-        Raises:
-            ValueError: If the input prompts list is empty.
-
-        Example:
-            >>> encoder = CosmosT5TextEncoder()
-            >>> prompts = ["Hello world", "Another example"]
-            >>> embeddings = encoder.encode_prompts(prompts, max_length=128)
-        """
+    def encode_prompts(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False):
         if isinstance(prompts, str):
             prompts = [prompts]
 
@@ -341,6 +362,8 @@ class CosmosT5TextEncoder(torch.nn.Module):
         for batch_id in range(encoded_text.shape[0]):
             encoded_text[batch_id][lengths[batch_id] :] = 0
 
+        if return_mask:
+            return encoded_text, attn_mask.bool()
         return encoded_text
 
 

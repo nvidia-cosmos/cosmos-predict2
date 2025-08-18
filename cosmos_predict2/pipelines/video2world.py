@@ -455,7 +455,7 @@ class Video2WorldPipeline(BasePipeline):
     def denoising_model(self) -> torch.nn.Module:
         return self.dit
 
-    def encode_prompt(self, prompts: str | list[str], max_length: int = 512) -> torch.Tensor:
+    def encode_prompt(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
         if isinstance(prompts, str):
@@ -464,7 +464,7 @@ class Video2WorldPipeline(BasePipeline):
         if offload_to_host:
             self.text_encoder.to(device="cuda")
 
-        embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length)
+        embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
 
         if offload_to_host:
             self.text_encoder.to(device="cpu")
