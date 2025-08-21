@@ -29,14 +29,17 @@ from cosmos_predict2.configs.base.defaults.ema import EMAConfig
 from cosmos_predict2.models.text2image_dit import SACConfig
 from cosmos_predict2.models.video2world_dit import MinimalV1LVGDiT
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
+from imaginaire.auxiliary.text_encoder import (
+    CosmosTextEncoderConfig,
+)
 from imaginaire.config import make_freezable
 from imaginaire.constants import (
+    CHECKPOINTS_DIR,
+    COSMOS_REASON1_MODEL_DIR,
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
     CosmosPredict2Video2WorldResolution,
-    get_checkpoints_dir,
     get_cosmos_predict2_video2world_tokenizer,
-    get_cosmos_reason1_model_dir,
 )
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import LazyDict
@@ -53,7 +56,7 @@ class ConditioningStrategy(str, Enum):
 @make_freezable
 @attrs.define(slots=False)
 class CosmosReason1Config:
-    checkpoint_dir: str
+    checkpoint_dir: str = COSMOS_REASON1_MODEL_DIR
     offload_model_to_cpu: bool = True
     enabled: bool = True
 
@@ -80,7 +83,7 @@ class Video2WorldPipelineConfig:
     sigma_data: float = 1.0
     state_ch: int = 16
     state_t: int = 24
-    text_encoder_class: str = "T5"
+    text_encoder: CosmosTextEncoderConfig = attrs.field(factory=CosmosTextEncoderConfig)
     input_video_key: str = "video"
     input_image_key: str = "images"
     timestamps: SolverTimestampConfig = attrs.field(factory=SolverTimestampConfig)
@@ -157,7 +160,6 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
-    text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         temporal_window=16,
@@ -166,12 +168,12 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
         vae_pth=get_cosmos_predict2_video2world_tokenizer(model_size="2B"),
     ),
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
@@ -248,7 +250,6 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
-    text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         temporal_window=16,
@@ -257,12 +258,12 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_14B = Video2WorldPipelineConfig(
         vae_pth=get_cosmos_predict2_video2world_tokenizer(model_size="14B"),
     ),
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
@@ -300,8 +301,8 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_14B_720P_16FPS = deepcopy(_PREDICT2_VIDEO2WORLD_P
 # Predict2 + NATTEN
 
 # Cosmos Predict2 Video2World + NATTEN 2B
-_PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = deepcopy(_PREDICT2_VIDEO2WORLD_PIPELINE_2B)
-_PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B.net.natten_parameters = PREDICT2_VIDEO2WORLD_NET_2B_NATTEN_PARAMETERS
+_PREDICT2_VIDEO2WORLD_WITH_NATTEN_NET_2B = deepcopy(_PREDICT2_VIDEO2WORLD_NET_2B)
+_PREDICT2_VIDEO2WORLD_WITH_NATTEN_NET_2B.natten_parameters = PREDICT2_VIDEO2WORLD_NET_2B_NATTEN_PARAMETERS
 
 _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = Video2WorldPipelineConfig(
     adjust_video_noise=True,
@@ -331,7 +332,7 @@ _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = Video2WorldPipelineConfig(
     conditioning_strategy=str(ConditioningStrategy.FRAME_REPLACE),
     min_num_conditional_frames=1,
     max_num_conditional_frames=2,
-    net=_PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B,
+    net=_PREDICT2_VIDEO2WORLD_WITH_NATTEN_NET_2B,
     precision="bfloat16",
     rectified_flow_t_scaling_factor=1.0,
     rectified_flow_loss_weight_uniform=True,
@@ -342,7 +343,6 @@ _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = Video2WorldPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
-    text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         temporal_window=16,
@@ -351,12 +351,12 @@ _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_2B = Video2WorldPipelineConfig(
         vae_pth=get_cosmos_predict2_video2world_tokenizer(model_size="2B"),
     ),
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
@@ -405,7 +405,6 @@ _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B = Video2WorldPipelineConfig(
     sigma_data=1.0,
     state_ch=16,
     state_t=24,
-    text_encoder_class="T5",
     tokenizer=L(TokenizerInterface)(
         chunk_duration=81,
         temporal_window=16,
@@ -414,12 +413,12 @@ _PREDICT2_VIDEO2WORLD_WITH_NATTEN_PIPELINE_14B = Video2WorldPipelineConfig(
         vae_pth=get_cosmos_predict2_video2world_tokenizer(model_size="14B"),
     ),
     prompt_refiner_config=CosmosReason1Config(
-        checkpoint_dir=get_cosmos_reason1_model_dir(),
+        checkpoint_dir=COSMOS_REASON1_MODEL_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),
     guardrail_config=CosmosGuardrailConfig(
-        checkpoint_dir=get_checkpoints_dir(),
+        checkpoint_dir=CHECKPOINTS_DIR,
         offload_model_to_cpu=True,
         enabled=True,
     ),

@@ -19,8 +19,8 @@ import pickle
 
 import numpy as np
 
-from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
-from imaginaire.constants import get_t5_model_dir
+from imaginaire.auxiliary.text_encoder import CosmosT5TextEncoder, CosmosT5TextEncoderConfig
+from imaginaire.constants import T5_MODEL_DIR
 
 """example command
 python -m scripts.get_t5_embeddings_from_cosmos_nemo_assets --dataset_path datasets/cosmos_nemo_assets
@@ -37,7 +37,7 @@ def parse_args() -> argparse.ArgumentParser:
     )
     parser.add_argument("--max_length", type=int, default=512, help="Maximum length of the text embedding")
     parser.add_argument("--prompt", type=str, default="A video of sks teal robot.", help="Text prompt for the dataset")
-    parser.add_argument("--cache_dir", type=str, default=get_t5_model_dir(), help="Directory to cache the T5 model")
+    parser.add_argument("--cache_dir", type=str, default=T5_MODEL_DIR, help="Directory to cache the T5 model")
     parser.add_argument("--is_image", action="store_true", help="Set if the dataset is image-based")
     return parser.parse_args()
 
@@ -72,7 +72,8 @@ def main(args) -> None:
     os.makedirs(t5_xxl_dir, exist_ok=True)
 
     # Initialize T5
-    encoder = CosmosT5TextEncoder(cache_dir=args.cache_dir, local_files_only=True)
+    encoder_config = CosmosT5TextEncoderConfig(ckpt_path=args.cache_dir)
+    encoder = CosmosT5TextEncoder(config=encoder_config)
 
     # Compute T5 embeddings
     print(f"Computing T5 embeddings for the prompt: {args.prompt}")

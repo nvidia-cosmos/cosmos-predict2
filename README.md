@@ -70,7 +70,7 @@ Here is a quick example demonstrating how to use Cosmos-Predict2-2B-Video2World 
 
 ```python
 import torch
-from imaginaire.constants import get_cosmos_predict2_video2world_checkpoint, get_t5_model_dir
+from imaginaire.constants import get_cosmos_predict2_video2world_checkpoint
 from imaginaire.utils.io import save_image_or_video
 from cosmos_predict2.configs.base.config_video2world import get_cosmos_predict2_video2world_pipeline
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
@@ -79,7 +79,6 @@ from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 pipe = Video2WorldPipeline.from_config(
     config=get_cosmos_predict2_video2world_pipeline(model_size="2B"),
     dit_path=get_cosmos_predict2_video2world_checkpoint(model_size="2B"),
-    text_encoder_path=get_t5_model_dir(),
 )
 
 # Specify the input image path and text prompt.

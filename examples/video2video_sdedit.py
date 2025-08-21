@@ -17,6 +17,8 @@ import argparse
 import json
 import os
 
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder
+
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
 
@@ -42,7 +44,6 @@ from imaginaire.constants import (
     CosmosPredict2Video2WorldResolution,
     get_cosmos_predict2_text2image_checkpoint,
     get_cosmos_predict2_video2world_checkpoint,
-    get_t5_model_dir,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.easy_io import easy_io
@@ -259,7 +260,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
+def setup_video2world_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     log.info(f"Using model size: {args.model_size}")
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps, natten=args.natten
@@ -276,13 +277,6 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
         )
 
     log.info(f"Using dit_path: {dit_path}")
-
-    # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else get_t5_model_dir()
-    if text_encoder is not None:
-        log.info("Using provided text encoder")
-    else:
-        log.info(f"Using text encoder from: {text_encoder_path}")
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
@@ -328,7 +322,7 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
     pipe = Video2WorldSDEditPipeline.from_config(
         config=config,
         dit_path=dit_path,
-        text_encoder_path=text_encoder_path,
+        use_text_encoder=text_encoder is None,
         device="cuda",
         torch_dtype=torch.bfloat16,
         load_ema_to_reg=args.load_ema,
@@ -342,7 +336,9 @@ def setup_video2world_pipeline(args: argparse.Namespace, text_encoder=None):
     return pipe
 
 
-def setup_text2image_pipeline(args: argparse.Namespace, text_encoder=None) -> Text2ImageSDEditPipeline:
+def setup_text2image_pipeline(
+    args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None
+) -> Text2ImageSDEditPipeline:
     config = get_cosmos_predict2_text2image_pipeline(model_size=args.model_size)
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
@@ -350,12 +346,6 @@ def setup_text2image_pipeline(args: argparse.Namespace, text_encoder=None) -> Te
         dit_path = get_cosmos_predict2_text2image_checkpoint(model_size=args.model_size)
 
     log.info(f"Using dit_path: {dit_path}")
-    # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else get_t5_model_dir()
-    if text_encoder is not None:
-        log.info("Using provided text encoder")
-    else:
-        log.info(f"Using text encoder from: {text_encoder_path}")
 
     # Disable guardrail if requested
     if args.disable_guardrail:
@@ -421,7 +411,7 @@ def setup_text2image_pipeline(args: argparse.Namespace, text_encoder=None) -> Te
         pipe = Text2ImageSDEditPipeline.from_config(
             config=config,
             dit_path=dit_path,
-            text_encoder_path=text_encoder_path,
+            use_text_encoder=text_encoder is None,
             device="cuda",
             torch_dtype=torch.bfloat16,
             load_ema_to_reg=args.load_ema,

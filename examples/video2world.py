@@ -17,13 +17,13 @@ import argparse
 import json
 import os
 
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder
 from imaginaire.constants import (
     CosmosPredict2Video2WorldAspectRatio,
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
     CosmosPredict2Video2WorldResolution,
     get_cosmos_predict2_video2world_checkpoint,
-    get_t5_model_dir,
 )
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
@@ -189,7 +189,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace, text_encoder=None):
+def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps, natten=getattr(args, "natten", False)
     )
@@ -204,13 +204,6 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
             natten=getattr(args, "natten", False),
         )
     log.info(f"Using dit_path: {dit_path}")
-
-    # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else get_t5_model_dir()
-    if text_encoder is not None:
-        log.info("Using provided text encoder")
-    else:
-        log.info(f"Using text encoder from: {text_encoder_path}")
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
@@ -256,7 +249,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     pipe = Video2WorldPipeline.from_config(
         config=config,
         dit_path=dit_path,
-        text_encoder_path=text_encoder_path,
+        use_text_encoder=text_encoder is None,
         offload_text_encoder=args.offload_text_encoder,
         downcast_text_encoder=args.downcast_text_encoder,
         device="cuda",

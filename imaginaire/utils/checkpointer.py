@@ -17,12 +17,15 @@ from __future__ import annotations
 
 import os
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, NamedTuple
 
 import torch
+import torch.distributed as dist
+from torch import nn
 
 from imaginaire.model import ImaginaireModel
 from imaginaire.utils import callback, distributed, log, misc
+from imaginaire.utils.parallelism import ModelWrapper
 
 if TYPE_CHECKING:
     from imaginaire.config import CheckpointConfig, JobConfig
@@ -232,3 +235,48 @@ class Checkpointer:
         """Finalize the checkpointer."""
         if self.save_thread:
             self.save_thread.join()
+
+
+class _IncompatibleKeys(
+    NamedTuple(
+        "IncompatibleKeys",
+        [
+            ("missing_keys", list[str]),
+            ("unexpected_keys", list[str]),
+            ("incorrect_shapes", list[tuple[str, tuple[int], tuple[int]]]),
+        ],
+    )
+):
+    pass
+
+
+def load_checkpoint(
+    model_parts: list[nn.Module],
+    ckpt_dir,
+    model_ckpt_key_map: dict[str, str] = {},  # noqa: B006
+):
+    log.info(f"Loading checkpoint from {ckpt_dir}.")
+
+    _model_wrapper = ModelWrapper(model_parts)
+    state_dict = _model_wrapper.state_dict()
+    # remove _extra_state
+    state_dict = {k: v for k, v in state_dict.items() if not k.endswith("._extra_state")}
+
+    # remap keys if needed
+    if model_ckpt_key_map:
+        for model_key, checkpoint_key in model_ckpt_key_map.items():
+            state_dict[checkpoint_key] = state_dict.pop(model_key)
+            log.info(f"Re-mapping {model_key} to {checkpoint_key}")
+
+    fs_storage_reader = dist.checkpoint.FileSystemReader(ckpt_dir)
+    dist.checkpoint.load(state_dict=state_dict, storage_reader=fs_storage_reader)
+
+    # inverse the remapping if needed
+    if model_ckpt_key_map:
+        for model_key, checkpoint_key in model_ckpt_key_map.items():
+            state_dict[model_key] = state_dict.pop(checkpoint_key)
+            log.info(f"Inverse re-mapping {checkpoint_key} to {model_key}")
+
+    _model_wrapper.load_state_dict(state_dict)
+
+    log.info(f"Finished loading checkpoint from {ckpt_dir}.")

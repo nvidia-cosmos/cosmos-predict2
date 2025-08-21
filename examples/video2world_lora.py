@@ -26,15 +26,16 @@ from megatron.core import parallel_state
 from tqdm import tqdm
 
 from cosmos_predict2.configs.base.config_video2world import (
+    Video2WorldPipelineConfig,
     get_cosmos_predict2_video2world_pipeline,
 )
 from cosmos_predict2.pipelines.video2world import _IMAGE_EXTENSIONS, _VIDEO_EXTENSIONS, Video2WorldPipeline
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, get_cosmos_text_encoder
 from imaginaire.constants import (
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
     CosmosPredict2Video2WorldResolution,
     get_cosmos_predict2_video2world_checkpoint,
-    get_t5_model_dir,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video
@@ -74,7 +75,9 @@ def add_lora_to_model(
     return model
 
 
-def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
+def setup_lora_pipeline(
+    config: Video2WorldPipelineConfig, dit_path: str, use_text_encoder: bool, args: argparse.Namespace
+):
     """
     Set up a pipeline with LoRA support.
     This function creates the pipeline, adds LoRA, then loads the checkpoint.
@@ -82,7 +85,6 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
     import numpy as np
 
     from cosmos_predict2.auxiliary.cosmos_reason1 import CosmosReason1
-    from cosmos_predict2.auxiliary.text_encoder import CosmosT5TextEncoder
     from cosmos_predict2.models.utils import init_weights_on_device, load_state_dict
     from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
     from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
@@ -118,12 +120,9 @@ def setup_lora_pipeline(config, dit_path, text_encoder_path, args):
         f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
     )
     # 4. Load text encoder
-    if text_encoder_path:
-        # inference
-        pipe.text_encoder = CosmosT5TextEncoder(device="cuda", cache_dir=text_encoder_path)
-        pipe.text_encoder.to("cuda")
+    if use_text_encoder:
+        pipe.text_encoder = get_cosmos_text_encoder(config=config.text_encoder, device="cuda")
     else:
-        # training
         pipe.text_encoder = None
     # 5. Initialize conditioner
     pipe.conditioner = instantiate(config.conditioner)
@@ -381,7 +380,7 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def setup_pipeline(args: argparse.Namespace, text_encoder=None):
+def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps
     )
@@ -391,13 +390,6 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
         dit_path = get_cosmos_predict2_video2world_checkpoint(
             model_size=args.model_size, resolution=args.resolution, fps=args.fps
         )
-    # Only set up text encoder path if no encoder is provided
-    text_encoder_path = None if text_encoder is not None else get_t5_model_dir()
-    log.info(f"Using dit_path: {dit_path}")
-    if text_encoder is not None:
-        log.info("Using provided text encoder")
-    else:
-        log.info(f"Using text encoder from: {text_encoder_path}")
     misc.set_random_seed(seed=args.seed, by_rank=True)
     # Initialize cuDNN.
     torch.backends.cudnn.deterministic = False
@@ -437,13 +429,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder=None):
     if args.use_lora:
         # For LoRA inference, we need to add LoRA before loading the checkpoint
         log.info("LoRA inference mode detected - using custom pipeline loading")
-        pipe = setup_lora_pipeline(config, dit_path, text_encoder_path, args)
+        pipe = setup_lora_pipeline(config=config, dit_path=dit_path, use_text_encoder=text_encoder is None, args=args)
     else:
         # Standard inference
         pipe = Video2WorldPipeline.from_config(
             config=config,
             dit_path=dit_path,
-            text_encoder_path=text_encoder_path,
+            use_text_encoder=text_encoder is None,
             device="cuda",
             torch_dtype=torch.bfloat16,
             load_prompt_refiner=True,

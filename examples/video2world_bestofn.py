@@ -27,11 +27,11 @@ from typing import Any
 import torch
 
 from imaginaire.constants import (
+    COSMOS_REASON1_MODEL_DIR,
     CosmosPredict2Video2WorldAspectRatio,
     CosmosPredict2Video2WorldFPS,
     CosmosPredict2Video2WorldModelSize,
     CosmosPredict2Video2WorldResolution,
-    get_cosmos_reason1_model_dir,
 )
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
@@ -307,7 +307,7 @@ def parse_args():
     parser.add_argument(
         "--checkpoint_dir",
         type=str,
-        default=get_cosmos_reason1_model_dir(),
+        default=COSMOS_REASON1_MODEL_DIR,
         help="Path to the Cosmos-Reason1 checkpoint",
     )
     return parser.parse_args()
