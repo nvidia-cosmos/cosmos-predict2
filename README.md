@@ -28,27 +28,13 @@ We visualize the architecture of Cosmos-Predict2 in the following figure.
 * [Cosmos-Predict2-2B-Sample-Action-Conditioned](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned): Video + Action based future visual world generation, post-trained on Bridge dataset
 ---
 
+## Setup
+
+[Setup](documentations/setup.md)
+
 ## Diffusers
 
 Cosmos-Predict2 is included in [`diffusers>=0.34.0`](https://huggingface.co/docs/transformers/en/index).
-
-Install system dependencies:
-
-* [uv](https://docs.astral.sh/uv/getting-started/installation/)
-
-  ```shell
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  source $HOME/.local/bin/env
-  ```
-
-* [Hugging Face CLI](https://huggingface.co/docs/huggingface_hub/en/guides/cli)
-
-  Accept the [Llama-Guard-3-8B terms](https://huggingface.co/meta-llama/Llama-Guard-3-8B).
-
-  ```shell
-  uv tool install -U "huggingface_hub[cli]"
-  hf auth login
-  ```
 
 Run example inference scripts:
 

@@ -1,3 +1,4 @@
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
 # SPDX-License-Identifier: Apache-2.0
 #
@@ -13,11 +14,11 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-name: cosmos-predict2
-channels:
-  - conda-forge
-dependencies:
-  - python=3.10
-  - clang=20.1.8
-  - cuda=12.6
-  - libgl=1.7.0
+
+# Docker entrypoint script.
+
+set -e
+
+uv sync --locked --extra cu126 || true
+
+exec "$@"

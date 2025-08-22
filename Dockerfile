@@ -13,6 +13,8 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+# DEPRECATED: Use uv.Dockerfile instead.
+
 # Use NVIDIA PyTorch container as base image
 FROM nvcr.io/nvidia/pytorch:25.04-py3
 ARG TARGETPLATFORM

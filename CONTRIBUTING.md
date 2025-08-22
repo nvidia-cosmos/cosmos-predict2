@@ -4,6 +4,16 @@ We'd love to receive your patches and contributions. Please keep your PRs as dra
 
 ## Testing
 
+Install system dependencies:
+
+[just](https://just.systems/man/en/pre-built-binaries.html#pre-built-binaries)
+
+```shell
+mkdir -p "$HOME/.local"
+curl --proto '=https' --tlsv1.2 -sSf https://just.systems/install.sh | bash -s -- --to "$HOME/.local/bin"
+export PATH="$HOME/.local/bin:$PATH"
+```
+
 To test your changes locally, run
 
 ```shell

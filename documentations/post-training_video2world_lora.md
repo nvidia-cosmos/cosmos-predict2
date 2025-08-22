@@ -383,7 +383,6 @@ For example, if a LoRA post-trained checkpoint with 1000 iterations is to be use
 
 ```bash
 export NUM_GPUS=8
-export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 2B \
@@ -406,7 +405,6 @@ The 14B model can be run similarly by changing the `--model_size` and using the 
 
 ```bash
 export NUM_GPUS=8
-export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 14B \
@@ -663,7 +661,6 @@ Use the LoRA-trained checkpoints for inference:
 **2B Video2World LoRA Inference:**
 ```bash
 export NUM_GPUS=8
-export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 2B \
@@ -683,7 +680,6 @@ torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
 **14B Video2World LoRA Inference:**
 ```bash
 export NUM_GPUS=8
-export PYTHONPATH=$(pwd)
 
 torchrun --nproc_per_node=${NUM_GPUS} examples/video2world_lora.py \
     --model_size 14B \

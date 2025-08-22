@@ -1,35 +1,14 @@
 default:
   just --list
 
-extras := "flash-attn transformer-engine natten"
-training_extras := "apex"
-
 # Setup the repository
 setup:
   uv tool install -U pre-commit
   pre-commit install -c .pre-commit-config-base.yaml
 
-# Install inference in existing environment
-install cuda='cu126':
-    echo {{ cuda }} > .venv/cuda-version
-    ./scripts/_sync.sh "{{ extras }}"
-    ./.venv/bin/python scripts/test_environment.py
-
-# Install training in existing environment
-install-training:
-    ./scripts/_sync.sh "{{ extras }} {{ training_extras }}"
-    ./.venv/bin/python scripts/test_environment.py --training
-
-# Create a new conda environment
-_conda-env:
-    rm -rf .venv
-    conda env create -y --no-default-packages -f cosmos-predict2.yaml
-    ln -sf "$(conda info --base)/envs/cosmos-predict2" .venv
-
-# Install inference in a new conda environment
-install-conda:
-    just -f {{ justfile() }} _conda-env
-    just -f {{ justfile() }} install cu126
+# Install the repository
+install:
+  uv sync --extra cu126
 
 # Run linting and formatting
 lint: setup
@@ -37,3 +16,22 @@ lint: setup
 
 # Run tests
 test: lint
+
+# Update the license
+license: install
+  uvx licensecheck
+  uvx pip-licenses --python .venv/bin/python --format=plain-vertical --with-license-file --no-license-path --no-version --with-urls --output-file ATTRIBUTIONS.txt
+
+# Build the docker image
+docker-build cuda_version='12.6.3' *args:
+  docker build --build-arg CUDA_VERSION="{{cuda_version}}" -t cosmos-predict2:{{cuda_version}} -f uv.Dockerfile . {{args}}
+
+# Run the docker container
+docker cuda_version='12.6.3' *args:
+  # https://github.com/astral-sh/uv-docker-example/blob/main/run.sh
+  just -f {{justfile()}} docker-build "{{cuda_version}}"
+  docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it cosmos-predict2:{{cuda_version}} {{args}}
+
+# Run the arm docker container
+docker-arm *args:
+  docker run --gpus all --rm -v .:/workspace -it nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2 {{args}}

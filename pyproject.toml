@@ -62,6 +62,7 @@ dependencies = [
   "safetensors==0.5.3",
   "scikit-image==0.25.2",
   "sentencepiece==0.2.0",
+  "setuptools",
   "termcolor==2.5.0",
   "tqdm==4.66.5",
   "transformers==4.51.3",
@@ -70,58 +71,69 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-apex = ["apex"]
-# https://github.com/NVIDIA/TransformerEngine/blob/main/pyproject.toml
-# https://github.com/Dao-AILab/flash-attention?tab=readme-ov-file#installation-and-features
-build = [
-  "cmake>=3.21",
-  "flax>=0.7.1",
-  "jax[cuda12]",
-  "ninja",
-  "packaging",
-  "pip>=25.1",
-  "psutil",
-  "pybind11[global]",
-  "setuptools>=61.0",
-  "wheel",
-]
 cu126 = [
-  "nvidia-nvtx-cu12==12.6.*",
+  "flash-attn==2.6.3",
+  "natten==0.21.0",
   "torch==2.6.0",
   "torchvision==0.21.0",
+  "transformer-engine==1.13",
+  # Torch dependencies
+  # Dependencies determined from `uv pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu126`
+  # Issue: https://github.com/astral-sh/uv/issues/14237
+  "nvidia-cublas-cu12==12.6.4.1",
+  "nvidia-cuda-cupti-cu12==12.6.80",
+  "nvidia-cuda-nvrtc-cu12==12.6.77",
+  "nvidia-cuda-runtime-cu12==12.6.77",
+  "nvidia-cudnn-cu12==9.5.1.17",
+  "nvidia-cufft-cu12==11.3.0.4",
+  "nvidia-curand-cu12==10.3.7.77",
+  "nvidia-cusolver-cu12==11.7.1.2",
+  "nvidia-cusparse-cu12==12.5.4.2",
+  "nvidia-cusparselt-cu12==0.6.3",
+  "nvidia-nccl-cu12==2.21.5",
+  "nvidia-nvjitlink-cu12==12.6.85",
+  "nvidia-nvtx-cu12==12.6.77",
 ]
-flash-attn = ["flash-attn==2.6.3"]
-flash-attn-3 = ["flash-attn-3"]
-natten = ["natten==0.20.1"]
-transformer-engine = ["transformer-engine"]
 
 [project.urls]
 homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"
 issues = "https://github.com/nvidia-cosmos/cosmos-predict2/issues"
 
 [tool.uv]
-no-build-isolation-package = [
-  "apex",
+environments = [
+  "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
+]
+no-build-package = [
   "flash-attn",
-  "flash-attn-3",
   "natten",
   "transformer-engine",
 ]
 
 [tool.uv.sources]
-apex = { git = "https://github.com/spectralflight/apex.git", branch = "cosmos" }
-flash-attn-3 = { git = "https://github.com/Dao-AILab/flash-attention.git", rev = "27f501d", subdirectory = "hopper" }
+flash-attn = [
+  { index = "cosmos-cu126", extra = "cu126" },
+]
+natten = [
+  { index = "cosmos-cu126", extra = "cu126" },
+]
+transformer-engine = [
+  { index = "cosmos-cu126", extra = "cu126" },
+]
 torch = [
   { index = "pytorch-cu126", extra = "cu126" },
 ]
 torchvision = [
   { index = "pytorch-cu126", extra = "cu126" },
 ]
-transformer-engine = { git = "https://github.com/NVIDIA/TransformerEngine.git", tag = "v1.13" }
 
 [[tool.uv.index]]
 name = "pytorch-cu126"
 url = "https://download.pytorch.org/whl/cu126"
+explicit = true
+
+[[tool.uv.index]]
+name = "cosmos-cu126"
+url = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple"
 explicit = true
 
 [tool.uv.build-backend]

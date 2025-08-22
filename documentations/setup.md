@@ -3,9 +3,8 @@
 ## System Requirements
 
 * NVIDIA GPUs with Ampere architecture (RTX 30 Series, A100) or newer
-* Linux operating system (Ubuntu 20.04, 22.04, or 24.04 LTS)
-* CUDA version 12.4 or later
-* Python version 3.10 or later
+* NVIDIA driver compatible with CUDA 12.6
+* Linux
 
 ## Installation
 
@@ -24,98 +23,47 @@ The installation will be handled by the Conda scripts or Dockerfile.
 
 ### Option 1: Virtual environment
 
+System requirements:
+
+* Linux x86-64
+* glibc>=2.31 (e.g Ubuntu >=22.04)
+
 Install system dependencies:
 
-* [uv](https://docs.astral.sh/uv/getting-started/installation/)
+[uv](https://docs.astral.sh/uv/getting-started/installation/)
 
-  ```shell
-  curl -LsSf https://astral.sh/uv/install.sh | sh
-  source $HOME/.local/bin/env
-  ```
+```shell
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
 
-* [just](https://github.com/casey/just?tab=readme-ov-file#installation)
+Install the package into a new environment:
 
-  ```shell
-  pkgm install just
-  # or
-  conda install -c conda-forge just
-  ```
+```shell
+uv sync --extra cu126
+source .venv/bin/activate
+```
 
-* [arm only] decord
+Or, install the package into the active environment (e.g. conda):
 
-   ```sh
-   bash scripts/install_decord_arm.sh
-   ```
-
-Install the package using your preferred environment:
-
-1. conda
-
-   Install system dependencies:
-
-   * conda: <https://docs.conda.io/projects/conda/en/latest/user-guide/install/index.html>
-
-   ```sh
-   just install-conda
-   conda activate cosmos-predict2
-   ```
-
-2. venv
-
-   Install system dependencies:
-
-   * CUDA 12.6: <https://developer.nvidia.com/cuda-12-6-0-download-archive>
-   * clang
-
-   ```sh
-   just install cu126
-   source .venv/bin/activate
-   ```
-
-[Optional] Install training dependencies
-
-```sh
-just install-training
+```shell
+uv sync  --extra cu126 --active --inexact
 ```
 
 ### Option 2: Docker container
 
 Please make sure you have access to Docker on your machine and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) is installed.
 
-* **Option 2A: Use pre-built Cosmos-Predict2 container**
+For x86-64, build and run the container:
 
-   ```bash
-   # Pull the Cosmos-Predict2 container
-   docker pull nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
-   ```
+```bash
+docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -f uv.Dockerfile -q .)
+```
 
-* **Option 2B: Build container from Dockerfile**
+For arm, pull and run a pre-built container:
 
-   Make sure you are under the repo root.
-
-   ```bash
-   # Build the Docker image
-   docker build -t cosmos-predict2-local -f Dockerfile .
-   ```
-
-* **Running the container**
-
-   Use the following command to run either container, replacing `[CONTAINER_NAME]` with either `nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2` or `cosmos-predict2-local`:
-
-   ```bash
-   # Run the container with GPU support and mount necessary directories
-   docker run --gpus all -it --rm \
-   -v /path/to/cosmos-predict2:/workspace \
-   -v /path/to/datasets:/workspace/datasets \
-   -v /path/to/checkpoints:/workspace/checkpoints \
-   [CONTAINER_NAME]
-
-   # Verify setup inside container
-   export PYTHONPATH=$(pwd)
-   python /workspace/scripts/test_environment.py
-   ```
-
-   > **Note**: Replace `/path/to/cosmos-predict2`, `/path/to/datasets`, and `/path/to/checkpoints` with your actual local paths.
+```bash
+docker run --gpus all --rm -v .:/workspace -it nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+```
 
 ## Downloading Checkpoints
 
@@ -125,6 +73,10 @@ Please make sure you have access to Docker on your machine and the [NVIDIA Conta
 4. Accept the [Llama-Guard-3-8B terms](https://huggingface.co/meta-llama/Llama-Guard-3-8B).
 
 To download a specific model:
+
+```shell
+./scripts/download_checkpoints.py --model_types <model_type> --model_sizes <model_size>
+```
 
 | Models | Link | Download Arguments | Notes |
 |--------|------|--------------------|-------|
