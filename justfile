@@ -18,18 +18,13 @@ lint: setup
 test: lint
 
 # Update the license
-license:
+license: install
   uvx licensecheck --show-only-failing --ignore-packages "nvidia-*" "hf-xet" --zero
   uvx pip-licenses --python .venv/bin/python --format=plain-vertical --with-license-file --no-license-path --no-version --with-urls --output-file ATTRIBUTIONS.txt
 
 # Release a new version
-release pypi_token:
-  just -f {{justfile()}} license
-  just -f {{justfile()}} lint
-  uv version --bump patch
-  rm -rf dist
-  uv build
-  uv publish --token {{pypi_token}}
+release pypi_token='dry-run' *args:
+  ./bin/release.sh {{pypi_token}} {{args}}
 
 # Build the docker image
 docker-build cuda_version='12.6.3' *args:
