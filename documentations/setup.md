@@ -34,6 +34,7 @@ Install system dependencies:
 
 ```shell
 curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
 ```
 
 Install the package into a new environment:
@@ -46,7 +47,7 @@ source .venv/bin/activate
 Or, install the package into the active environment (e.g. conda):
 
 ```shell
-uv sync  --extra cu126 --active --inexact
+uv sync --extra cu126 --active --inexact
 ```
 
 ### Option 2: Docker container

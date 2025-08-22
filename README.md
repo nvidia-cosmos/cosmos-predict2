@@ -2,7 +2,7 @@
     <img src="assets/nvidia-cosmos-header.png" alt="NVIDIA Cosmos Header">
 </p>
 
-### Paper (coming soon!) | [Website](https://research.nvidia.com/labs/dir/cosmos-predict2/) | [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-predict2-68028efc052239369a0f2959)
+### Paper (coming soon!) | [Website](https://research.nvidia.com/labs/dir/cosmos-predict2/) | [Hugging Face](https://huggingface.co/collections/nvidia/cosmos-predict2-68028efc052239369a0f2959) | [PyPI](https://pypi.org/project/cosmos-predict2/)
 
 Cosmos-Predict2 is a key branch of the [Cosmos World Foundation Models](https://www.nvidia.com/en-us/ai/cosmos) (WFMs) ecosystem for Physical AI, specializing in future state prediction through advanced world modeling. It offers two powerful capabilities: text-to-image generation for creating high-quality images from text descriptions, and video-to-world generation for producing visual simulations from video inputs.
 
@@ -13,6 +13,8 @@ We visualize the architecture of Cosmos-Predict2 in the following figure.
 </p>
 
 ## News
+* 2025-08-22: Cosmos-Predict2 is now available on [PyPI](https://pypi.org/project/cosmos-predict2/)! See [Getting Started](#getting-started) for usage.
+* 2025-08-21: Cosmos-Predict2 now has pre-built dependencies! See [Setup Guide](documentations/setup.md).
 * 2025-08-15: We released the [0.6B Text2Image](documentations/inference_text2image.md) model with fast tokenizer support!
 * 2025-07-10: We released [Predict2 + NATTEN](documentations/performance.md#sparse-attention-powered-by-natten), bringing up to 2.6X end-to-end inference speedup with sparse attention ([Video](https://www.youtube.com/watch?v=o396JZsz4V4)).
 * 2025-06-11: We released post-training and inference code, along with model weights. For a code walkthrough, please see this [video](https://www.youtube.com/watch?v=ibnVm6hPtxA).
@@ -28,9 +30,33 @@ We visualize the architecture of Cosmos-Predict2 in the following figure.
 * [Cosmos-Predict2-2B-Sample-Action-Conditioned](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned): Video + Action based future visual world generation, post-trained on Bridge dataset
 ---
 
-## Setup
+## Getting Started
 
-[Setup](documentations/setup.md)
+System Requirements:
+
+* NVIDIA GPUs with Ampere architecture (RTX 30 Series, A100) or newer
+* NVIDIA driver compatible with CUDA 12.6
+* Linux x86-64
+* glibc>=2.31 (e.g Ubuntu >=22.04)
+* Python 3.10
+
+We **HIGHLY** recommend using [uv](https://docs.astral.sh/uv/getting-started/installation/).
+
+```shell
+curl -LsSf https://astral.sh/uv/install.sh | sh
+source $HOME/.local/bin/env
+```
+
+Cosmos-Predict2 can be installed with `pip` (requires `python==3.10`):
+
+```shell
+uv venv --python 3.10 --allow-existing
+uv pip install -U "cosmos-predict2[cu126]" --extra-index-url https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple
+```
+
+[Example Project](examples/project/README.md)
+
+To run the repository examples below, please follow the [Setup Guide](documentations/setup.md)
 
 ## Diffusers
 

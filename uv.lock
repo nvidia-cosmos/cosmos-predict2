@@ -7,6 +7,9 @@ resolution-markers = [
 supported-markers = [
     "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'",
 ]
+required-markers = [
+    "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'",
+]
 
 [[package]]
 name = "accelerate"
@@ -231,7 +234,7 @@ wheels = [
 
 [[package]]
 name = "cosmos-predict2"
-version = "1.0.3"
+version = "1.0.8"
 source = { editable = "." }
 dependencies = [
     { name = "attrs", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -351,8 +354,8 @@ requires-dist = [
     { name = "sentencepiece", specifier = "==0.2.0" },
     { name = "setuptools" },
     { name = "termcolor", specifier = "==2.5.0" },
-    { name = "torch", marker = "extra == 'cu126'", specifier = "==2.6.0", index = "https://download.pytorch.org/whl/cu126", conflict = { package = "cosmos-predict2", extra = "cu126" } },
-    { name = "torchvision", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://download.pytorch.org/whl/cu126", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "torch", marker = "extra == 'cu126'", specifier = "==2.6.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "torchvision", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "tqdm", specifier = "==4.66.5" },
     { name = "transformer-engine", marker = "extra == 'cu126'", specifier = "==1.13", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "transformers", specifier = "==4.51.3" },
@@ -2016,21 +2019,31 @@ wheels = [
 [[package]]
 name = "torch"
 version = "2.6.0+cu126"
-source = { registry = "https://download.pytorch.org/whl/cu126" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "filelock", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "fsspec", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "jinja2", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "networkx", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cublas-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cuda-cupti-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cuda-nvrtc-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cuda-runtime-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cudnn-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cufft-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-curand-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cusolver-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cusparse-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-cusparselt-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-nccl-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-nvjitlink-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "nvidia-nvtx-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "sympy", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+    { name = "triton", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "typing-extensions", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cu126/torch-2.6.0%2Bcu126-cp310-cp310-manylinux_2_28_x86_64.whl", hash = "sha256:c55280b4da58e565d8a25e0e844dc27d0c96aaada7b90b4de70a45397faf604e" },
-    { url = "https://download.pytorch.org/whl/cu126/torch-2.6.0%2Bcu126-cp311-cp311-manylinux_2_28_x86_64.whl", hash = "sha256:cd3b15819315bd44d34e6fa56a8f6f64192608de17da112ec0cd6cd5fc1781f3" },
-    { url = "https://download.pytorch.org/whl/cu126/torch-2.6.0%2Bcu126-cp312-cp312-manylinux_2_28_x86_64.whl", hash = "sha256:6bc5b9126daa3ac1e4d920b731da9f9503ff1f56204796de124e080f5cc3570e" },
-    { url = "https://download.pytorch.org/whl/cu126/torch-2.6.0%2Bcu126-cp313-cp313-manylinux_2_28_x86_64.whl", hash = "sha256:2356c759696f4e296a7a08e8146c6381ccf2da40990fe400264b189a8a6c4bab" },
-    { url = "https://download.pytorch.org/whl/cu126/torch-2.6.0%2Bcu126-cp313-cp313t-manylinux_2_28_x86_64.whl", hash = "sha256:90d9c64ab8961595e05d4816e7190f38d8a1cd9931909a669da7bc398b9bc26b" },
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v0.1.0/torch-2.6.0+cu126-cp310-cp310-manylinux_2_28_x86_64.whl" },
 ]
 
 [[package]]
@@ -2050,17 +2063,14 @@ wheels = [
 [[package]]
 name = "torchvision"
 version = "0.21.0+cu126"
-source = { registry = "https://download.pytorch.org/whl/cu126" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "numpy", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pillow", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://download.pytorch.org/whl/cu126/torchvision-0.21.0%2Bcu126-cp310-cp310-linux_x86_64.whl", hash = "sha256:db4369a89b866b319c8dd73931c3e5f314aa535f7035ae2336ce9a26d7ace15a" },
-    { url = "https://download.pytorch.org/whl/cu126/torchvision-0.21.0%2Bcu126-cp311-cp311-linux_x86_64.whl", hash = "sha256:bce6bff7ad759a4c924214af08c04a6c1f6f2d2901031bfcf67fcbaa79c08432" },
-    { url = "https://download.pytorch.org/whl/cu126/torchvision-0.21.0%2Bcu126-cp312-cp312-linux_x86_64.whl", hash = "sha256:ec1887ed3c842aa48308ea00f1442c683f7d351fb14e94b76c2072678d06ac92" },
-    { url = "https://download.pytorch.org/whl/cu126/torchvision-0.21.0%2Bcu126-cp313-cp313-linux_x86_64.whl", hash = "sha256:ed7912ed64c110792401273ee8a9dda81fc2ef53a66a3f7b25238bc52900a987" },
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v0.1.0/torchvision-0.21.0+cu126-cp310-cp310-linux_x86_64.whl" },
 ]
 
 [[package]]

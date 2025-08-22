@@ -14,12 +14,12 @@
 # limitations under the License.
 
 [build-system]
-requires = ["uv_build>=0.7.21,<0.8.0"]
-build-backend = "uv_build"
+requires = ["hatchling"]
+build-backend = "hatchling.build"
 
 [project]
-name = "cosmos_predict2"
-version = "1.0.3"
+name = "cosmos-predict2"
+version = "1.0.8"
 authors = [
   {name = "NVIDIA Corporation"},
 ]
@@ -27,6 +27,15 @@ description = "Cosmos World Foundation Model"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
+classifiers = [
+  "Development Status :: 4 - Beta",
+  "Environment :: GPU :: NVIDIA CUDA",
+  "Intended Audience :: Science/Research",
+  "License :: OSI Approved :: Apache Software License",
+  "Operating System :: POSIX :: Linux",
+  "Programming Language :: Python",
+  "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
 dependencies = [
   "attrs==25.1.0",
   "better-profanity==0.7.0",
@@ -96,8 +105,9 @@ cu126 = [
 ]
 
 [project.urls]
-homepage = "https://github.com/nvidia-cosmos/cosmos-predict2/"
+homepage = "https://github.com/nvidia-cosmos/cosmos-predict2"
 issues = "https://github.com/nvidia-cosmos/cosmos-predict2/issues"
+repository = "https://github.com/nvidia-cosmos/cosmos-predict2"
 
 [tool.uv]
 environments = [
@@ -107,6 +117,9 @@ no-build-package = [
   "flash-attn",
   "natten",
   "transformer-engine",
+]
+required-environments = [
+    "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 
 [tool.uv.sources]
@@ -120,35 +133,31 @@ transformer-engine = [
   { index = "cosmos-cu126", extra = "cu126" },
 ]
 torch = [
-  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "cosmos-cu126", extra = "cu126" },
 ]
 torchvision = [
-  { index = "pytorch-cu126", extra = "cu126" },
+  { index = "cosmos-cu126", extra = "cu126" },
 ]
-
-[[tool.uv.index]]
-name = "pytorch-cu126"
-url = "https://download.pytorch.org/whl/cu126"
-explicit = true
 
 [[tool.uv.index]]
 name = "cosmos-cu126"
 url = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple"
 explicit = true
 
-[tool.uv.build-backend]
-module-name = "cosmos_predict2"
-module-root = ""
+[tool.hatch.build.targets.sdist]
+packages = [
+  "cosmos_predict2",
+  "imaginaire",
+]
 
-[tool.isort]
-profile = "black"
-known_third_party = ["third_party"]
-skip = ["third_party"]
-line_length = 120
-
-[tool.black]
-line-length = 120
-exclude = 'third_party'
+[tool.hatch.build.targets.wheel]
+packages = [
+  "cosmos_predict2",
+  "imaginaire",
+]
+exclude = [
+  "*_test.py",
+]
 
 [tool.coverage.report]
 include_namespace_packages = true
