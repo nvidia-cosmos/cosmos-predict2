@@ -125,7 +125,7 @@ torchrun --nproc_per_node=8 --nnodes=4 --rdzv_id 123 --rdzv_backend c10d --rdzv_
 
 The above command will train the entire model. If you are interested in training with [LoRA](https://arxiv.org/abs/2106.09685), attach `model.config.train_architecture=lora` to the training command.
 
-The checkpoints will be saved in the below structure.  
+The checkpoints will be saved in the below structure.
 ```
 checkpoints/posttraining/video2world/14b_cosmos_nemo_assets/checkpoints/
 ├── model/

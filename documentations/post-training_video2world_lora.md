@@ -649,7 +649,7 @@ checkpoints/posttraining/video2world_lora/2b_cosmos_nemo_assets/checkpoints/
 For a Succesful training, you should see the logs like this:
 
 ```
-[07-10 22:14:27|SUCCESS|imaginaire/trainer.py:232:train] Done with training.  
+[07-10 22:14:27|SUCCESS|imaginaire/trainer.py:232:train] Done with training.
 ```
 
 
@@ -738,5 +738,5 @@ The following comparison demonstrates the effectiveness of LoRA post-training co
 - [Video2World Inference Guide](inference_video2world.md) - Standard inference without LoRA
 - [Video2World Post-Training Guide](post-training_video2world.md) - Full model post-training
 - [Cosmos-NeMo-Assets Post-Training](post-training_video2world_cosmos_nemo_assets.md) - Original dataset guide
-- [Setup Guide](setup.md) - Environment setup and checkpoint download instructions  
+- [Setup Guide](setup.md) - Environment setup and checkpoint download instructions
 - [Performance Guide](performance.md) - Hardware requirements and optimization recommendations

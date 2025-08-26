@@ -136,7 +136,7 @@ torchrun --nproc_per_node=8 -m scripts.train --config=cosmos_predict2/configs/ba
 
 The above command will train the entire model. If you are interested in training with [LoRA](https://arxiv.org/abs/2106.09685), attach `model.config.train_architecture=lora` to the training command.
 
-The checkpoints will be saved in the below structure.  
+The checkpoints will be saved in the below structure.
 ```
 checkpoints/posttraining/text2image/14b_cosmos_nemo_assets/checkpoints/
 ├── model/

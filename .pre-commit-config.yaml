@@ -24,7 +24,6 @@ repos:
     hooks:
       - id: trailing-whitespace
         exclude: ^tests/.*/fixtures/.*
-        args: [--markdown-linebreak-ext=md]
       - id: end-of-file-fixer
         exclude: ^tests/.*/fixtures/.*
       - id: check-executables-have-shebangs

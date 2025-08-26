@@ -1366,7 +1366,7 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 cosmos-predict2
 Apache Software License
-https://github.com/nvidia-cosmos/cosmos-predict2
+https://research.nvidia.com/labs/dir/cosmos-predict2
                                 Apache License
                            Version 2.0, January 2004
                         http://www.apache.org/licenses/

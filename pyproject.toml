@@ -19,12 +19,11 @@ build-backend = "hatchling.build"
 
 [project]
 name = "cosmos-predict2"
-version = "1.0.8"
+version = "1.0.9"
 authors = [
   {name = "NVIDIA Corporation"},
 ]
 description = "Cosmos World Foundation Model"
-readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "Apache-2.0"}
 classifiers = [
@@ -104,8 +103,17 @@ cu126 = [
   "nvidia-nvtx-cu12==12.6.77",
 ]
 
+[project.readme]
+content-type = "text/markdown"
+text = '''
+# Cosmos-Predict2
+
+[Documentation](https://github.com/nvidia-cosmos/cosmos-predict2/blob/main/README.md)
+'''
+
 [project.urls]
-homepage = "https://github.com/nvidia-cosmos/cosmos-predict2"
+documentation = "https://github.com/nvidia-cosmos/cosmos-predict2/blob/main/README.md"
+homepage = "https://research.nvidia.com/labs/dir/cosmos-predict2"
 issues = "https://github.com/nvidia-cosmos/cosmos-predict2/issues"
 repository = "https://github.com/nvidia-cosmos/cosmos-predict2"
 
