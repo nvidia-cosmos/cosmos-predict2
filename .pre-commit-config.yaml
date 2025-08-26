@@ -40,6 +40,11 @@ repos:
         entry: ./bin/_uv_lock_script.sh
         language: script
         types: [python]
+      - id: jupytext
+        name: Convert Jupyter Notebooks to IPython Notebooks
+        entry: uvx jupytext --to ipynb --update --quiet
+        language: system
+        files: \.md$
   - repo: https://github.com/astral-sh/ruff-pre-commit
     rev: v0.12.8
     hooks:
