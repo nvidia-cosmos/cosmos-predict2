@@ -58,7 +58,7 @@ def init() -> int | None:
     try:
         device = Device(local_rank)
         os.sched_setaffinity(0, device.get_cpu_affinity())
-    except pynvml.NVMLError as e:
+    except (OSError, pynvml.NVMLError) as e:
         log.warning(f"Failed to set device affinity: {e}")
     # Set up NCCL communication.
     os.environ["TORCH_NCCL_BLOCKING_WAIT"] = "0"
