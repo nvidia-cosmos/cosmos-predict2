@@ -54,16 +54,10 @@ uv sync --extra cu126 --active --inexact
 
 Please make sure you have access to Docker on your machine and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) is installed.
 
-For x86-64, build and run the container:
+Build and run the container:
 
 ```bash
-docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -f uv.Dockerfile -q .)
-```
-
-For arm, pull and run a pre-built container:
-
-```bash
-docker run --gpus all --rm -v .:/workspace -it nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -q .)
 ```
 
 ## Downloading Checkpoints
