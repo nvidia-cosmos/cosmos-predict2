@@ -28,6 +28,32 @@ To see all available commands, run
 just
 ```
 
+## Releasing
+
+To release, you must be a maintainer of the [cosmos-predict2 package](https://pypi.org/project/cosmos-predict2/).
+
+Run pre-release check:
+
+```shell
+just release-check
+```
+
+Commit any changes.
+
+Release to PyPI (omit `<pypi_token>` to dry-run):
+
+```shell
+just release <pypi_token>
+```
+
+Push the new tag to GitHub:
+
+```shell
+git push git@github.com:nvidia-cosmos/cosmos-predict2.git "v$(uv version --short)"
+```
+
+Merge the new commit to GitHub.
+
 ## Code Reviews
 
 All submissions, including submissions by project members, require review. We use GitHub pull requests for this purpose. Consult
