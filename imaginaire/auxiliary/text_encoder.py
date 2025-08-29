@@ -16,7 +16,7 @@
 import abc
 import functools
 from enum import Enum
-from typing import Any, Literal, TypeAlias, overload
+from typing import Any, ClassVar, Literal, TypeAlias, overload
 
 import attrs
 import torch
@@ -25,12 +25,13 @@ from torch import nn
 from torch.distributed.checkpoint.state_dict import StateDictOptions, get_model_state_dict, set_model_state_dict
 from torch.distributed.checkpoint.stateful import Stateful
 from transformers import T5EncoderModel, T5TokenizerFast
-from typing_extensions import Self, override
+from typing_extensions import Self, assert_never, override
 
 from imaginaire.configs.reason1.model_config_qwen import QwenModelConfig, QwenVisionConfig
 from imaginaire.constants import COSMOS_REASON1_PRIVATE_CHECKPOINT, T5_MODEL_DIR, TEXT_ENCODER_CLASS, TextEncoderClass
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.lazy_config import instantiate as lazy_instantiate
+from imaginaire.models.utils import load_state_dict
 from imaginaire.models.vlm_qwen import build_tokenizer
 from imaginaire.models.vlm_qwen_omni import QwenVLBaseModel
 from imaginaire.utils import log
@@ -76,7 +77,7 @@ class CosmosTextEncoderBase(torch.nn.Module, abc.ABC):
     ) -> tuple[torch.Tensor, torch.Tensor]: ...
     @abc.abstractmethod
     def encode_prompts(
-        self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False
+        self, prompts: str | list[str], max_length: int | None = None, return_mask: bool = False
     ) -> torch.Tensor | tuple[torch.Tensor, torch.Tensor]:
         """Encodes text prompts into hidden state representations.
 
@@ -87,7 +88,7 @@ class CosmosTextEncoderBase(torch.nn.Module, abc.ABC):
         Args:
             prompts: Input text to encode. Can be a single string or a list of strings.
             max_length: Maximum sequence length for tokenization and padding. Longer
-                sequences will be truncated. Defaults to 512.
+                sequences will be truncated. Defaults to num_tokens.
             return_mask: If True, returns the attention mask along with encoded text.
                 Defaults to False.
 
@@ -110,10 +111,16 @@ class CosmosReason1TextEncoderConfig:
     Config for the text encoder model
     """
 
+    CKPT_PATH: ClassVar[str] = COSMOS_REASON1_PRIVATE_CHECKPOINT
+    NUM_TOKENS: ClassVar[int] = 512
+    EMBED_DIM: ClassVar[int] = 100352
+
     compute_online: bool = True
     embedding_concat_strategy: str = str(EmbeddingConcatStrategy.FULL_CONCAT)
     n_layers_per_group: int = 5
-    ckpt_path: str = COSMOS_REASON1_PRIVATE_CHECKPOINT
+    ckpt_path: str = CKPT_PATH
+    num_tokens: int = NUM_TOKENS
+    embed_dim: int = EMBED_DIM
     model_config: QwenVLBaseModel = L(QwenVLBaseModel)(  # noqa: RUF009
         model_config=L(QwenModelConfig)(
             tokenizer_type="Qwen/Qwen2.5-VL-7B-Instruct",
@@ -141,6 +148,7 @@ class CosmosReason1TextEncoder(CosmosTextEncoderBase):
     ):
         super().__init__()
         self.config = config
+        self.device = device
 
         log.info("Instantiating text encoder model...")
         with torch.device("meta"):
@@ -155,33 +163,33 @@ class CosmosReason1TextEncoder(CosmosTextEncoderBase):
 
     @staticmethod
     def load_checkpoint(
-        model_parts: list[nn.Module],
+        model: nn.Module,
         ckpt_path: str,
-        model_ckpt_key_map: dict[str, str] = {},  # noqa: B006
     ):
         log.info(f"Loading checkpoint from {ckpt_path}.")
-
-        _model_wrapper = ModelWrapper(model_parts)
-        state_dict = _model_wrapper.state_dict()
+        is_fsdp = False
+        if torch.distributed.is_initialized():
+            torch.distributed.barrier()
+            is_fsdp = torch.distributed.get_world_size() > 1
+        state_dict = load_state_dict(ckpt_path)
         # remove _extra_state
         state_dict = {k: v for k, v in state_dict.items() if not k.endswith("._extra_state")}
 
-        # remap keys if needed
-        if model_ckpt_key_map:
-            for model_key, checkpoint_key in model_ckpt_key_map.items():
-                state_dict[checkpoint_key] = state_dict.pop(model_key)
-                log.info(f"Re-mapping {model_key} to {checkpoint_key}")
+        # Load Regular weights.
+        if is_fsdp:
+            set_model_state_dict(
+                model,
+                state_dict,
+                options=StateDictOptions(
+                    full_state_dict=True,
+                    broadcast_from_rank0=True,
+                    strict=False,
+                ),
+            )
+        else:
+            model.load_state_dict(state_dict, strict=False)
 
-        state_dict = torch.load(ckpt_path)
-
-        # inverse the remapping if needed
-        if model_ckpt_key_map:
-            for model_key, checkpoint_key in model_ckpt_key_map.items():
-                state_dict[model_key] = state_dict.pop(checkpoint_key)
-                log.info(f"Inverse re-mapping {checkpoint_key} to {model_key}")
-
-        _model_wrapper.load_state_dict(state_dict)
-
+        del state_dict
         log.info(f"Finished loading checkpoint from {ckpt_path}.")
 
     @staticmethod
@@ -249,6 +257,7 @@ class CosmosReason1TextEncoder(CosmosTextEncoderBase):
 
         input_ids_batch = torch.stack(input_ids_batch, dim=0)
 
+        self.model = self.model.to(self.device)
         # Compute text embeddings
         with torch.no_grad():
             _, outputs_batch = self.model(input_ids_batch, {})
@@ -286,7 +295,7 @@ class CosmosReason1TextEncoder(CosmosTextEncoderBase):
         return text_embeddings
 
     @override
-    def encode_prompts(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False):
+    def encode_prompts(self, prompts: str | list[str], max_length: int | None = None, return_mask: bool = False):
         if isinstance(prompts, str):
             prompts = [prompts]
         if not prompts:
@@ -302,7 +311,13 @@ class CosmosT5TextEncoderConfig:
     Config for the T5 text encoder model
     """
 
-    ckpt_path: str = T5_MODEL_DIR
+    CKPT_PATH: ClassVar[str] = T5_MODEL_DIR
+    NUM_TOKENS: ClassVar[int] = 512
+    EMBED_DIM: ClassVar[int] = 1024
+
+    ckpt_path: str = CKPT_PATH
+    num_tokens: int = NUM_TOKENS
+    embed_dim: int = EMBED_DIM
 
 
 class CosmosT5TextEncoder(CosmosTextEncoderBase):
@@ -335,11 +350,13 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
 
     @override
     @torch.inference_mode()
-    def encode_prompts(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False):
+    def encode_prompts(self, prompts: str | list[str], max_length: int | None = None, return_mask: bool = False):
         if isinstance(prompts, str):
             prompts = [prompts]
         if not prompts:
             raise ValueError("The input prompt list is empty.")
+        if max_length is None:
+            max_length = self.config.num_tokens
 
         batch_encoding = self.tokenizer.batch_encode_plus(
             prompts,
@@ -367,11 +384,22 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
         return encoded_text
 
 
+if TEXT_ENCODER_CLASS == TextEncoderClass.COSMOS_REASON1:
+    _TEXT_ENCODER_CONFIG = CosmosReason1TextEncoderConfig
+elif TEXT_ENCODER_CLASS == TextEncoderClass.T5:
+    _TEXT_ENCODER_CONFIG = CosmosT5TextEncoderConfig
+else:
+    assert_never(TEXT_ENCODER_CLASS)
+
+
 @attrs.define(slots=False)
 class CosmosTextEncoderConfig:
-    text_encoder_class: TextEncoderClass = TEXT_ENCODER_CLASS
-    cosmos_reason1_text_encoder: CosmosReason1TextEncoderConfig = attrs.field(factory=CosmosReason1TextEncoderConfig)
-    cosmos_t5_text_encoder: CosmosT5TextEncoderConfig = attrs.field(factory=CosmosT5TextEncoderConfig)
+    NUM_TOKENS: ClassVar[int] = _TEXT_ENCODER_CONFIG.NUM_TOKENS
+    EMBED_DIM: ClassVar[int] = _TEXT_ENCODER_CONFIG.EMBED_DIM
+
+    cls: TextEncoderClass = TEXT_ENCODER_CLASS
+    cosmos_reason1: CosmosReason1TextEncoderConfig = attrs.field(factory=CosmosReason1TextEncoderConfig)
+    t5: CosmosT5TextEncoderConfig = attrs.field(factory=CosmosT5TextEncoderConfig)
 
 
 CosmosTextEncoder: TypeAlias = CosmosReason1TextEncoder | CosmosT5TextEncoder
@@ -391,13 +419,13 @@ def get_cosmos_text_encoder(
         A text encoder instance.
     """
 
-    if config.text_encoder_class == TextEncoderClass.COSMOS_REASON1:
-        if not config.cosmos_reason1_text_encoder.ckpt_path:
+    if config.cls == TextEncoderClass.COSMOS_REASON1:
+        if not config.cosmos_reason1.ckpt_path:
             return None
-        return CosmosReason1TextEncoder(config=config.cosmos_reason1_text_encoder, device=device)
-    elif config.text_encoder_class == TextEncoderClass.T5:
-        if not config.cosmos_t5_text_encoder.ckpt_path:
+        return CosmosReason1TextEncoder(config=config.cosmos_reason1, device=device)
+    elif config.cls == TextEncoderClass.T5:
+        if not config.t5.ckpt_path:
             return None
-        return CosmosT5TextEncoder(config=config.cosmos_t5_text_encoder, device=device, torch_dtype=torch_dtype)
+        return CosmosT5TextEncoder(config=config.t5, device=device, torch_dtype=torch_dtype)
     else:
-        raise ValueError(f"Invalid text encoder config type: {config.text_encoder_class}")
+        raise ValueError(f"Invalid text encoder config type: {config.cls}")

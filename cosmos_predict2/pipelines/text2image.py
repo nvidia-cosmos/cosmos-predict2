@@ -36,7 +36,7 @@ from cosmos_predict2.pipelines.base import BasePipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.tokenizers.tokenizer import TokenizerInterface
 from cosmos_predict2.utils.dtensor_helper import DTensorFastEmaModelUpdater, broadcast_dtensor_model_states
-from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, get_cosmos_text_encoder
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoder, CosmosTextEncoderConfig, get_cosmos_text_encoder
 from imaginaire.lazy_config import LazyDict, instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.ema import FastEmaModelUpdater
@@ -49,7 +49,9 @@ def sample_batch_image(resolution: str = "1024", aspect_ratio: str = "16:9", bat
     data_batch = {
         "dataset_name": "image_data",
         "images": torch.randn(batch_size, 3, h, w).cuda(),
-        "t5_text_embeddings": torch.randn(batch_size, 512, 1024).cuda(),
+        "t5_text_embeddings": torch.randn(
+            batch_size, CosmosTextEncoderConfig.NUM_TOKENS, CosmosTextEncoderConfig.EMBED_DIM
+        ).cuda(),
         "fps": torch.randint(16, 32, (batch_size,)).cuda(),
         "padding_mask": torch.zeros(batch_size, 1, h, w).cuda(),
     }
@@ -216,7 +218,9 @@ class Text2ImagePipeline(BasePipeline):
     def denoising_model(self) -> MiniTrainDIT:
         return self.dit
 
-    def encode_prompt(self, prompts: str | list[str], max_length: int = 512, return_mask: bool = False) -> torch.Tensor:
+    def encode_prompt(
+        self, prompts: str | list[str], max_length: int | None = None, return_mask: bool = False
+    ) -> torch.Tensor:
         return self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
 
     @torch.no_grad()

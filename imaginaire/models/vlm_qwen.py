@@ -18,19 +18,28 @@ from typing import Any
 
 import numpy as np
 import torch
+import torch.distributed as dist
 import torch.nn as nn
-from qwen_vl_utils import extract_vision_info, process_vision_info
-from torch.distributed._tensor import DTensor
+from torch import distributed
+from torch.distributed._tensor import DTensor, Shard
 from torch.distributed.tensor.device_mesh import DeviceMesh
 from torch.nn import functional as F
 from transformers.models.auto.processing_auto import AutoProcessor
 
 from imaginaire.configs.reason1.model_config import FSDP2ModelConfig
 from imaginaire.constants import COSMOS_REASON1_PRIVATE_TOKENIZER
+from imaginaire.models.parallelisms.optimizer import build_lr_schedulers, build_optimizers
+from imaginaire.models.parallelisms.parallel_dims import ParallelDims
+from imaginaire.models.parallelisms.parallelize_qwen import parallelize_qwen
 from imaginaire.networks.qwen2_5_vl import Qwen2_5_VisionTransformerPretrainedModel, Qwen2_5_VLModel
+from imaginaire.networks.qwen2_5_vl import get_rope_index as get_rope_index_v2
+from imaginaire.networks.qwen2_5_vl import get_rope_index as get_rope_index_v2_5
+from imaginaire.networks.qwen2_vl import Qwen2VisionTransformerPretrainedModel, Qwen2VLModel
 from imaginaire.utils import log
 from imaginaire.utils.checkpointer import _IncompatibleKeys
 from imaginaire.utils.parallelism import broadcast_to_cp_or_tp_ranks
+from imaginaire.utils.qwen_vl_utils import extract_vision_info, process_vision_info
+from imaginaire.utils.torchtitan_utils import device_module, device_type
 
 _LOCK_TIMEOUT_SECONDS = 60
 
@@ -182,7 +191,7 @@ class VLMBaseModel(torch.nn.Module):
         self,
         model_config: FSDP2ModelConfig,
         tokenizer: Processor,
-    ) -> "AutoRegressiveModel":  # noqa: F821
+    ):
         super().__init__()
         """
         Build a AutoRegressiveModel instance by initializing and loading a model checkpoint.
@@ -191,8 +200,6 @@ class VLMBaseModel(torch.nn.Module):
             model_config (FSDP2ModelConfig): The model configuration for the AutoRegressiveModel instance.
             tokenizer (Tokenizer): The tokenizer for the AutoRegressiveModel instance.
             download_rank_sync (bool, optional): Whether to download the checkpoint in a rank-synchronized manner. Defaults to True.
-        Returns:
-            AutoRegressiveModel: An instance of the AutoRegressiveModel class with the loaded model and tokenizer.
 
         Raises:
             AssertionError: If there are no checkpoint files in the specified directory.
@@ -295,8 +302,8 @@ class VLMBaseModel(torch.nn.Module):
             log.info(f"adding llm to optimizer, lr_multiplier: {self.config.optimizer.lr_multiplier_llm}")
             model_parts.append(self.model)
             lr_multiplier.append(self.config.optimizer.lr_multiplier_llm)
-        optimizers = build_optimizers(model_parts, self.config, lr_multiplier)  # noqa: F821
-        lr_schedulers = build_lr_schedulers(optimizers, self.config)  # noqa: F821
+        optimizers = build_optimizers(model_parts, self.config, lr_multiplier)
+        lr_schedulers = build_lr_schedulers(optimizers, self.config)
         return optimizers, lr_schedulers
 
     def get_num_params(
@@ -413,27 +420,27 @@ class VLMBaseModel(torch.nn.Module):
         batch_size_local = tokens.shape[0]
         batch_size_global = torch.tensor(tokens.shape[0], device=tokens.device)
 
-        dist.all_reduce(num_assistant_tokens, op=dist.ReduceOp.SUM)  # Sum of all num tokens with loss  # noqa: F821
-        dist.all_reduce(batch_size_global, op=dist.ReduceOp.SUM)  # Sum of num of sequences  # noqa: F821
+        dist.all_reduce(num_assistant_tokens, op=dist.ReduceOp.SUM)  # Sum of all num tokens with loss
+        dist.all_reduce(batch_size_global, op=dist.ReduceOp.SUM)  # Sum of num of sequences
         avg_num_assistant_tokens = num_assistant_tokens / batch_size_global
         if "padding_mask" in data_batch:
             padding_mask = data_batch["padding_mask"]
             num_real_tokens = (~padding_mask).float().sum()
-            dist.all_reduce(num_real_tokens, op=dist.ReduceOp.SUM)  # Sum of all tokens excluding padding  # noqa: F821
+            dist.all_reduce(num_real_tokens, op=dist.ReduceOp.SUM)  # Sum of all tokens excluding padding
             avg_num_real_tokens = num_real_tokens / batch_size_global
             max_num_real_tokens = (~padding_mask).float().sum(dim=-1).max()
-            dist.all_reduce(max_num_real_tokens, op=dist.ReduceOp.MAX)  # noqa: F821
+            dist.all_reduce(max_num_real_tokens, op=dist.ReduceOp.MAX)
             min_num_real_tokens = (~padding_mask).float().sum(dim=-1).min()
-            dist.all_reduce(min_num_real_tokens, op=dist.ReduceOp.MIN)  # noqa: F821
+            dist.all_reduce(min_num_real_tokens, op=dist.ReduceOp.MIN)
         else:
             # No padding mask means all tokens are real tokens
             num_real_tokens = torch.tensor(float(tokens.numel()), device=tokens.device)
-            dist.all_reduce(num_real_tokens, op=dist.ReduceOp.SUM)  # Sum of all tokens (no padding)  # noqa: F821
+            dist.all_reduce(num_real_tokens, op=dist.ReduceOp.SUM)  # Sum of all tokens (no padding)
             avg_num_real_tokens = num_real_tokens / batch_size_global
             max_num_real_tokens = torch.tensor(float(tokens.shape[1]), device=tokens.device)
-            dist.all_reduce(max_num_real_tokens, op=dist.ReduceOp.MAX)  # noqa: F821
+            dist.all_reduce(max_num_real_tokens, op=dist.ReduceOp.MAX)
             min_num_real_tokens = torch.tensor(float(tokens.shape[1]), device=tokens.device)
-            dist.all_reduce(min_num_real_tokens, op=dist.ReduceOp.MIN)  # noqa: F821
+            dist.all_reduce(min_num_real_tokens, op=dist.ReduceOp.MIN)
 
         output_batch.update(
             {
@@ -531,8 +538,8 @@ class QwenModel(VLMBaseModel):
             self.visual = Qwen2_5_VisionTransformerPretrainedModel(model_config.vision_config)
             self.model = Qwen2_5_VLModel(model_config)
         elif model_config.model_type == "qwen2_vl":
-            self.visual = Qwen2VisionTransformerPretrainedModel(model_config.vision_config)  # noqa: F821
-            self.model = Qwen2VLModel(model_config)  # noqa: F821
+            self.visual = Qwen2VisionTransformerPretrainedModel(model_config.vision_config)
+            self.model = Qwen2VLModel(model_config)
         else:
             raise ValueError(f"Unsupported model type: {model_config.model_type}")
         self.vocab_size = model_config.vocab_size
@@ -542,7 +549,7 @@ class QwenModel(VLMBaseModel):
         if torch.distributed.is_initialized():
             # TODO: apply the parallelisms
             self.world_mesh, self.parallel_dims = init_mesh(model_config)
-            parallelize_qwen(self, self.world_mesh, self.parallel_dims, model_config)  # noqa: F821
+            parallelize_qwen(self, self.world_mesh, self.parallel_dims, model_config)
             self.model.set_cp_mesh(self.cp_mesh)
 
     @property
@@ -593,8 +600,8 @@ class QwenModel(VLMBaseModel):
             model_parts.append(self.model)
             lr_multiplier.append(self.config.optimizer.lr_multiplier_llm)
             model_part_names.append("llm")
-        optimizers = build_optimizers(model_parts, self.config, lr_multiplier, model_part_names)  # noqa: F821
-        lr_schedulers = build_lr_schedulers(optimizers, self.config)  # noqa: F821
+        optimizers = build_optimizers(model_parts, self.config, lr_multiplier, model_part_names)
+        lr_schedulers = build_lr_schedulers(optimizers, self.config)
         return optimizers, lr_schedulers
 
     def maybe_freeze_pretrained_modules(self):
@@ -769,7 +776,7 @@ class QwenModel(VLMBaseModel):
                 or (past_key_values is None or past_key_values.get_seq_length() == 0)
             ):
                 if self.config.model_type == "qwen2_5_vl":
-                    position_ids, rope_deltas = get_rope_index_v2_5(  # noqa: F821
+                    position_ids, rope_deltas = get_rope_index_v2_5(
                         self.config,
                         input_ids,
                         image_grid_thw,
@@ -778,7 +785,7 @@ class QwenModel(VLMBaseModel):
                         attention_mask,
                     )
                 elif self.config.model_type == "qwen2_vl":
-                    position_ids, rope_deltas = get_rope_index_v2(  # noqa: F821
+                    position_ids, rope_deltas = get_rope_index_v2(
                         self.config,
                         input_ids,
                         image_grid_thw,
@@ -817,7 +824,7 @@ class QwenModel(VLMBaseModel):
         hidden_states = outputs[0]
         logits = self.lm_head(hidden_states)
         if self.cp_mesh is not None:
-            logits = DTensor.from_local(logits, device_mesh=self.cp_mesh, placements=[Shard(1)]).full_tensor()  # noqa: F821
+            logits = DTensor.from_local(logits, device_mesh=self.cp_mesh, placements=[Shard(1)]).full_tensor()
         return logits
 
     def forward(self, tokens, data_batch={}, start_pos: int = 0) -> torch.Tensor:  # noqa: B006
@@ -870,15 +877,15 @@ def broadcast_object(local_str: list[str], cp_or_tp_mesh: DeviceMesh):
     Broadcast a string to all ranks.
     """
     group = cp_or_tp_mesh.get_group()
-    gathered_list = [None for _ in range(dist.get_world_size(group=group))]  # noqa: F821
-    dist.all_gather_object(gathered_list, local_str, group=group)  # noqa: F821
+    gathered_list = [None for _ in range(dist.get_world_size(group=group))]
+    dist.all_gather_object(gathered_list, local_str, group=group)
     output_str = gathered_list[0]
     return output_str
 
 
 def init_mesh(model_config):
-    world_size = distributed.get_world_size()  # noqa: F821
-    parallel_dims = ParallelDims(  # noqa: F821
+    world_size = distributed.get_world_size()
+    parallel_dims = ParallelDims(
         dp_shard=model_config.training.data_parallel_shard_degree,
         dp_replicate=model_config.training.data_parallel_replicate_degree,
         cp=model_config.training.context_parallel_degree,
@@ -888,11 +895,11 @@ def init_mesh(model_config):
         enable_loss_parallel=not model_config.training.disable_loss_parallel,
     )
     local_rank = int(os.getenv("LOCAL_RANK", 0))
-    device = torch.device(f"{device_type}:{local_rank}")  # noqa: F821
-    device_module.set_device(device)  # noqa: F821
+    device = torch.device(f"{device_type}:{local_rank}")
+    device_module.set_device(device)
 
     # build meshes
-    world_mesh = parallel_dims.build_mesh(device_type=device_type)  # noqa: F821
+    world_mesh = parallel_dims.build_mesh(device_type=device_type)
     return world_mesh, parallel_dims
 
 

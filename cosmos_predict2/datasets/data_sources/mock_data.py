@@ -22,13 +22,14 @@ from functools import partial
 import torch
 
 from cosmos_predict2.datasets.utils import IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoderConfig
 from imaginaire.datasets.mock_dataset import CombinedDictDataset, LambdaDataset
 
 
 def get_image_dataset(
     resolution: str = "480",
-    len_t5: int = 512,
-    t5_dim: int = 1024,
+    len_t5: int = CosmosTextEncoderConfig.NUM_TOKENS,
+    t5_dim: int = CosmosTextEncoderConfig.EMBED_DIM,
     **kwargs,
 ):
     w, h = IMAGE_RES_SIZE_INFO[resolution]["16:9"]
@@ -53,8 +54,8 @@ def get_image_dataset(
 def get_video_dataset(
     num_video_frames: int,
     resolution: str = "480",
-    len_t5: int = 512,
-    t5_dim: int = 1024,
+    len_t5: int = CosmosTextEncoderConfig.NUM_TOKENS,
+    t5_dim: int = CosmosTextEncoderConfig.EMBED_DIM,
     **kwargs,
 ):
     del kwargs

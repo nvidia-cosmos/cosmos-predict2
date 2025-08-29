@@ -1,16 +1,17 @@
-# -----------------------------------------------------------------------------
-# Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES.
-# All rights reserved.
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
 #
-# This codebase constitutes NVIDIA proprietary technology and is strictly
-# confidential. Any unauthorized reproduction, distribution, or disclosure
-# of this code, in whole or in part, outside NVIDIA is strictly prohibited
-# without prior written consent.
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
 #
-# For inquiries regarding the use of this code in other NVIDIA proprietary
-# projects, please contact the Deep Imagination Research Team at
-# dir@exchange.nvidia.com.
-# -----------------------------------------------------------------------------
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
 
 import math
 import os
@@ -32,6 +33,7 @@ from imaginaire.model import ImaginaireModel
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.easy_io import easy_io
 from imaginaire.utils.parallel_state_helper import is_tp_cp_pp_rank0
+from imaginaire.visualize.video import save_img_or_video
 
 # from imaginaire.visualize.video import save_img_or_video
 # from projects.cosmos.diffusion.v2.datasets.data_sources.item_datasets_for_validation import get_itemdataset_option
@@ -309,7 +311,7 @@ class EveryNDrawSample(EveryN):
 
         # ! we only save first n_sample_to_save video!
         if self.save_s3 and self.data_parallel_id < self.n_sample_to_save:
-            save_img_or_video(  # noqa: F821
+            save_img_or_video(
                 rearrange(to_show, "n b c t h w -> c t (n h) (b w)"),
                 f"s3://rundir/{self.name}/{base_fp_wo_ext}",
                 fps=self.fps,

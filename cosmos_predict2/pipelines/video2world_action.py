@@ -26,7 +26,7 @@ from cosmos_predict2.module.denoiser_scaling import RectifiedFlowScaling
 from cosmos_predict2.pipelines.video2world import Video2WorldPipeline
 from cosmos_predict2.schedulers.rectified_flow_scheduler import RectifiedFlowAB2Scheduler
 from cosmos_predict2.utils.context_parallel import cat_outputs_cp, split_inputs_cp
-from imaginaire.auxiliary.text_encoder import get_cosmos_text_encoder
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoderConfig, get_cosmos_text_encoder
 from imaginaire.lazy_config import instantiate
 from imaginaire.utils import log, misc
 from imaginaire.utils.ema import FastEmaModelUpdater
@@ -197,7 +197,12 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
             "dataset_name": "video_data",
             "video": video,
             # NOTE: we don't use text embeddings for action conditional video2world
-            "t5_text_embeddings": torch.zeros(self.batch_size, 512, 1024, dtype=torch.bfloat16).cuda(),
+            "t5_text_embeddings": torch.zeros(
+                self.batch_size,
+                CosmosTextEncoderConfig.NUM_TOKENS,
+                CosmosTextEncoderConfig.EMBED_DIM,
+                dtype=torch.bfloat16,
+            ).cuda(),
             "fps": torch.randint(16, 32, (self.batch_size,)),  # Random FPS (might be used by model)
             "padding_mask": torch.zeros(self.batch_size, 1, H, W),  # Padding mask (assumed no padding here)
             "num_conditional_frames": num_latent_conditional_frames,  # Specify number of conditional frames
@@ -327,6 +332,8 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
 
         # Run video guardrail on the generated video and apply postprocessing
         if self.video_guardrail_runner is not None:
+            from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
+
             # Clamp to safe range before normalization
             video = video.clamp(-1.0, 1.0)
             video_normalized = (video + 1) / 2  # [0, 1]
@@ -337,7 +344,7 @@ class Video2WorldActionConditionedPipeline(Video2WorldPipeline):
             frames = frames.permute(1, 2, 3, 0).cpu().numpy()  # (T, H, W, C)
 
             # Run guardrail
-            processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)  # noqa: F821
+            processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner)
             if processed_frames is None:
                 return None
             else:

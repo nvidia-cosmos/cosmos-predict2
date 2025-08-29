@@ -35,11 +35,10 @@ from torchvision import transforms as T
 from tqdm import tqdm
 
 from cosmos_predict2.data.dataset_utils import (
-    _NUM_T5_TOKENS,
-    _T5_EMBED_DIM,
     Resize_Preprocess,
     ToTensorVideo,
 )
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoderConfig
 
 
 class MultiviewDataset(Dataset):
@@ -204,17 +203,26 @@ class MultiviewDataset(Dataset):
                     with open(t5_embedding_path, "rb") as f:
                         t5_embedding = torch.from_numpy(pickle.load(f)[0])
                 else:
-                    t5_embedding = torch.zeros(_NUM_T5_TOKENS, _T5_EMBED_DIM)
+                    t5_embedding = torch.zeros(CosmosTextEncoderConfig.NUM_TOKENS, CosmosTextEncoderConfig.EMBED_DIM)
 
                 t5_mask = torch.ones(t5_embedding.shape[0], dtype=torch.int64)
-                if t5_embedding.shape[0] < _NUM_T5_TOKENS:
+                if t5_embedding.shape[0] < CosmosTextEncoderConfig.NUM_TOKENS:
                     t5_embedding = torch.cat(
-                        [t5_embedding, torch.zeros(_NUM_T5_TOKENS - t5_embedding.shape[0], _T5_EMBED_DIM)], dim=0
+                        [
+                            t5_embedding,
+                            torch.zeros(
+                                CosmosTextEncoderConfig.NUM_TOKENS - t5_embedding.shape[0],
+                                CosmosTextEncoderConfig.EMBED_DIM,
+                            ),
+                        ],
+                        dim=0,
                     )
-                    t5_mask = torch.cat([t5_mask, torch.zeros(_NUM_T5_TOKENS - t5_mask.shape[0])], dim=0)
+                    t5_mask = torch.cat(
+                        [t5_mask, torch.zeros(CosmosTextEncoderConfig.NUM_TOKENS - t5_mask.shape[0])], dim=0
+                    )
                 else:
-                    t5_embedding = t5_embedding[:_NUM_T5_TOKENS]
-                    t5_mask = t5_mask[:_NUM_T5_TOKENS]
+                    t5_embedding = t5_embedding[: CosmosTextEncoderConfig.NUM_TOKENS]
+                    t5_mask = t5_mask[: CosmosTextEncoderConfig.NUM_TOKENS]
                 t5_embeddings.append(t5_embedding)
                 t5_masks.append(t5_mask)
             video = torch.cat(videos, dim=1)

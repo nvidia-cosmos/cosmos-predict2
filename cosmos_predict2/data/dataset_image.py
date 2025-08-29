@@ -24,7 +24,8 @@ import torch
 from torch.utils.data import Dataset
 from torchvision import transforms as T
 
-from cosmos_predict2.data.dataset_utils import _NUM_T5_TOKENS, _T5_EMBED_DIM, Resize_Preprocess, ToTensorImage
+from cosmos_predict2.data.dataset_utils import Resize_Preprocess, ToTensorImage
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoderConfig
 from imaginaire.utils import log
 
 """
@@ -93,13 +94,20 @@ class ImageDataset(Dataset):
 
             data["images"] = image
             with open(t5_embedding_path, "rb") as f:
-                t5_embedding = pickle.load(f)[0]  # [n_tokens, _T5_EMBED_DIM]
+                t5_embedding = pickle.load(f)[0]  # [n_tokens, CosmosTextEncoderConfig.EMBED_DIM]
             n_tokens = t5_embedding.shape[0]
-            if n_tokens < _NUM_T5_TOKENS:
+            if n_tokens < CosmosTextEncoderConfig.NUM_TOKENS:
                 t5_embedding = np.concatenate(
-                    [t5_embedding, np.zeros((_NUM_T5_TOKENS - n_tokens, _T5_EMBED_DIM), dtype=np.float32)], axis=0
+                    [
+                        t5_embedding,
+                        np.zeros(
+                            (CosmosTextEncoderConfig.NUM_TOKENS - n_tokens, CosmosTextEncoderConfig.EMBED_DIM),
+                            dtype=np.float32,
+                        ),
+                    ],
+                    axis=0,
                 )
-            t5_text_mask = torch.zeros(_NUM_T5_TOKENS, dtype=torch.int64)
+            t5_text_mask = torch.zeros(CosmosTextEncoderConfig.NUM_TOKENS, dtype=torch.int64)
             t5_text_mask[:n_tokens] = 1
 
             data["t5_text_embeddings"] = torch.from_numpy(t5_embedding)

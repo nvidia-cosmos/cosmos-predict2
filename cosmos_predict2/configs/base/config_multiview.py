@@ -120,7 +120,7 @@ _PREDICT2_MULTIVIEW_NET_2B_10FPS_7VIEWS_29FRAMES = L(MultiViewDiT)(
 )
 
 _PREDICT2_MULTIVIEW_PIPELINE_2B_10FPS_7VIEWS_29FRAMES = MultiviewPipelineConfig(
-    adjust_video_noise=True,
+    adjust_video_noise=False,
     conditioner=L(MultiViewConditioner)(
         fps=L(ReMapkey)(
             dropout_rate=0.0,

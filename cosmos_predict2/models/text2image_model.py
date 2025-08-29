@@ -263,7 +263,7 @@ class Predict2Text2ImageModel(ImaginaireModel):
 
         return sigma_B_1, epsilon
 
-    def get_per_sigma_loss_weights(self, sigma: torch.Tensor) -> torch.Tensor:
+    def get_per_sigma_loss_weights(self, sigma: torch.Tensor):
         """
         Args:
             sigma (tensor): noise level
@@ -271,7 +271,7 @@ class Predict2Text2ImageModel(ImaginaireModel):
         Returns:
             loss weights per sigma noise level
         """
-        return (sigma**2 + self.pipe.sigma_data**2) / (sigma * self.pipe.sigma_data) ** 2
+        return (1 + sigma) ** 2 / sigma**2
 
     def compute_loss_with_epsilon_and_sigma(
         self,

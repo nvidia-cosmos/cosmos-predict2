@@ -23,7 +23,9 @@ from imaginaire.constants import (
     CosmosPredict2MultiviewModelSize,
     CosmosPredict2MultiviewResolution,
     get_cosmos_predict2_multiview_checkpoint,
+    print_environment_info,
 )
+from imaginaire.lazy_config.lazy import LazyConfig
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -68,6 +70,8 @@ def validate_input_file(input_path: str, num_conditional_frames: int) -> bool:
 
 
 def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
+    print_environment_info(args)
+
     views = 7
     frames = 29
     config = get_cosmos_predict2_multiview_pipeline(
@@ -119,6 +123,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
         log.warning("Prompt refiner is disabled")
         config.prompt_refiner_config.enabled = False
     config.prompt_refiner_config.offload_model_to_cpu = args.offload_prompt_refiner
+
+    # Save config
+    output_path = os.path.splitext(args.save_path)[0]
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    LazyConfig.save_yaml(config, f"{output_path}.yaml")
 
     # Load models
     log.info(f"Initializing MultiviewPipeline with model size: {args.model_size}")

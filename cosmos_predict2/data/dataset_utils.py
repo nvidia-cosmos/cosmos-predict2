@@ -17,9 +17,6 @@
 import torch
 import torchvision.transforms.functional as F
 
-_T5_EMBED_DIM = 1024  # T5-XXL embedding dimension, to be imported by dataloaders
-_NUM_T5_TOKENS = 512  # Number of T5 tokens, to be imported by dataloaders
-
 
 class Resize_Preprocess:
     def __init__(self, size: tuple[int, int]):

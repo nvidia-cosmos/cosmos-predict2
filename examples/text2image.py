@@ -18,6 +18,7 @@ import json
 import os
 
 from imaginaire.auxiliary.text_encoder import CosmosTextEncoder
+from imaginaire.lazy_config.lazy import LazyConfig
 
 # Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
 os.environ["TOKENIZERS_PARALLELISM"] = "false"
@@ -35,6 +36,7 @@ from imaginaire.constants import (
     CosmosPredict2Text2ImageModelSize,
     CosmosPredict2Video2WorldAspectRatio,
     get_cosmos_predict2_text2image_checkpoint,
+    print_environment_info,
 )
 from imaginaire.utils import distributed, log, misc
 from imaginaire.utils.io import save_image_or_video, save_text_prompts
@@ -103,6 +105,8 @@ def parse_args() -> argparse.Namespace:
 
 
 def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None) -> Text2ImagePipeline:
+    print_environment_info(args)
+
     config = get_cosmos_predict2_text2image_pipeline(model_size=args.model_size, fast_tokenizer=args.use_fast_tokenizer)
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
@@ -125,6 +129,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
     # Floating-point precision settings.
     torch.backends.cudnn.allow_tf32 = True
     torch.backends.cuda.matmul.allow_tf32 = True
+
+    # Save config
+    output_path = os.path.splitext(args.save_path)[0]
+    output_dir = os.path.dirname(output_path)
+    if output_dir:
+        os.makedirs(output_dir, exist_ok=True)
+    LazyConfig.save_yaml(config, f"{output_path}.yaml")
 
     # Check if we're in a distributed environment (called from text2world)
     is_distributed = parallel_state.is_initialized() and torch.distributed.is_initialized()

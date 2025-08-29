@@ -36,7 +36,7 @@ def parse_args() -> argparse.ArgumentParser:
     parser.add_argument(
         "--prompt_prefix", type=str, default="The robot arm is performing a task. ", help="Prefix of the prompt"
     )
-    parser.add_argument("--max_length", type=int, default=512, help="Maximum length of the text embedding")
+    parser.add_argument("--max_length", type=int, help="Maximum length of the text embedding")
     parser.add_argument("--cache_dir", type=str, default=T5_MODEL_DIR, help="Directory to cache the T5 model")
     parser.add_argument(
         "--meta_csv", type=str, default="datasets/benchmark_train/gr1/metadata.csv", help="Metadata csv file"
@@ -76,8 +76,7 @@ def main(args) -> None:
         print(f"encoding prompt: {prompt}")
 
         # Compute T5 embeddings
-        max_length = args.max_length
-        encoded_text, mask_bool = encoder.encode_prompts(prompt, max_length=max_length, return_mask=True)
+        encoded_text, mask_bool = encoder.encode_prompts(prompt, max_length=args.max_length, return_mask=True)
         attn_mask = mask_bool.long()
         lengths = attn_mask.sum(dim=1).cpu()
 

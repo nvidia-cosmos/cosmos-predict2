@@ -22,6 +22,7 @@ import imaginaire.datasets.webdataset.augmentors.image.normalize as normalize
 import imaginaire.datasets.webdataset.augmentors.image.padding as padding
 import imaginaire.datasets.webdataset.augmentors.image.resize as resize
 from cosmos_predict2.datasets.utils import IMAGE_RES_SIZE_INFO, VIDEO_RES_SIZE_INFO
+from imaginaire.auxiliary.text_encoder import CosmosTextEncoderConfig
 from imaginaire.lazy_config import LazyCall as L
 from imaginaire.utils import log
 
@@ -60,7 +61,7 @@ def get_video_text_transform(
                 "caption_windows_key": "t2w_windows",
                 "caption_type": "qwen2p5_7b_caption",
                 "embedding_caption_type": "t2w_qwen2p5_7b",
-                "t5_tokens": {"num": 512},
+                "t5_tokens": {"num": CosmosTextEncoderConfig.NUM_TOKENS},
                 "is_mask_all_ones": True,
                 "caption_probs": {
                     "long": long_caption_ratio,
@@ -79,7 +80,7 @@ def get_video_text_transform(
                 "caption_windows_key": "i2w_windows_later_frames",
                 "caption_type": "qwen2p5_7b_caption",
                 "embedding_caption_type": "i2w_qwen2p5_7b_later_frames",
-                "t5_tokens": {"num": 512},
+                "t5_tokens": {"num": CosmosTextEncoderConfig.NUM_TOKENS},
                 "is_mask_all_ones": True,
                 "caption_probs": {
                     "long": long_caption_ratio,
@@ -199,7 +200,7 @@ def get_image_augmentor(
                 "embedding_type": embedding_type,
                 "weight_captions_gt": 0.05,
                 "caption_probs": {"ground_truth": 1},
-                "t5_tokens": {"num": 512, "dim": 1024},
+                "t5_tokens": {"num": CosmosTextEncoderConfig.NUM_TOKENS, "dim": CosmosTextEncoderConfig.EMBED_DIM},
                 "is_mask_all_ones": True,
             },
         ),
