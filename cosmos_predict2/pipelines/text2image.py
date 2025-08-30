@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+import itertools
 from contextlib import contextmanager
 from typing import Any
 
@@ -93,6 +94,7 @@ class Text2ImagePipeline(BasePipeline):
         device: str = "cuda",
         torch_dtype: torch.dtype = torch.bfloat16,
         load_ema_to_reg: bool = False,
+        distill_steps: int = 0,
     ) -> Any:
         # Create a pipe
         pipe = Text2ImagePipeline(device=device, torch_dtype=torch_dtype)
@@ -119,6 +121,7 @@ class Text2ImagePipeline(BasePipeline):
         pipe.scaling = RectifiedFlowScaling(
             pipe.sigma_data, config.rectified_flow_t_scaling_factor, config.rectified_flow_loss_weight_uniform
         )
+        pipe.distill_steps = distill_steps
 
         # 3. Set up tokenizer
         pipe.tokenizer = instantiate(config.tokenizer)
@@ -379,6 +382,48 @@ class Text2ImagePipeline(BasePipeline):
         _, uncondition, _, _ = self.broadcast_split_for_model_parallelsim(latent_state, uncondition, None, None)
 
         log.info("Starting image generation...")
+
+        if self.distill_steps > 0:
+            generator = torch.Generator(device=self.tensor_kwargs["device"])
+            generator.manual_seed(seed)
+
+            init_noise = (
+                torch.randn(
+                    n_sample,
+                    *state_shape,
+                    dtype=torch.float32,
+                    device=self.tensor_kwargs["device"],
+                    generator=generator,
+                )
+                * self.scheduler.config.sigma_max
+            )
+            sigmas = [3.6, 1.5574, 0.684][: self.distill_steps - 1]
+            t_steps = torch.tensor(
+                [self.scheduler.config.sigma_max, *sigmas, 0],
+                dtype=torch.float64,
+                device=init_noise.device,
+            )
+            x = init_noise.to(torch.float64)
+            ones = torch.ones(x.size(0), device=x.device, dtype=x.dtype)
+            for _i, (t_cur, t_next) in enumerate(itertools.pairwise(t_steps)):
+                x = self.denoise(x.float(), t_cur.float() * ones, condition, use_cuda_graphs=use_cuda_graphs).x0.to(
+                    torch.float64
+                )
+                if t_next > 0:
+                    x = x + t_next * torch.randn(
+                        *x.shape,
+                        dtype=torch.float32,
+                        device=self.tensor_kwargs["device"],
+                        generator=generator,
+                    )
+
+            samples = x.float()
+
+            # decode
+            image = self.decode(samples)
+
+            log.success("Image generation completed successfully")
+            return image
 
         x_sigma_max = (
             misc.arch_invariant_rand(

@@ -105,15 +105,18 @@ def get_cosmos_predict2_text2image_checkpoint(
     model_size: CosmosPredict2Text2ImageModelSize,
     model_type: CosmosPredict2Text2ImageModelType = "Text2Image",
     fast_tokenizer: bool = False,
+    distilled: bool = False,
 ) -> str:
     model_dir = _get_cosmos_predict2_text2image_model_dir(model_size=model_size, model_type=model_type)
     suffix = ""
     if fast_tokenizer:
         suffix += "_fast_tokenizer"
+    if distilled:
+        suffix += "_distilled"
     return f"{model_dir}/model{suffix}.pt"
 
 
-CosmosPredict2Video2WorldModelSize = Literal["0.6B", "2B", "14B"]
+CosmosPredict2Video2WorldModelSize = Literal["2B", "14B"]
 CosmosPredict2Video2WorldResolution = Literal["480", "720"]
 CosmosPredict2Video2WorldFPS = Literal[10, 16]
 CosmosPredict2Video2WorldAspectRatio = Literal["1:1", "4:3", "3:4", "16:9", "9:16"]
