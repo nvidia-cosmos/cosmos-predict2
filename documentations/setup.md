@@ -6,6 +6,7 @@
 * NVIDIA driver compatible with CUDA 12.6
 * Linux x86-64
 * glibc>=2.31 (e.g Ubuntu >=22.04)
+* Python 3.10
 
 ## Installation
 
@@ -17,7 +18,6 @@ cd cosmos-predict2
 ```
 
 ### Option 1: Virtual environment
-
 
 Install system dependencies:
 
