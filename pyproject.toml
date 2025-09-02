@@ -154,8 +154,7 @@ torchvision = [
 
 [[tool.uv.index]]
 name = "cosmos-cu126"
-# HACK
-url = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple"
+url = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple"
 explicit = true
 
 [tool.hatch.build.targets.sdist]

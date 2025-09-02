@@ -56,7 +56,7 @@ sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d
 [[package]]
 name = "apex"
 version = "0.1"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "packaging", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
@@ -315,14 +315,14 @@ cu126 = [
 
 [package.metadata]
 requires-dist = [
-    { name = "apex", marker = "extra == 'cu126'", specifier = "==0.1.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "apex", marker = "extra == 'cu126'", specifier = "==0.1.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "attrs", specifier = "==25.1.0" },
     { name = "better-profanity", specifier = "==0.7.0" },
     { name = "boto3", specifier = "==1.35.99" },
     { name = "decord", specifier = "==0.6.0" },
     { name = "diffusers", specifier = "==0.33.1" },
     { name = "einops", specifier = "==0.8.1" },
-    { name = "flash-attn", marker = "extra == 'cu126'", specifier = "==2.6.3", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "flash-attn", marker = "extra == 'cu126'", specifier = "==2.6.3", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "ftfy", specifier = "==6.3.1" },
     { name = "fvcore", specifier = "==0.1.5.post20221221" },
     { name = "huggingface-hub", specifier = "==0.32.4" },
@@ -334,7 +334,7 @@ requires-dist = [
     { name = "mediapy", specifier = "==1.2.2" },
     { name = "megatron-core", specifier = "==0.10.0" },
     { name = "modelscope", specifier = "==1.26.0" },
-    { name = "natten", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "natten", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "nltk", specifier = "==3.9.1" },
     { name = "numpy", specifier = "==1.26.4" },
     { name = "nvidia-cublas-cu12", marker = "extra == 'cu126'", specifier = "==12.6.4.1" },
@@ -367,10 +367,10 @@ requires-dist = [
     { name = "sentencepiece", specifier = "==0.2.0" },
     { name = "setuptools" },
     { name = "termcolor", specifier = "==2.5.0" },
-    { name = "torch", marker = "extra == 'cu126'", specifier = "==2.6.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
-    { name = "torchvision", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "torch", marker = "extra == 'cu126'", specifier = "==2.6.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "torchvision", marker = "extra == 'cu126'", specifier = "==0.21.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "tqdm", specifier = "==4.66.5" },
-    { name = "transformer-engine", marker = "extra == 'cu126'", specifier = "==1.13", index = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
+    { name = "transformer-engine", marker = "extra == 'cu126'", specifier = "==1.13", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "transformers", specifier = "==4.51.3" },
     { name = "triton", specifier = "==3.2.0" },
     { name = "webdataset", specifier = "==0.2.111" },
@@ -501,7 +501,7 @@ wheels = [
 [[package]]
 name = "flash-attn"
 version = "2.6.3"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "einops", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -1029,7 +1029,7 @@ wheels = [
 [[package]]
 name = "natten"
 version = "0.21.0"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
@@ -2032,7 +2032,7 @@ wheels = [
 [[package]]
 name = "torch"
 version = "2.6.0+cu126"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "filelock", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "fsspec", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -2076,7 +2076,7 @@ wheels = [
 [[package]]
 name = "torchvision"
 version = "0.21.0+cu126"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "numpy", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "pillow", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -2107,7 +2107,7 @@ wheels = [
 [[package]]
 name = "transformer-engine"
 version = "1.13.0+e5edd6c"
-source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies-staging/cu126_torch260/simple" }
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
 dependencies = [
     { name = "importlib-metadata", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "packaging", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
