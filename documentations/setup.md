@@ -4,7 +4,8 @@
 
 * NVIDIA GPUs with Ampere architecture (RTX 30 Series, A100) or newer
 * NVIDIA driver compatible with CUDA 12.6
-* Linux
+* Linux x86-64
+* glibc>=2.31 (e.g Ubuntu >=22.04)
 
 ## Installation
 
@@ -15,18 +16,8 @@ git clone git@github.com:nvidia-cosmos/cosmos-predict2.git
 cd cosmos-predict2
 ```
 
-### ARM installation
-
-When using an ARM platform, like GB200, special steps are required to install the `decord` package.
-You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
-The installation will be handled by the Conda scripts or Dockerfile.
-
 ### Option 1: Virtual environment
 
-System requirements:
-
-* Linux x86-64
-* glibc>=2.31 (e.g Ubuntu >=22.04)
 
 Install system dependencies:
 
