@@ -16,9 +16,7 @@
 # Dockerfile using uv environment.
 
 ARG TARGETPLATFORM
-# HACK
 ARG BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
-# ARG BASE_IMAGE=ubuntu:24.04
 
 FROM ${BASE_IMAGE}
 
