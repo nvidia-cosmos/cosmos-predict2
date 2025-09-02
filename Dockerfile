@@ -16,7 +16,9 @@
 # Dockerfile using uv environment.
 
 ARG TARGETPLATFORM
-ARG BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
+# HACK
+# ARG BASE_IMAGE=nvidia/cuda:12.6.3-cudnn-devel-ubuntu24.04
+ARG BASE_IMAGE=ubuntu:24.04
 
 FROM ${BASE_IMAGE}
 
@@ -30,6 +32,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get install -y --no-install-recommends \
         curl \
         git \
+        libgl1 \
         libglib2.0-0 \
         tree \
         wget
