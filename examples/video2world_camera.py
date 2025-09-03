@@ -1,8 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2025 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+# http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+
 import argparse
 import os
 
+# Set TOKENIZERS_PARALLELISM environment variable to avoid deadlocks with multiprocessing
+os.environ["TOKENIZERS_PARALLELISM"] = "false"
+
 from cosmos_predict2.configs.camera_conditioned.config import PREDICT2_VIDEO2WORLD_PIPELINE_2B_CAMERA_CONDITIONED
-from cosmos_predict2.data.datasets import AGIBotDataset, CameraTrajectoryDataset
+from cosmos_predict2.data.camera_conditioned.camera_conditioned_dataset import AGIBotDataset, CameraTrajectoryDataset
 from cosmos_predict2.pipelines.video2world_camera import Video2WorldCameraConditionedPipeline
 import torch
 import torch.distributed as dist
@@ -30,7 +48,7 @@ def parse_arguments() -> argparse.Namespace:
         "--model_path",
         type=str,
         required=True,
-        help="Path to directory containing model, tokenizer, and text encoder checkpoint files",
+        help="Path to directory containing model and tokenizer checkpoint files",
     )
     parser.add_argument(
         "--load_ema",
@@ -66,6 +84,7 @@ def parse_arguments() -> argparse.Namespace:
     parser.add_argument(
         "--focal",
         type=int,
+        choices=[24, 50],
         help="Focal length of the camera"
     )
 
@@ -315,7 +334,7 @@ def main():
     # Clean up distributed resources
     cleanup(args.num_gpus)
 
-    print(f"Done!")
+    log.info(f"Done!")
 
 
 if __name__ == "__main__":
