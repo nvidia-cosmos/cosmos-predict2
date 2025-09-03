@@ -52,6 +52,13 @@ def parse_args() -> argparse.Namespace:
         default="2B",
         help="Size of the model to use for text2world generation",
     )
+    parser.add_argument(
+        "--distill_steps",
+        type=int,
+        choices=[0, 1, 2, 3, 4],
+        default=0,
+        help="1~4 for timestep-distilled inference; 0 for the original non-distilled model",
+    )
     parser.add_argument("--prompt", type=str, default=_DEFAULT_POSITIVE_PROMPT, help="Text prompt for generation")
     parser.add_argument(
         "--batch_input_json",

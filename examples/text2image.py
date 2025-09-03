@@ -53,7 +53,11 @@ def parse_args() -> argparse.Namespace:
         help="Size of the model to use for text-to-image generation",
     )
     parser.add_argument(
-        "--distill_steps", type=int, choices=[0, 1, 2, 3, 4], default=0, help="1~4 for timestep-distilled inference"
+        "--distill_steps",
+        type=int,
+        choices=[0, 1, 2, 3, 4],
+        default=0,
+        help="1~4 for timestep-distilled inference; 0 for the original non-distilled model",
     )
     parser.add_argument(
         "--dit_path",
