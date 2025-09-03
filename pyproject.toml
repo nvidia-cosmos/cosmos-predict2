@@ -80,6 +80,7 @@ dependencies = [
 
 [project.optional-dependencies]
 cu126 = [
+  "apex==0.1.0",
   "flash-attn==2.6.3",
   "natten==0.21.0",
   "torch==2.6.0",
@@ -122,6 +123,7 @@ environments = [
   "python_version == '3.10' and sys_platform == 'linux' and platform_machine == 'x86_64'",
 ]
 no-build-package = [
+  "apex",
   "flash-attn",
   "natten",
   "transformer-engine",
@@ -131,6 +133,9 @@ required-environments = [
 ]
 
 [tool.uv.sources]
+apex = [
+  { index = "cosmos-cu126", extra = "cu126" },
+]
 flash-attn = [
   { index = "cosmos-cu126", extra = "cu126" },
 ]

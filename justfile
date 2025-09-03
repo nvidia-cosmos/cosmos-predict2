@@ -36,16 +36,7 @@ release-check:
 release pypi_token='dry-run' *args:
   ./bin/release.sh {{pypi_token}} {{args}}
 
-# Build the docker image
-docker-build cuda_version='12.6.3' *args:
-  docker build --build-arg CUDA_VERSION="{{cuda_version}}" -t cosmos-predict2:{{cuda_version}} -f uv.Dockerfile . {{args}}
-
 # Run the docker container
-docker cuda_version='12.6.3' *args:
+docker *args:
   # https://github.com/astral-sh/uv-docker-example/blob/main/run.sh
-  just docker-build "{{cuda_version}}"
-  docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it cosmos-predict2:{{cuda_version}} {{args}}
-
-# Run the arm docker container
-docker-arm *args:
-  docker run --gpus all --rm -v .:/workspace -it nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2 {{args}}
+  docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -q .)

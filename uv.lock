@@ -54,6 +54,17 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/3e/38/7859ff46355f76f8d19459005ca000b6e7012f2f1ca597746cbcd1fbfe5e/antlr4-python3-runtime-4.9.3.tar.gz", hash = "sha256:f224469b4168294902bb1efa80a8bf7855f24c99aef99cbefc1bcd3cce77881b", size = 117034, upload-time = "2021-11-06T17:52:23.524Z" }
 
 [[package]]
+name = "apex"
+version = "0.1"
+source = { registry = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple" }
+dependencies = [
+    { name = "packaging", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
+]
+wheels = [
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v1.0.0/apex-0.1-cp310-cp310-linux_x86_64.whl" },
+]
+
+[[package]]
 name = "asciitree"
 version = "0.3.3"
 source = { registry = "https://pypi.org/simple" }
@@ -281,6 +292,7 @@ dependencies = [
 
 [package.optional-dependencies]
 cu126 = [
+    { name = "apex", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "flash-attn", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "natten", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
     { name = "nvidia-cublas-cu12", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
@@ -303,6 +315,7 @@ cu126 = [
 
 [package.metadata]
 requires-dist = [
+    { name = "apex", marker = "extra == 'cu126'", specifier = "==0.1.0", index = "https://nvidia-cosmos.github.io/cosmos-dependencies/cu126_torch260/simple", conflict = { package = "cosmos-predict2", extra = "cu126" } },
     { name = "attrs", specifier = "==25.1.0" },
     { name = "better-profanity", specifier = "==0.7.0" },
     { name = "boto3", specifier = "==1.35.99" },
@@ -494,7 +507,7 @@ dependencies = [
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v0.1.0/flash_attn-2.6.3-cp310-cp310-linux_x86_64.whl" },
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v1.0.0/flash_attn-2.6.3-cp310-cp310-linux_x86_64.whl" },
 ]
 
 [[package]]
@@ -1021,7 +1034,7 @@ dependencies = [
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v0.1.0/natten-0.21.0-cp310-cp310-linux_x86_64.whl" },
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v1.0.0/natten-0.21.0-cp310-cp310-linux_x86_64.whl" },
 ]
 
 [[package]]
@@ -2102,7 +2115,7 @@ dependencies = [
     { name = "torch", marker = "python_full_version < '3.11' and platform_machine == 'x86_64' and sys_platform == 'linux'" },
 ]
 wheels = [
-    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v0.1.0/transformer_engine-1.13.0+e5edd6c-cp310-cp310-linux_x86_64.whl" },
+    { url = "https://github.com/nvidia-cosmos/cosmos-dependencies/releases/download/v1.0.0/transformer_engine-1.13.0+e5edd6c-cp310-cp310-linux_x86_64.whl" },
 ]
 
 [[package]]

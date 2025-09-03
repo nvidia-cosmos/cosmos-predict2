@@ -4,7 +4,9 @@
 
 * NVIDIA GPUs with Ampere architecture (RTX 30 Series, A100) or newer
 * NVIDIA driver compatible with CUDA 12.6
-* Linux
+* Linux x86-64
+* glibc>=2.31 (e.g Ubuntu >=22.04)
+* Python 3.10
 
 ## Installation
 
@@ -15,18 +17,7 @@ git clone git@github.com:nvidia-cosmos/cosmos-predict2.git
 cd cosmos-predict2
 ```
 
-### ARM installation
-
-When using an ARM platform, like GB200, special steps are required to install the `decord` package.
-You need to make sure that [NVIDIA Video Codec SDK](https://developer.nvidia.com/nvidia-video-codec-sdk/download) is downloaded in the root of the repository.
-The installation will be handled by the Conda scripts or Dockerfile.
-
 ### Option 1: Virtual environment
-
-System requirements:
-
-* Linux x86-64
-* glibc>=2.31 (e.g Ubuntu >=22.04)
 
 Install system dependencies:
 
@@ -54,16 +45,10 @@ uv sync --extra cu126 --active --inexact
 
 Please make sure you have access to Docker on your machine and the [NVIDIA Container Toolkit](https://docs.nvidia.com/datacenter/cloud-native/container-toolkit/install-guide.html) is installed.
 
-For x86-64, build and run the container:
+Build and run the container:
 
 ```bash
-docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -f uv.Dockerfile -q .)
-```
-
-For arm, pull and run a pre-built container:
-
-```bash
-docker run --gpus all --rm -v .:/workspace -it nvcr.io/nvidia/cosmos/cosmos-predict2-container:1.2
+docker run --gpus all --rm -v .:/workspace -v /workspace/.venv -it $(docker build -q .)
 ```
 
 ## Downloading Checkpoints
