@@ -22,7 +22,7 @@ from collections import defaultdict
 from contextlib import nullcontext
 from dataclasses import dataclass, field, fields
 from enum import Enum
-from typing import Any, TypeVar
+from typing import Any, Dict, Optional, TypeVar
 
 import omegaconf
 import torch
@@ -441,6 +441,68 @@ class GR00TV1VideoCondition(TextCondition):
 class ActionCondition(VideoCondition):
     action: torch.Tensor | None = None
 
+@dataclass(frozen=True)
+class CameraCondition(VideoCondition):
+    camera: Optional[torch.Tensor] = None
+
+    def set_camera_conditioned_video_condition(
+        self,
+        gt_frames: torch.Tensor,
+        num_conditional_frames: Optional[int] = None,
+    ) -> CameraCondition:
+        kwargs = self.to_dict(skip_underscore=False)
+        kwargs["gt_frames"] = gt_frames
+
+        # condition_video_input_mask_B_C_T_H_W
+        B, _, T, H, W = gt_frames.shape
+        condition_video_input_mask_B_C_T_H_W = torch.zeros(
+            B, 1, T, H, W, dtype=gt_frames.dtype, device=gt_frames.device
+        )
+        if T == 1:  # handle image batch
+            num_conditional_frames_B = torch.zeros(B, dtype=torch.int32)
+        else:  # handle video batch
+            if isinstance(num_conditional_frames, torch.Tensor):
+                num_conditional_frames_B = torch.ones(B, dtype=torch.int32) * num_conditional_frames.cpu()
+            else:
+                num_conditional_frames_B = torch.ones(B, dtype=torch.int32) * num_conditional_frames
+        for idx in range(B):
+            # condition_video_input_mask_B_C_T_H_W[idx, :, : num_conditional_frames_B[idx], :, :] += 1
+            condition_video_input_mask_B_C_T_H_W[
+                idx, :, num_conditional_frames_B[idx] : num_conditional_frames_B[idx] * 2, :, :
+            ] += 1
+
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask_B_C_T_H_W
+        return type(self)(**kwargs)
+
+    def broadcast(self, process_group: torch.distributed.ProcessGroup) -> CameraCondition:
+        if self.is_broadcasted:
+            return self
+        # extra efforts
+        gt_frames = self.gt_frames
+        condition_video_input_mask_B_C_T_H_W = self.condition_video_input_mask_B_C_T_H_W
+        camera = self.camera
+        kwargs = self.to_dict(skip_underscore=False)
+        kwargs["gt_frames"] = None
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = None
+        new_condition = TextCondition.broadcast(
+            type(self)(**kwargs),
+            process_group,
+        )
+
+        kwargs = new_condition.to_dict(skip_underscore=False)
+        _, _, T, _, _ = gt_frames.shape
+        if process_group is not None:
+            if T > 1 and process_group.size() > 1:
+                gt_frames = broadcast_split_tensor(gt_frames, seq_dim=2, process_group=process_group)
+                condition_video_input_mask_B_C_T_H_W = broadcast_split_tensor(
+                    condition_video_input_mask_B_C_T_H_W, seq_dim=2, process_group=process_group
+                )
+                camera = broadcast_split_tensor(camera, seq_dim=1, process_group=process_group)
+        kwargs["gt_frames"] = gt_frames
+        kwargs["condition_video_input_mask_B_C_T_H_W"] = condition_video_input_mask_B_C_T_H_W
+        kwargs["camera"] = camera
+        return type(self)(**kwargs)
+
 
 # ------------------- conditioner classes -------------------
 
@@ -702,6 +764,17 @@ class ConditionLocationListValidator(Validator):
             "default": self.default,
             "tooltip": self.tooltip,
         }
+
+
+class CameraConditioner(VideoConditioner):
+    def forward(
+        self,
+        batch: Dict,
+        override_dropout_rate: Optional[Dict[str, float]] = None,
+    ) -> CameraCondition:
+        output = super()._forward(batch, override_dropout_rate)
+        assert "camera" in batch, "CameraConditioner requires 'camera' in batch"
+        return CameraCondition(**output)
 
 
 class ConditionLocationList(list):

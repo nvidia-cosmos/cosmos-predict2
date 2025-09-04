@@ -75,6 +75,8 @@ def parse_args():
             "text2image",
             "video2world",
             "sample_action_conditioned",
+            "sample_camera_conditioned_basic",
+            "sample_camera_conditioned_agibot",
             "sample_gr00t_dreams_gr1",
             "sample_gr00t_dreams_droid",
             "multiview",
@@ -84,6 +86,8 @@ def parse_args():
             "video2world",
             "sample_action_conditioned",
             "sample_gr00t_dreams_gr1",
+            "sample_camera_conditioned_basic",
+            "sample_camera_conditioned_agibot",
             "sample_gr00t_dreams_droid",
             "multiview",
         ],
@@ -169,6 +173,19 @@ def main(args):
             download("nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned")
         else:
             print("Sample Action Conditioned model is only available for 2B model size, 480P and 4FPS. Skipping...")
+    
+    if "sample_camera_conditioned_basic" in args.model_types:
+        if "2B" in args.model_sizes and "720" in args.resolution and "16" in args.fps:
+            download("nvidia/Cosmos-Predict2-2B-Sample-Camera-Conditioned-Basic")
+        else:
+            print("Sample Camera Conditioned Basic model is only available for 2B model size, 720P and 16FPS. Skipping...")
+
+    
+    if "sample_camera_conditioned_agibot" in args.model_types:
+        if "2B" in args.model_sizes and "720" in args.resolution and "16" in args.fps:
+            download("nvidia/Cosmos-Predict2-2B-Sample-Camera-Conditioned-AGIBot")
+        else:
+            print("Sample Camera Conditioned AGIBot model is only available for 2B model size, 720P and 16FPS. Skipping...")
 
     # Download the GR00T models
     if "sample_gr00t_dreams_gr1" in args.model_types:
