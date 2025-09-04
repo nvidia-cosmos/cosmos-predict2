@@ -29,6 +29,7 @@ RUN --mount=type=cache,target=/var/cache/apt \
     apt-get update && \
     apt-get install -y --no-install-recommends \
         curl \
+        ffmpeg \
         git \
         libgl1 \
         libglib2.0-0 \
