@@ -216,11 +216,15 @@ class AttentionBlock(nn.Module):
         q, k, v = self.to_qkv(x).reshape(b * t, 1, c * 3, -1).permute(0, 1, 3, 2).contiguous().chunk(3, dim=-1)
 
         # apply attention
-        x = F.scaled_dot_product_attention(
-            q,
-            k,
-            v,
-        )
+        with sdpa_kernel(backends=[SDPBackend.FLASH_ATTENTION,
+                                                      SDPBackend.EFFICIENT_ATTENTION,
+                                                      SDPBackend.CUDNN_ATTENTION,
+                                                      SDPBackend.MATH]):
+	     x = F.scaled_dot_product_attention(
+       	     	q,
+             	k,
+ 	     	v,
+       	     )
         x = x.squeeze(1).permute(0, 2, 1).reshape(b * t, c, h, w)
 
         # output
