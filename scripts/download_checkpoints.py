@@ -93,7 +93,7 @@ def parse_args():
         "--fps",
         nargs="*",
         default=["16"],
-        choices=["10", "16"],
+        choices=["4", "10", "16"],
         help="Which fps to download. This is only for Video2World models and will be ignored for other model_types",
     )
     parser.add_argument(

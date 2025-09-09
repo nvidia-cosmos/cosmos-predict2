@@ -521,11 +521,14 @@ class Video2WorldPipeline(BasePipeline):
                 def temporal_sample(video: torch.Tensor, expected_length: int) -> torch.Tensor:
                     # sample consecutive video frames to match expected_length
                     original_length = video.shape[2]
-                    if original_length != expected_length:
+                    if original_length > expected_length:
                         # video in [B C T H W] format
                         start_frame = np.random.randint(0, original_length - expected_length)
                         end_frame = start_frame + expected_length
                         video = video[:, :, start_frame:end_frame, :, :]
+                    elif original_length < expected_length:
+                        # zero pad the video to match expected_length
+                        video = torch.cat([video, torch.zeros_like(video[:, :, :1, :, :]).tile(1, 1, expected_length - original_length, 1, 1)], dim=2)
                     return video
 
                 expected_length = self.tokenizer.get_pixel_num_frames(self.config.state_t)
