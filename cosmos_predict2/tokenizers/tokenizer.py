@@ -220,11 +220,11 @@ class AttentionBlock(nn.Module):
                                                       SDPBackend.EFFICIENT_ATTENTION,
                                                       SDPBackend.CUDNN_ATTENTION,
                                                       SDPBackend.MATH]):
-	     x = F.scaled_dot_product_attention(
-       	     	q,
-             	k,
- 	     	v,
-       	     )
+            x = F.scaled_dot_product_attention(
+                q,
+                k,
+                v,
+            )
         x = x.squeeze(1).permute(0, 2, 1).reshape(b * t, c, h, w)
 
         # output
