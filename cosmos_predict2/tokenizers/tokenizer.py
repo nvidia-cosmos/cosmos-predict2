@@ -19,6 +19,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from einops import rearrange
+from torch.nn.attention import SDPBackend, sdpa_kernel
 
 from cosmos_predict2.tokenizers.interface import VideoTokenizerInterface
 from imaginaire.utils import log
