@@ -338,12 +338,14 @@ class Attention(nn.Module):
         def apply_norm_and_rotary_pos_emb(
             q: torch.Tensor, k: torch.Tensor, v: torch.Tensor, rope_emb: Optional[torch.Tensor]
         ) -> Tuple[torch.Tensor, torch.Tensor, torch.Tensor]:
-            q = self.q_norm(q)
-            k = self.k_norm(k)
-            v = self.v_norm(v)
+            with torch.cuda.device(q.device):
+                q = self.q_norm(q)
+                k = self.k_norm(k)
+                v = self.v_norm(v)
             if self.is_selfattn and rope_emb is not None:  # only apply to self-attention!
-                q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
-                k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
+                with torch.cuda.device(q.device):
+                    q = apply_rotary_pos_emb(q, rope_emb, tensor_format=self.qkv_format, fused=True)
+                    k = apply_rotary_pos_emb(k, rope_emb, tensor_format=self.qkv_format, fused=True)
             return q, k, v
 
         q, k, v = apply_norm_and_rotary_pos_emb(q, k, v, rope_emb)
@@ -1476,7 +1478,8 @@ class MiniTrainDIT(WeightTrainingStat):
         if timesteps_B_T.ndim == 1:
             timesteps_B_T = timesteps_B_T.unsqueeze(1)
         t_embedding_B_T_D, adaln_lora_B_T_3D = self.t_embedder(timesteps_B_T)
-        t_embedding_B_T_D = self.t_embedding_norm(t_embedding_B_T_D)
+        with torch.cuda.device(timesteps_B_T.device):
+            t_embedding_B_T_D = self.t_embedding_norm(t_embedding_B_T_D)
 
         # for logging purpose
         affline_scale_log_info = {}
