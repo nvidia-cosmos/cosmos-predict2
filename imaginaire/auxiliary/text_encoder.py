@@ -339,9 +339,36 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
         self.config = config
         self.device = device
         self.tokenizer = T5TokenizerFast.from_pretrained(self.config.ckpt_path, torch_dtype=torch_dtype)
-        self.text_encoder = T5EncoderModel.from_pretrained(self.config.ckpt_path, torch_dtype=torch_dtype).to(device)
+        
+        # Check for quantization via environment variables
+        import os
+        use_quantization = os.getenv("USE_QUANTIZATION", "false").lower() == "true"
+        
+        if use_quantization:
+            try:
+                from transformers import BitsAndBytesConfig
+                # Create quantization config
+                quantization_config = BitsAndBytesConfig(
+                    load_in_4bit=True,
+                    bnb_4bit_quant_type="nf4",
+                    bnb_4bit_compute_dtype=torch_dtype or torch.float16,
+                    bnb_4bit_use_double_quant=True,
+                )
+                log.info(f"Loading T5 encoder with 4-bit quantization")
+                self.text_encoder = T5EncoderModel.from_pretrained(
+                    self.config.ckpt_path, 
+                    torch_dtype=torch_dtype,
+                    quantization_config=quantization_config,
+                    device_map="auto",
+                    low_cpu_mem_usage=True
+                )
+            except ImportError:
+                log.warning("BitsAndBytes not available, loading T5 encoder without quantization")
+                self.text_encoder = T5EncoderModel.from_pretrained(self.config.ckpt_path, torch_dtype=torch_dtype).to(device)
+        else:
+            self.text_encoder = T5EncoderModel.from_pretrained(self.config.ckpt_path, torch_dtype=torch_dtype).to(device)
+        
         self.text_encoder.eval()
-
         log.info("T5 Text encoder model instantiated")
 
     @property
