@@ -13,6 +13,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
+
 import argparse
 import json
 import os
@@ -35,6 +36,14 @@ import time
 
 import torch
 from megatron.core import parallel_state
+
+# Quantization imports
+try:
+    from transformers import BitsAndBytesConfig
+    QUANTIZATION_AVAILABLE = True
+except ImportError:
+    QUANTIZATION_AVAILABLE = False
+    print("Warning: BitsAndBytes not available. Install with: pip install bitsandbytes")
 
 from cosmos_predict2.configs.base.config_video2world import (
     get_cosmos_predict2_video2world_pipeline,
@@ -188,15 +197,69 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run Video2World + NATTEN (sparse attention variant).",
     )
+    parser.add_argument(
+        "--quantization",
+        choices=["none", "4bit", "8bit"],
+        default="none",
+        help="Quantization method to use for model compression (4bit recommended for 2x RTX 4090)"
+    )
+    parser.add_argument(
+        "--quantization_compute_dtype",
+        choices=["float16", "bfloat16", "float32"],
+        default="float16",
+        help="Compute dtype for quantized operations"
+    )
+    parser.add_argument(
+        "--quantization_double_quant",
+        action="store_true",
+        help="Use double quantization (nested quantization) for better compression"
+    )
     return parser.parse_args()
+
+
+def create_quantization_config(args: argparse.Namespace):
+    """Create BitsAndBytesConfig based on command line arguments."""
+    if args.quantization == "none" or not QUANTIZATION_AVAILABLE:
+        return None
+    
+    if args.quantization == "4bit":
+        return BitsAndBytesConfig(
+            load_in_4bit=True,
+            bnb_4bit_quant_type="nf4",  # Normal Float 4-bit
+            bnb_4bit_compute_dtype=getattr(torch, args.quantization_compute_dtype),
+            bnb_4bit_use_double_quant=args.quantization_double_quant,
+        )
+    elif args.quantization == "8bit":
+        return BitsAndBytesConfig(
+            load_in_8bit=True,
+            bnb_8bit_compute_dtype=getattr(torch, args.quantization_compute_dtype),
+        )
+    
+    return None
 
 
 def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | None = None):
     print_environment_info(args)
 
+    # Create quantization config
+    quantization_config = create_quantization_config(args)
+    if quantization_config:
+        print(f"Using {args.quantization} quantization with compute dtype: {args.quantization_compute_dtype}")
+        if args.quantization_double_quant:
+            print("Double quantization enabled for better compression")
+        
+        # Apply quantization by modifying the T5 model loading
+        import os
+        os.environ["USE_QUANTIZATION"] = "true"
+        os.environ["QUANTIZATION_CONFIG"] = str(quantization_config)
+
     config = get_cosmos_predict2_video2world_pipeline(
         model_size=args.model_size, resolution=args.resolution, fps=args.fps, natten=getattr(args, "natten", False)
     )
+    
+    # Add quantization config to the pipeline config
+    if quantization_config:
+        config.quantization_config = quantization_config
     if hasattr(args, "dit_path") and args.dit_path:
         dit_path = args.dit_path
     else:
@@ -267,6 +330,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
         torch_dtype=torch.bfloat16,
         load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
+
     )
 
     # Set the provided text encoder if one was passed
