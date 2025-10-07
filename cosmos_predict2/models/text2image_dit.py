@@ -31,7 +31,12 @@ from torch.distributed.device_mesh import DeviceMesh
 from torch.distributed.fsdp import fully_shard
 from torch.utils.checkpoint import CheckpointPolicy, create_selective_checkpoint_contexts
 from torchvision import transforms
-from transformer_engine.pytorch.attention import DotProductAttention, apply_rotary_pos_emb
+from transformer_engine.pytorch.attention import DotProductAttention
+try:
+    from transformer_engine.pytorch.attention import apply_rotary_pos_emb
+except ImportError:
+    # Fallback for newer transformer_engine versions (e.g., on ARM64)
+    from transformer_engine.pytorch.attention.rope import apply_rotary_pos_emb
 
 from cosmos_predict2.conditioner import DataType
 from cosmos_predict2.module.a2a_cp import MinimalA2AAttnOp
