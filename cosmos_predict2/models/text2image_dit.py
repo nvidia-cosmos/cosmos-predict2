@@ -15,10 +15,10 @@
 
 import collections
 import math
-from collections.abc import Callable, Mapping, Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 from enum import Enum
-from typing import Any
+from typing import Any, Callable
 
 import numpy as np
 import torch
@@ -109,6 +109,26 @@ def linear_selfattn_context_fn():
     return create_selective_checkpoint_contexts(policy_fn)
 
 
+def predict2_2B_720_context_fn_aggressive():
+    op_count = collections.defaultdict(int)
+
+    def policy_fn(ctx, func, *args, **kwargs):
+        # The default policy is to recompute everything. This is the most memory-efficient
+        # starting point. We then selectively choose what to save.
+        default_policy = CheckpointPolicy.PREFER_RECOMPUTE
+
+        # Save the output of Flash Attention. This is the most computationally
+        # expensive part of a transformer block. Saving its output provides a
+        # good balance between memory savings and computational overhead.
+        if "flash_attn" in str(func):
+            return CheckpointPolicy.MUST_SAVE
+
+        # All other operations (e.g., torch.ops.aten.mm.default, layer norms, additions)
+        # will fall through to the default policy and be recomputed.
+        return default_policy
+
+    return create_selective_checkpoint_contexts(policy_fn)
+
 class CheckpointMode(str, Enum):
     NONE = "none"
     MM_ONLY = "mm_only"
@@ -116,6 +136,7 @@ class CheckpointMode(str, Enum):
     LINEAR_SELFATTN = "linear_selfattn"
     PREDICT2_2B_720 = "predict2_2b_720"
     PREDICT2_14B_720 = "predict2_14b_720"
+    PREDICT2_2B_720_AGGRESSIVE = "predict2_2b_720_aggressive"
 
     def __str__(self) -> str:
         return self.value
@@ -130,6 +151,8 @@ class SACConfig(_SACConfig):
             return predict2_2B_720_context_fn
         elif self.mode == CheckpointMode.PREDICT2_14B_720:
             return predict2_14B_720_context_fn
+        elif self.mode == CheckpointMode.PREDICT2_2B_720_AGGRESSIVE:
+            return predict2_2B_720_context_fn_aggressive
         else:
             # Reuse parent class implementation for other modes
             return super().get_context_fn()
@@ -1175,6 +1198,7 @@ class MiniTrainDIT(WeightTrainingStat):
         atten_backend: str = "transformer_engine",
         # cross attention settings
         crossattn_emb_channels: int = 1024,
+        use_crossattn_projection: bool = False,
         crossattn_proj_in_channels: int = CosmosTextEncoderConfig.EMBED_DIM,
         # positional embedding settings
         pos_emb_cls: str = "sincos",
@@ -1194,6 +1218,8 @@ class MiniTrainDIT(WeightTrainingStat):
         rope_enable_fps_modulation: bool = True,
         sac_config: SACConfig = SACConfig(),  # noqa: B008
         natten_parameters: dict | list = None,  # noqa: RUF013
+        block_cls: type[Block] = Block,
+        block_kwargs: dict | None = None,
     ) -> None:
         super().__init__()
         self.max_img_h = max_img_h
@@ -1222,6 +1248,8 @@ class MiniTrainDIT(WeightTrainingStat):
         self.extra_w_extrapolation_ratio = extra_w_extrapolation_ratio
         self.extra_t_extrapolation_ratio = extra_t_extrapolation_ratio
         self.rope_enable_fps_modulation = rope_enable_fps_modulation
+        self.use_crossattn_projection = use_crossattn_projection
+        self.crossattn_proj_in_channels = crossattn_proj_in_channels
         self.cuda_graphs = {}
 
         self.build_patch_embed()
@@ -1255,7 +1283,7 @@ class MiniTrainDIT(WeightTrainingStat):
 
         self.blocks = nn.ModuleList(
             [
-                Block(
+                block_cls(
                     x_dim=model_channels,
                     context_dim=crossattn_emb_channels,
                     num_heads=num_heads,
@@ -1267,6 +1295,7 @@ class MiniTrainDIT(WeightTrainingStat):
                     else "natten",
                     cross_attention_backend=atten_backend,
                     natten_params=None if natten_parameters is None else natten_parameters[i],
+                    **(block_kwargs or {}),
                 )
                 for i in range(num_blocks)
             ]
@@ -1281,15 +1310,15 @@ class MiniTrainDIT(WeightTrainingStat):
             adaln_lora_dim=self.adaln_lora_dim,
         )
 
-        if crossattn_proj_in_channels != crossattn_emb_channels:
+        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        
+        # Cross-attention projection layer
+        if use_crossattn_projection:
             self.crossattn_proj = nn.Sequential(
                 nn.Linear(crossattn_proj_in_channels, crossattn_emb_channels, bias=True),
                 nn.GELU(),
             )
-        else:
-            self.crossattn_proj = None
-
-        self.t_embedding_norm = te.pytorch.RMSNorm(model_channels, eps=1e-6)
+        
         self.init_weights()
         self.enable_selective_checkpoint(sac_config)
         self._is_context_parallel_enabled = False
@@ -1306,6 +1335,11 @@ class MiniTrainDIT(WeightTrainingStat):
 
         self.final_layer.init_weights()
         self.t_embedding_norm.reset_parameters()
+        
+        # Initialize cross-attention projection if enabled
+        if self.use_crossattn_projection:
+            nn.init.xavier_uniform_(self.crossattn_proj[0].weight)
+            nn.init.zeros_(self.crossattn_proj[0].bias)
 
     def build_patch_embed(self) -> None:
         (
@@ -1432,6 +1466,7 @@ class MiniTrainDIT(WeightTrainingStat):
         padding_mask: torch.Tensor | None = None,
         data_type: DataType | None = DataType.VIDEO,
         use_cuda_graphs: bool = False,
+        block_kwargs: dict | None = None,
     ) -> torch.Tensor | list[torch.Tensor] | tuple[torch.Tensor, list[torch.Tensor]]:
         """
         Args:
@@ -1449,14 +1484,15 @@ class MiniTrainDIT(WeightTrainingStat):
             padding_mask=padding_mask,
         )
 
-        if self.crossattn_proj is not None:
-            crossattn_emb = self.crossattn_proj(crossattn_emb)
-
         if timesteps_B_T.ndim == 1:
             timesteps_B_T = timesteps_B_T.unsqueeze(1)
         t_embedding_B_T_D, adaln_lora_B_T_3D = self.t_embedder(timesteps_B_T)
         t_embedding_B_T_D = self.t_embedding_norm(t_embedding_B_T_D)
 
+        # Apply cross-attention projection if enabled
+        if self.use_crossattn_projection:
+            crossattn_emb = self.crossattn_proj(crossattn_emb)
+        
         # for logging purpose
         affline_scale_log_info = {}
         affline_scale_log_info["t_embedding_B_T_D"] = t_embedding_B_T_D.detach()
@@ -1488,6 +1524,7 @@ class MiniTrainDIT(WeightTrainingStat):
             "rope_emb_L_1_1_D": rope_emb_L_1_1_D,
             "adaln_lora_B_T_3D": adaln_lora_B_T_3D,
             "extra_per_block_pos_emb": extra_pos_emb_B_T_H_W_D_or_T_H_W_B_D,
+            **(block_kwargs or {}),
         }
         for block in blocks:
             x_B_T_H_W_D = block(

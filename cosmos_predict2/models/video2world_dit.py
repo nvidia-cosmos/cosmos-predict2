@@ -14,6 +14,7 @@
 # limitations under the License.
 
 
+from typing import Optional
 import torch
 
 from cosmos_predict2.conditioner import DataType
@@ -36,6 +37,7 @@ class MinimalV1LVGDiT(MiniTrainDIT):
         padding_mask: torch.Tensor | None = None,
         data_type: DataType | None = DataType.VIDEO,
         use_cuda_graphs: bool = False,
+        block_kwargs: Optional[dict] = None,
         **kwargs,
     ) -> torch.Tensor | list[torch.Tensor] | tuple[torch.Tensor, list[torch.Tensor]]:
         del kwargs
@@ -55,4 +57,5 @@ class MinimalV1LVGDiT(MiniTrainDIT):
             padding_mask=padding_mask,
             data_type=data_type,
             use_cuda_graphs=use_cuda_graphs,
+            block_kwargs=block_kwargs,
         )

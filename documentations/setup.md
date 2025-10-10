@@ -72,6 +72,8 @@ To download a specific model:
 | Cosmos-Predict2-2B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Video2World) | `--model_types video2world --model_sizes 2B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
 | Cosmos-Predict2-14B-Video2World | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Video2World) | `--model_types video2world --model_sizes 14B` | Download 720P, 16FPS by default. Supports 480P and 720P resolution. Supports 10FPS and 16FPS |
 | Cosmos-Predict2-2B-Sample-Action-Conditioned | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Action-Conditioned) | `--model_types sample_action_conditioned` | Supports 480P and 4FPS. |
+| Cosmos-Predict2-2B-Sample-Camera-Conditioned-Basic | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Camera-Conditioned-Basic) | `--model_types sample_camera_conditioned_basic` | Supports 720P and 16FPS. 
+| Cosmos-Predict2-2B-Sample-Camera-Conditioned-AGIBot | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-2B-Sample-Camera-Conditioned-AGIBot) | `--model_types sample_camera_conditioned_agibot` | Supports 720P and 16FPS. 
 | Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1 | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-GR1) | `--model_types sample_gr00t_dreams_gr1` | Supports 480P and 16FPS. |
 | Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID | [🤗 Huggingface](https://huggingface.co/nvidia/Cosmos-Predict2-14B-Sample-GR00T-Dreams-DROID) | `--model_types sample_gr00t_dreams_droid` | Supports 480P and 16FPS. |
 
