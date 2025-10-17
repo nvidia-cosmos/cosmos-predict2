@@ -3,6 +3,7 @@
 This guide provides instructions on running inference with Cosmos-Predict2 Text2Image models.
 
 ## Table of Contents
+
 - [Prerequisites](#prerequisites)
 - [Overview](#overview)
 - [Examples](#examples)
@@ -26,8 +27,9 @@ Cosmos-Predict2 provides two models for text-to-image generation: `Cosmos-Predic
 The inference script is `examples/text2image.py`.
 It requires the input argument `--prompt` (text input).
 To see the complete list of available arguments, run:
+
 ```bash
-python examples/text2image.py --help
+!python examples/text2image.py --help
 ```
 
 ## Examples
@@ -36,15 +38,17 @@ python examples/text2image.py --help
 
 This is a basic example for running inference on the 2B model with a single prompt.
 The output is saved to `output/text2image_2b.jpg`.
+
 ```bash
 # Set the input prompt
-PROMPT_="A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
+!PROMPT_="A well-worn broom sweeps across a dusty wooden floor, its bristles gathering crumbs and flecks of debris in swift, rhythmic strokes. Dust motes dance in the sunbeams filtering through the window, glowing momentarily before settling. The quiet swish of straw brushing wood is interrupted only by the occasional creak of old floorboards. With each pass, the floor grows cleaner, restoring a sense of quiet order to the humble room."
 # Run text2image generation
-python -m examples.text2image \
+!python -m examples.text2image \
     --prompt "${PROMPT_}" \
     --model_size 2B \
     --save_path output/text2image_2b.jpg
 ```
+
 The 0.6B or 14B model can be run similarly by changing the model size parameter.
 
 #### Single Image Generation with fast image tokenizer
@@ -61,10 +65,12 @@ Fast tokenizer is available only for 0.6B model.
 ### Batch Image Generation
 
 For generating multiple images with different prompts, you can use a JSON file with batch inputs. The JSON file should contain an array of objects, where each object has:
+
 - `prompt`: The text prompt describing the desired image (required)
 - `output_image`: The path where the generated image should be saved (required)
 
 An example can be found in `assets/text2image/batch_example.json`:
+
 ```json
 [
   {
@@ -81,7 +87,9 @@ An example can be found in `assets/text2image/batch_example.json`:
   }
 ]
 ```
+
 Specify the input via the `--batch_input_json` argument:
+
 ```bash
 # Run batch text2image generation
 python -m examples.text2image \
@@ -96,6 +104,7 @@ This will generate three separate images according to the prompts specified in t
 The `text2image.py` script supports the following command-line arguments:
 
 Input and output parameters:
+
 - `--prompt`: Text prompt describing the image to generate (default: predefined example prompt)
 - `--negative_prompt`: Text describing what to avoid in the generated image (default: empty)
 - `--aspect_ratio`: Aspect ratio of the generated output (width:height) (choices: "1:1", "4:3", "3:4", "16:9", "9:16", default: "16:9")
@@ -103,19 +112,23 @@ Input and output parameters:
 - `--batch_input_json`: Path to JSON file containing batch inputs, where each entry should have 'prompt' and 'output_image' fields
 
 Model selection:
+
 - `--model_size`: Size of the model to use (choices: "0.6B", "2B", "14B", default: "2B")
 - `--dit_path`: Custom path to the DiT model checkpoint for post-trained models (default: uses standard checkpoint path based on model_size)
 - `--load_ema`: Whether to use EMA weights from the post-trained DIT model checkpoint for generation.
 - `--use_fast_tokenizer`: Whether to use fast image tokenizer for generation. This option is available only for 0.6B model.
 
 Generation parameters:
+
 - `--seed`: Random seed for reproducible results (default: 0)
 
 Performance optimization parameters:
+
 - `--use_cuda_graphs`: Use CUDA Graphs to accelerate DiT inference.
 - `--benchmark`: Run in benchmark mode to measure average generation time.
 
 Content safety:
+
 - `--disable_guardrail`: Disable guardrail checks on prompts (by default, guardrails are enabled to filter harmful content)
 
 > **Note**: Text2Image runs on a single GPU and does not support multi-GPU inference. For multi-GPU video generation, use [Text2World](inference_text2world.md) or [Video2World](inference_video2world.md) pipelines.
