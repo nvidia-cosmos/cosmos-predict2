@@ -51,6 +51,14 @@ from imaginaire.utils import log, misc
 from imaginaire.utils.easy_io import easy_io
 from imaginaire.utils.ema import FastEmaModelUpdater
 
+# Added imports for accessing classes for applying DiffSynth.
+from cosmos_predict2.vram_management.layers import enable_vram_management
+from cosmos_predict2.vram_management.layers import AutoWrappedLinear, AutoWrappedModule
+from transformers.models.t5.modeling_t5 import T5LayerNorm
+import transformer_engine as te
+from cosmos_predict2.tokenizers.tokenizer import RMS_norm
+
+
 IS_PREPROCESSED_KEY = "is_preprocessed"
 _IMAGE_EXTENSIONS = [".png", ".jpg", ".jpeg", "webp"]
 _VIDEO_EXTENSIONS = [".mp4"]
@@ -253,7 +261,7 @@ def read_and_process_video(
 
 
 class Video2WorldPipeline(BasePipeline):
-    def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16):
+    def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16, low_vram_mode=False):
         super().__init__(device=device, torch_dtype=torch_dtype)
         self.text_encoder: CosmosTextEncoder = None
         self.dit: torch.nn.Module = None
@@ -267,6 +275,7 @@ class Video2WorldPipeline(BasePipeline):
         self.height_division_factor = 16
         self.width_division_factor = 16
         self.use_unified_sequence_parallel = False
+        self.low_vram_mode = low_vram_mode
 
     @staticmethod
     def from_config(
@@ -279,9 +288,10 @@ class Video2WorldPipeline(BasePipeline):
         torch_dtype: torch.dtype = torch.bfloat16,
         load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
+        low_vram_mode = False,
     ) -> Any:
         # Create a pipe
-        pipe = Video2WorldPipeline(device=device, torch_dtype=torch_dtype)
+        pipe = Video2WorldPipeline(device=device, torch_dtype=torch_dtype, low_vram_mode=low_vram_mode)
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,
@@ -308,26 +318,112 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # 3. Set up tokenizer
+
+        # if low_vram_mode=True, then send the tokenizer to cpu.
+        # Added a device attribute to config.tokenizer. This will
+        # be used to set the VAE_ model device.
+        # Also added low_vram_mode, this will run the patched conv3d
+        # and torch.cuda.empty_cache() statements.
+        # Applies DiffSynth to tokenizer.
+        if low_vram_mode:
+            config.tokenizer.device = 'cpu'
+            config.tokenizer.low_vram_mode = True
+        else:
+            config.tokenizer.device = 'cuda'
+
         pipe.tokenizer = instantiate(config.tokenizer)
         assert pipe.tokenizer.latent_ch == pipe.config.state_ch, (
             f"latent_ch {pipe.tokenizer.latent_ch} != state_shape {pipe.config.state_ch}"
         )
 
+        # DiffSynth applied on tokenizer.
+        if low_vram_mode:
+            enable_vram_management(
+                pipe.tokenizer.model.model,
+                module_map = {
+                    torch.nn.Linear: AutoWrappedLinear,
+                    torch.nn.Conv3d: AutoWrappedModule,
+                    torch.nn.LayerNorm: AutoWrappedModule,
+                    te.pytorch.RMSNorm: AutoWrappedModule,
+                    torch.nn.SiLU: AutoWrappedModule,
+                    torch.nn.GELU: AutoWrappedModule,
+                    torch.nn.Identity: AutoWrappedModule,
+                    torch.nn.Embedding: AutoWrappedModule,
+                    torch.nn.ReLU: AutoWrappedModule,
+                    RMS_norm: AutoWrappedModule,
+                    torch.nn.Conv2d: AutoWrappedModule,
+
+                },
+                module_config = dict(
+                    offload_dtype=torch.bfloat16,
+                    offload_device='cpu',
+                    onload_dtype=torch.bfloat16,
+                    onload_device='cpu',
+                    computation_dtype=torch.bfloat16,
+                    computation_device='cuda',
+                ),
+                max_num_param=None,
+                overflow_module_config = None,
+            )
+
+
         # 4. Load text encoder
+
+        # For the text_encoder, low_vram_mode applies DiffSynth
+        # and offloads the text_encoder. Sets the device for
+        # attn_mask and input_ids in CosmosT5TextEncoder.
+        if low_vram_mode:
+            offload_text_encoder = True
+
         if use_text_encoder:
             pipe.text_encoder = get_cosmos_text_encoder(
                 config=config.text_encoder,
                 device="cpu" if offload_text_encoder else device,
                 torch_dtype=pipe.precision if downcast_text_encoder else None,
+                low_vram_mode=low_vram_mode,
             )
         else:
             pipe.text_encoder = None
+
+        # Applied DiffSynth to text_encoder.
+        if low_vram_mode:
+            enable_vram_management(
+                pipe.text_encoder,
+                module_map = {
+                    torch.nn.Linear: AutoWrappedLinear,
+                    torch.nn.Conv3d: AutoWrappedModule,
+                    torch.nn.LayerNorm: AutoWrappedModule,
+                    te.pytorch.RMSNorm: AutoWrappedModule,
+                    torch.nn.SiLU: AutoWrappedModule,
+                    torch.nn.GELU: AutoWrappedModule,
+                    torch.nn.Identity: AutoWrappedModule,
+                    torch.nn.Embedding: AutoWrappedModule,
+                    torch.nn.ReLU: AutoWrappedModule,
+                    T5LayerNorm: AutoWrappedModule
+                },
+                module_config = dict(
+                    offload_dtype=torch.float32,
+                    offload_device='cpu',
+                    onload_dtype=torch.float32,
+                    onload_device='cpu',
+                    computation_dtype=torch.float32,
+                    computation_device='cuda',
+                ),
+                max_num_param=None,
+                overflow_module_config = None,
+            )
 
         # 5. Initialize conditioner
         pipe.conditioner = instantiate(config.conditioner)
         assert sum(p.numel() for p in pipe.conditioner.parameters() if p.requires_grad) == 0, (
             "conditioner should not have learnable parameters"
         )
+
+        # Disables Prompt Refiner and Guardrail if
+        # low_vram_mode=True
+        if low_vram_mode:
+            load_prompt_refiner = False
+            config.guardrail_config.enabled = False
 
         if load_prompt_refiner:
             pipe.prompt_refiner = CosmosReason1(
@@ -386,6 +482,33 @@ class Video2WorldPipeline(BasePipeline):
             pipe.dit_ema_worker.copy_to(src_model=pipe.dit, tgt_model=pipe.dit_ema)
 
         pipe.dit = pipe.dit.to(device=device, dtype=torch_dtype)
+        
+        # Applied DiffSynth to DiT if
+        # low_vram_mode=True
+        if low_vram_mode:
+            enable_vram_management(
+                pipe.dit,
+                module_map = {
+                    torch.nn.Linear: AutoWrappedLinear,
+                    torch.nn.Conv3d: AutoWrappedModule,
+                    torch.nn.LayerNorm: AutoWrappedModule,
+                    te.pytorch.RMSNorm: AutoWrappedModule,
+                    torch.nn.SiLU: AutoWrappedModule,
+                    torch.nn.GELU: AutoWrappedModule,
+                    torch.nn.Identity: AutoWrappedModule,
+                },
+                module_config = dict(
+                    offload_dtype=torch.bfloat16,
+                    offload_device='cpu',
+                    onload_dtype=torch.bfloat16,
+                    onload_device='cpu',
+                    computation_dtype=torch.bfloat16,
+                    computation_device='cuda',
+                ),
+                max_num_param=None,
+                overflow_module_config = None,
+            )
+
         torch.cuda.empty_cache()
 
         # 7. training states
@@ -464,12 +587,12 @@ class Video2WorldPipeline(BasePipeline):
     ) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
-        if offload_to_host:
+        if offload_to_host and not self.low_vram_mode:
             self.text_encoder.to(device="cuda")
 
         embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
 
-        if offload_to_host:
+        if offload_to_host or self.low_vram_mode:
             self.text_encoder.to(device="cpu")
             gc.collect()
             torch.cuda.empty_cache()

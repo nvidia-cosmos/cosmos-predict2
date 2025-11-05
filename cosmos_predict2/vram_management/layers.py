@@ -129,8 +129,20 @@ def enable_vram_management_recursively(
                     module_config_ = overflow_module_config
                 else:
                     module_config_ = module_config
+                
+                # This import allows looking for CausalConv3d
+                # which allows setting the iswrapped attribute
+                # (an addition to the class). If iswrapped exists
+                # then patched CausalConv3d is run. The getattr.to()
+                # statement will offload any not offloaded parameters,
+                # the DiT model (which is not completely offloaded) in
+                # this case.
+                from cosmos_predict2.tokenizers.tokenizer import CausalConv3d
+                if isinstance(module, CausalConv3d):
+                    module.iswrapped = True
                 module_ = target_module(module, **module_config_)
                 setattr(model, name, module_)
+                getattr(model, name).to('cpu')
                 total_num_param += num_param
                 break
         else:
@@ -147,6 +159,7 @@ def enable_vram_management(
     max_num_param=None,
     overflow_module_config: dict = None,  # noqa: RUF013
 ):
+    
     enable_vram_management_recursively(
         model, module_map, module_config, max_num_param, overflow_module_config, total_num_param=0
     )

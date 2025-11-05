@@ -26,6 +26,8 @@ from imaginaire.utils import log
 from imaginaire.utils.distributed import broadcast, get_rank, sync_model_states
 from imaginaire.utils.easy_io import easy_io
 
+from cosmos_predict2.vram_management.layers import AutoWrappedModule
+
 __all__ = [
     "VAE",
 ]
@@ -42,8 +44,19 @@ class CausalConv3d(nn.Conv3d):
         super().__init__(*args, **kwargs)
         self._padding = (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 2 * self.padding[0], 0)
         self.padding = (0, 0, 0)
+        self.iswrapped = False
+        
 
     def forward(self, x, cache_x=None):
+        if self.iswrapped:
+            # This runs Patched Conv3d
+            return self.forward2(x, cache_x)
+        else:
+            # Normal path
+            return self.forward1(x, cache_x)
+
+    # The original CausalConv3d forward()
+    def forward1(self, x, cache_x=None):
         padding = list(self._padding)
         if cache_x is not None and self._padding[4] > 0:
             cache_x = cache_x.to(x.device)
@@ -52,6 +65,84 @@ class CausalConv3d(nn.Conv3d):
         x = F.pad(x, padding)
 
         return super().forward(x)
+    
+    # Patched CausalConv3d
+    def forward2(self, x, cache_x=None):
+
+        padding = list(self._padding)
+        if cache_x is not None and self._padding[4] > 0:
+            cache_x = cache_x.to(x.device)
+            x = torch.cat([cache_x, x], dim=2)
+            padding[4] -= cache_x.shape[2]
+        x = F.pad(x, padding)
+
+        x = x.to('cpu')
+
+        # Number of patches to divide the input along xyz axes.
+        no_patches = (1, 10, 10)
+        size_input = x.size()
+
+        # Input dimensions.
+        d_in, h_in, w_in = (size_input[2], size_input[3], size_input[4])
+        
+        # Output dimensions.
+        d_out = (d_in + 2*self.padding[0] - self.dilation[0]*(self.kernel_size[0]-1) - 1)//self.stride[0] + 1
+        h_out = (h_in + 2*self.padding[1] - self.dilation[1]*(self.kernel_size[1]-1) - 1)//self.stride[1] + 1
+        w_out = (w_in + 2*self.padding[2] - self.dilation[2]*(self.kernel_size[2]-1) - 1)//self.stride[2] + 1
+
+        # Partial output dimensions.
+        d_patches = [d_out//no_patches[0] for cnt in range(no_patches[0])]
+        h_patches = [h_out//no_patches[1] for cnt in range(no_patches[1])]
+        w_patches = [w_out//no_patches[2] for cnt in range(no_patches[2])]
+
+        d_patches[0] += d_out%no_patches[0]
+        h_patches[0] += h_out%no_patches[1]
+        w_patches[0] += w_out%no_patches[2]
+
+        # Output tensor.
+        outs = torch.zeros(size_input[0], self.out_channels, d_out, h_out, w_out, dtype=torch.bfloat16, device='cpu')
+
+        # Loop along three axes.
+        d_start = 0; h_start = 0; w_start = 0
+        d_start2 = 0; h_start2 = 0; w_start2 = 0
+        for dim1 in range(no_patches[0]):
+            if d_patches[dim1] == 0: break
+            h_start = 0
+            h_start2 = 0
+            for dim2 in range(no_patches[1]):
+                if h_patches[dim2] == 0: break
+                w_start = 0
+                w_start2 = 0
+                for dim3 in range(no_patches[2]):
+                    if w_patches[dim3] == 0: break
+
+                    # Patch dimensions.
+                    d_patch = min(d_in, (d_patches[dim1]*self.stride[0] -1) + 1 + self.dilation[0]*(self.kernel_size[0]-1) - 2*self.padding[0])
+                    h_patch = min(h_in, (h_patches[dim2]*self.stride[1] -1) + 1 + self.dilation[1]*(self.kernel_size[1]-1) - 2*self.padding[1])
+                    w_patch = min(w_in, (w_patches[dim3]*self.stride[2] -1) + 1 + self.dilation[2]*(self.kernel_size[2]-1) - 2*self.padding[2])
+
+                    # Slicing a patch out of input.
+                    x_patch = x[:, :, d_start:d_start+d_patch, h_start:h_start+h_patch, w_start:w_start+w_patch]
+
+                    # Generate patched output.
+                    outs[:, :, d_start2:d_start2+d_patches[dim1], h_start2:h_start2+h_patches[dim2], w_start2:w_start2+w_patches[dim3]] = \
+                    self.mulret(x_patch)
+                    torch.cuda.empty_cache()
+
+                    w_start += (self.stride[2]*w_patches[dim3])
+                    w_start2 += w_patches[dim3]
+                h_start += (self.stride[1]*h_patches[dim2])
+                h_start2 += h_patches[dim2]
+            d_start += (self.stride[0]*d_patches[dim1])
+            d_start2 += d_patches[dim1]
+
+        return outs.to('cuda')
+    
+    # Returns a patch of the output.
+    def mulret(self, xpatch):
+        xpatchg = (xpatch).to('cuda')
+        opatch = super().forward(xpatchg)
+        return opatch.to('cpu')
 
 
 class RMS_norm(nn.Module):
@@ -186,8 +277,12 @@ class ResidualBlock(nn.Module):
                 x = layer(x, feat_cache[idx])
                 feat_cache[idx] = cache_x
                 feat_idx[0] += 1
+                # If wrappers are applied then clear cache.
+                if isinstance(layer, AutoWrappedModule): torch.cuda.empty_cache()
             else:
                 x = layer(x)
+                # If wrappers are applied then clear cache.
+                if isinstance(layer, AutoWrappedModule): torch.cuda.empty_cache()
         return x + h
 
 
@@ -240,6 +335,7 @@ class Encoder3d(nn.Module):
         attn_scales=[],  # noqa: B006
         temperal_downsample=[True, True, False],  # noqa: B006
         dropout=0.0,
+        low_vram_mode=False
     ):
         super().__init__()
         self.dim = dim
@@ -248,6 +344,7 @@ class Encoder3d(nn.Module):
         self.num_res_blocks = num_res_blocks
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
+        self.low_vram_mode = low_vram_mode
 
         # dimensions
         dims = [dim * u for u in [1] + dim_mult]  # noqa: RUF005
@@ -283,6 +380,7 @@ class Encoder3d(nn.Module):
             RMS_norm(out_dim, images=False), nn.SiLU(), CausalConv3d(out_dim, z_dim, 3, padding=1)
         )
 
+
     def forward(self, x, feat_cache=None, feat_idx=[0]):  # noqa: B006
         if feat_cache is not None:
             idx = feat_idx[0]
@@ -295,6 +393,9 @@ class Encoder3d(nn.Module):
             feat_idx[0] += 1
         else:
             x = self.conv1(x)
+        # If low_vram_mode=True then clear cache.
+        if self.low_vram_mode: 
+            torch.cuda.empty_cache()
 
         # downsamples
         for layer in self.downsamples:
@@ -302,6 +403,9 @@ class Encoder3d(nn.Module):
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
+            # If low_vram_mode=True then clear cache.
+            if self.low_vram_mode: 
+                torch.cuda.empty_cache()
 
         # middle
         for layer in self.middle:
@@ -446,6 +550,7 @@ class VAE_(nn.Module):
         temperal_downsample=[True, True, False],  # noqa: B006
         dropout=0.0,
         temporal_window=4,
+        low_vram_mode=False
     ):
         super().__init__()
         self.dim = dim
@@ -456,9 +561,10 @@ class VAE_(nn.Module):
         self.temperal_downsample = temperal_downsample
         self.temperal_upsample = temperal_downsample[::-1]
         self.temporal_window = temporal_window
+        self.low_vram_mode = low_vram_mode
         # modules
         self.encoder = Encoder3d(
-            dim, z_dim * 2, dim_mult, num_res_blocks, attn_scales, self.temperal_downsample, dropout
+            dim, z_dim * 2, dim_mult, num_res_blocks, attn_scales, self.temperal_downsample, dropout, low_vram_mode=self.low_vram_mode
         )
         self.conv1 = CausalConv3d(z_dim * 2, z_dim * 2, 1)
         self.conv2 = CausalConv3d(z_dim, z_dim, 1)
@@ -495,20 +601,44 @@ class VAE_(nn.Module):
             )
             out = torch.cat([out, out_], 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
+        # aa edit
+        dev_temp = None
+        if mu.device != scale[0].device:
+            dev_temp = scale[0].device
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=mu.device)
+        # edit aa
         if isinstance(scale[0], torch.Tensor):
             mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(1, self.z_dim, 1, 1, 1)
         else:
             mu = (mu - scale[0]) * scale[1]
+        # aa edit
+        if dev_temp != None:
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=dev_temp)
+        # edit aa
         self.clear_cache()
         return mu
 
     def decode(self, z, scale):
         self.clear_cache()
         # z: [b,c,t,h,w]
+        # aa edit
+        dev_temp = None
+        if z.device != scale[0].device:
+            dev_temp = scale[0].device
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=z.device)
+        # edit aa
         if isinstance(scale[0], torch.Tensor):
             z = z / scale[1].view(1, self.z_dim, 1, 1, 1) + scale[0].view(1, self.z_dim, 1, 1, 1)
         else:
             z = z / scale[1] + scale[0]
+        # aa edit
+        if dev_temp != None:
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=dev_temp)
+        # edit aa
         iter_ = z.shape[2]
         x = self.conv2(z)
         for i in range(iter_):
@@ -549,6 +679,7 @@ def _video_vae(
     device="cpu",
     load_mean_std=False,
     mean_std_path: str = "",
+    low_vram_mode=False,
     **kwargs,
 ):
     """
@@ -563,6 +694,7 @@ def _video_vae(
         attn_scales=[],
         temperal_downsample=[False, True, True],
         dropout=0.0,
+        low_vram_mode=low_vram_mode
     )
     cfg.update(**kwargs)
 
@@ -640,6 +772,7 @@ class VAE:
         device="cuda",
         is_amp=True,
         temporal_window: int = 4,
+        low_vram_mode=False
     ):
         self.dtype = dtype
         self.device = device
@@ -693,6 +826,7 @@ class VAE:
             mean_std_path=mean_std_path,
             device=device,
             temporal_window=temporal_window,
+            low_vram_mode=low_vram_mode,
         )
         self.model = self.model.eval().requires_grad_(False)
         self.is_amp = is_amp
@@ -964,7 +1098,10 @@ class CosmosImageTokenizer(torch.nn.Module, VideoTokenizerInterface):
 
 
 class TokenizerInterface(VideoTokenizerInterface):
-    def __init__(self, chunk_duration: int = 81, load_mean_std=False, **kwargs):
+    def __init__(self, device='cuda', low_vram_mode=False, chunk_duration: int = 81, load_mean_std=False, **kwargs):
+        self.device = device
+        # Added attribute.
+        self.low_vram_mode = low_vram_mode
         self.model = VAE(
             dtype=torch.bfloat16,
             is_amp=False,
@@ -974,6 +1111,9 @@ class TokenizerInterface(VideoTokenizerInterface):
                 "",
             ),
             temporal_window=kwargs.get("temporal_window", 4),
+            # Set the device to cpu for tokenizer if low_vram_mode=True
+            device=self.device,
+            low_vram_mode=self.low_vram_mode
         )
         del kwargs
         self.chunk_duration = chunk_duration

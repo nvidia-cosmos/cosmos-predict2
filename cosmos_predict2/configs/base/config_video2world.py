@@ -161,6 +161,9 @@ _PREDICT2_VIDEO2WORLD_PIPELINE_2B = Video2WorldPipelineConfig(
     state_ch=16,
     state_t=24,
     tokenizer=L(TokenizerInterface)(
+        # Added device and low_vram_mode attributes.
+        device='cuda',
+        low_vram_mode=False,
         chunk_duration=81,
         temporal_window=16,
         load_mean_std=False,
