@@ -45,6 +45,7 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         self,
         checkpoint_dir: str,
         offload_model_to_cpu: bool = True,
+        gdrl_on_cpu = False
     ) -> None:
         """Video content safety filter model.
 
@@ -65,7 +66,13 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         safety_filter_local_path = os.path.join(self.checkpoint_dir, "safety_filter.pt")
         checkpoint = torch.load(safety_filter_local_path, map_location=torch.device("cpu"), weights_only=True)
         self.model.load_state_dict(checkpoint["model"])
-        self.encoder = SigLIPEncoder(checkpoint_dir=self.checkpoint_dir, device="cuda", dtype=self.dtype)
+        if gdrl_on_cpu:
+            encoderdevice = 'cpu'   # Load the encoder on CPU
+            self.mod_enc_device = True  # Flag that tracks whether DiffSynth is being used
+        else:
+            encoderdevice = 'cuda'
+            self.mod_enc_device = False
+        self.encoder = SigLIPEncoder(checkpoint_dir=self.checkpoint_dir, device=encoderdevice, dtype=self.dtype, mod_enc_device=self.mod_enc_device)
         if offload_model_to_cpu:
             self.encoder.to("cpu")
             self.model = self.model.to("cpu", dtype=self.dtype).eval()
@@ -96,7 +103,7 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
             self.model = self.model.to("cpu")
             log.debug("Offload video content safety filter to CPU")
 
-    def is_safe_file(self, filepath: str) -> bool:
+    def is_safe_file(self, filepath: str, gdrl_on_cpu=False) -> bool:
         """Check if the video file is safe."""
         video_data = read_video(filepath)
 
@@ -108,7 +115,8 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         is_safe = True
         frame_scores = []
 
-        self._to_cuda_if_offload()
+        if not gdrl_on_cpu: # Keep the model on CPU
+            self._to_cuda_if_offload()
         for frame_number in frame_numbers:
             try:
                 frame = video_data.frames[frame_number]
@@ -139,12 +147,13 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         log.debug(f"Video data: {json.dumps(video_data, indent=4)}")
         return is_safe
 
-    def is_safe_frames(self, frames: Iterable) -> bool:
+    def is_safe_frames(self, frames: Iterable, gdrl_on_cpu=False) -> bool:
         """Check if the video frames are safe."""
         is_safe = True
         frame_scores = []
 
-        self._to_cuda_if_offload()
+        if not gdrl_on_cpu: # Keep on CPU
+            self._to_cuda_if_offload()
         for frame_number, frame in enumerate(frames):
             try:
                 pil_image = Image.fromarray(frame)
@@ -169,12 +178,12 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         log.debug(f"Frames data: {json.dumps(video_data, indent=4)}")
         return is_safe
 
-    def is_safe(self, input: str | Iterable) -> tuple[bool, str]:
+    def is_safe(self, input: str | Iterable, gdrl_on_cpu=False) -> tuple[bool, str]:
         if isinstance(input, str):
-            is_safe = self.is_safe_file(input)
+            is_safe = self.is_safe_file(input, gdrl_on_cpu=gdrl_on_cpu)
             return is_safe, "safe video detected" if is_safe else "unsafe video detected"
         elif isinstance(input, Iterable):
-            is_safe = self.is_safe_frames(input)
+            is_safe = self.is_safe_frames(input, gdrl_on_cpu=gdrl_on_cpu)
             return is_safe, "safe frames detected" if is_safe else "unsafe frames detected"
         else:
             raise ValueError(f"Input type {type(input)} not supported.")

@@ -44,100 +44,119 @@ class CausalConv3d(nn.Conv3d):
         super().__init__(*args, **kwargs)
         self._padding = (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 2 * self.padding[0], 0)
         self.padding = (0, 0, 0)
-        self.iswrapped = False
+        self.useTiledConv3d = False
         
 
     def forward(self, x, cache_x=None):
-        if self.iswrapped:
-            # This runs Patched Conv3d
-            return self.forward2(x, cache_x)
+        # The original CausalConv3d forward()
+        if not self.useTiledConv3d:
+            padding = list(self._padding)
+            if cache_x is not None and self._padding[4] > 0:
+                cache_x = cache_x.to(x.device)
+                x = torch.cat([cache_x, x], dim=2)
+                padding[4] -= cache_x.shape[2]
+            x = F.pad(x, padding)
+
+            return super().forward(x)
+        # Patched CausalConv3d forward()
+        # 1. Calculate the number of patches such that each patchs is approx under 0.15 GB
+        # 2. Calculate output size, then get the partial output size using the number of patches
+        # 3. Get the input size for each partial output
+        # 4. Only run Conv3d for one patch at a time
+        # 5. Return the combined result on GPU
         else:
-            # Normal path
-            return self.forward1(x, cache_x)
+            padding = list(self._padding)
+            if cache_x is not None and self._padding[4] > 0:
+                cache_x = cache_x.to(x.device)
+                x = torch.cat([cache_x, x], dim=2)
+                padding[4] -= cache_x.shape[2]
+            x = F.pad(x, padding)
 
-    # The original CausalConv3d forward()
-    def forward1(self, x, cache_x=None):
-        padding = list(self._padding)
-        if cache_x is not None and self._padding[4] > 0:
-            cache_x = cache_x.to(x.device)
-            x = torch.cat([cache_x, x], dim=2)
-            padding[4] -= cache_x.shape[2]
-        x = F.pad(x, padding)
+            # Number of divisions along the input along xyz axes.
+            num_patches = [1, 1, 1]
+            # GB size of one patch
+            patch_memory = 0.15
 
-        return super().forward(x)
-    
-    # Patched CausalConv3d
-    def forward2(self, x, cache_x=None):
+            # Input dimensions.
+            size_input = x.size()
+            d_in, h_in, w_in = (size_input[2], size_input[3], size_input[4])
 
-        padding = list(self._padding)
-        if cache_x is not None and self._padding[4] > 0:
-            cache_x = cache_x.to(x.device)
-            x = torch.cat([cache_x, x], dim=2)
-            padding[4] -= cache_x.shape[2]
-        x = F.pad(x, padding)
+            # GB size of input
+            x_memory = x.element_size()*x.nelement()/1024**3
+            
+            approx_num_patches = x_memory//patch_memory
 
-        x = x.to('cpu')
+            # Only run if more than 2 patches can be created
+            if approx_num_patches > 2:
+                temp_patch_memory = 100
+                while temp_patch_memory > patch_memory:
+                    if w_in//(num_patches[2]+1) > 1:
+                        num_patches[2] += 1
+                    if h_in//(num_patches[1]+1) > 1:
+                        num_patches[1] += 1 
+                    if d_in//(num_patches[0]+1) > 1:
+                        num_patches[0] += 1
+                    
+                    temp_patch_memory = x_memory/(num_patches[0]*num_patches[1]*num_patches[2])
+                    pass
+            else:
+                return super().forward(x)
 
-        # Number of patches to divide the input along xyz axes.
-        no_patches = (1, 10, 10)
-        size_input = x.size()
+            x = x.to('cpu')
+            
+            # Output dimensions.
+            d_out = (d_in + 2*self.padding[0] - self.dilation[0]*(self.kernel_size[0]-1) - 1)//self.stride[0] + 1
+            h_out = (h_in + 2*self.padding[1] - self.dilation[1]*(self.kernel_size[1]-1) - 1)//self.stride[1] + 1
+            w_out = (w_in + 2*self.padding[2] - self.dilation[2]*(self.kernel_size[2]-1) - 1)//self.stride[2] + 1
 
-        # Input dimensions.
-        d_in, h_in, w_in = (size_input[2], size_input[3], size_input[4])
-        
-        # Output dimensions.
-        d_out = (d_in + 2*self.padding[0] - self.dilation[0]*(self.kernel_size[0]-1) - 1)//self.stride[0] + 1
-        h_out = (h_in + 2*self.padding[1] - self.dilation[1]*(self.kernel_size[1]-1) - 1)//self.stride[1] + 1
-        w_out = (w_in + 2*self.padding[2] - self.dilation[2]*(self.kernel_size[2]-1) - 1)//self.stride[2] + 1
+            # Partial output dimensions.
+            d_patches = [d_out//num_patches[0] for cnt in range(num_patches[0])]
+            h_patches = [h_out//num_patches[1] for cnt in range(num_patches[1])]
+            w_patches = [w_out//num_patches[2] for cnt in range(num_patches[2])]
 
-        # Partial output dimensions.
-        d_patches = [d_out//no_patches[0] for cnt in range(no_patches[0])]
-        h_patches = [h_out//no_patches[1] for cnt in range(no_patches[1])]
-        w_patches = [w_out//no_patches[2] for cnt in range(no_patches[2])]
+            d_patches[0] += d_out%num_patches[0]
+            h_patches[0] += h_out%num_patches[1]
+            w_patches[0] += w_out%num_patches[2]
 
-        d_patches[0] += d_out%no_patches[0]
-        h_patches[0] += h_out%no_patches[1]
-        w_patches[0] += w_out%no_patches[2]
+            # Output tensor.
+            outs = torch.zeros(size_input[0], self.out_channels, d_out, h_out, w_out, dtype=torch.bfloat16, device='cpu')
 
-        # Output tensor.
-        outs = torch.zeros(size_input[0], self.out_channels, d_out, h_out, w_out, dtype=torch.bfloat16, device='cpu')
+            # Loop along three axes.
+            d_start = 0; h_start = 0; w_start = 0
+            d_start2 = 0; h_start2 = 0; w_start2 = 0
+            for dim1 in range(num_patches[0]):
+                if d_patches[dim1] == 0: break
+                h_start = 0
+                h_start2 = 0
+                for dim2 in range(num_patches[1]):
+                    if h_patches[dim2] == 0: break
+                    w_start = 0
+                    w_start2 = 0
+                    for dim3 in range(num_patches[2]):
+                        if w_patches[dim3] == 0: break
 
-        # Loop along three axes.
-        d_start = 0; h_start = 0; w_start = 0
-        d_start2 = 0; h_start2 = 0; w_start2 = 0
-        for dim1 in range(no_patches[0]):
-            if d_patches[dim1] == 0: break
-            h_start = 0
-            h_start2 = 0
-            for dim2 in range(no_patches[1]):
-                if h_patches[dim2] == 0: break
-                w_start = 0
-                w_start2 = 0
-                for dim3 in range(no_patches[2]):
-                    if w_patches[dim3] == 0: break
+                        # Patch dimensions.
+                        d_patch = min(d_in, (d_patches[dim1]*self.stride[0] -1) + 1 + self.dilation[0]*(self.kernel_size[0]-1) - 2*self.padding[0])
+                        h_patch = min(h_in, (h_patches[dim2]*self.stride[1] -1) + 1 + self.dilation[1]*(self.kernel_size[1]-1) - 2*self.padding[1])
+                        w_patch = min(w_in, (w_patches[dim3]*self.stride[2] -1) + 1 + self.dilation[2]*(self.kernel_size[2]-1) - 2*self.padding[2])
 
-                    # Patch dimensions.
-                    d_patch = min(d_in, (d_patches[dim1]*self.stride[0] -1) + 1 + self.dilation[0]*(self.kernel_size[0]-1) - 2*self.padding[0])
-                    h_patch = min(h_in, (h_patches[dim2]*self.stride[1] -1) + 1 + self.dilation[1]*(self.kernel_size[1]-1) - 2*self.padding[1])
-                    w_patch = min(w_in, (w_patches[dim3]*self.stride[2] -1) + 1 + self.dilation[2]*(self.kernel_size[2]-1) - 2*self.padding[2])
+                        # Slicing a patch out of input.
+                        x_patch = x[:, :, d_start:d_start+d_patch, h_start:h_start+h_patch, w_start:w_start+w_patch]
 
-                    # Slicing a patch out of input.
-                    x_patch = x[:, :, d_start:d_start+d_patch, h_start:h_start+h_patch, w_start:w_start+w_patch]
+                        # Generate patched output.
+                        outs[:, :, d_start2:d_start2+d_patches[dim1], h_start2:h_start2+h_patches[dim2], w_start2:w_start2+w_patches[dim3]] = \
+                        self.mulret(x_patch)
+                        torch.cuda.empty_cache()
 
-                    # Generate patched output.
-                    outs[:, :, d_start2:d_start2+d_patches[dim1], h_start2:h_start2+h_patches[dim2], w_start2:w_start2+w_patches[dim3]] = \
-                    self.mulret(x_patch)
-                    torch.cuda.empty_cache()
+                        w_start += (self.stride[2]*w_patches[dim3])
+                        w_start2 += w_patches[dim3]
+                    h_start += (self.stride[1]*h_patches[dim2])
+                    h_start2 += h_patches[dim2]
+                d_start += (self.stride[0]*d_patches[dim1])
+                d_start2 += d_patches[dim1]
 
-                    w_start += (self.stride[2]*w_patches[dim3])
-                    w_start2 += w_patches[dim3]
-                h_start += (self.stride[1]*h_patches[dim2])
-                h_start2 += h_patches[dim2]
-            d_start += (self.stride[0]*d_patches[dim1])
-            d_start2 += d_patches[dim1]
+            return outs.to('cuda')
 
-        return outs.to('cuda')
-    
     # Returns a patch of the output.
     def mulret(self, xpatch):
         xpatchg = (xpatch).to('cuda')
@@ -250,6 +269,7 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
+        self.cuda_empty_cache = False
 
         # layers
         self.residual = nn.Sequential(
@@ -278,11 +298,13 @@ class ResidualBlock(nn.Module):
                 feat_cache[idx] = cache_x
                 feat_idx[0] += 1
                 # If wrappers are applied then clear cache.
-                if isinstance(layer, AutoWrappedModule): torch.cuda.empty_cache()
+                if self.cuda_empty_cache: 
+                    torch.cuda.empty_cache()
             else:
-                x = layer(x)
                 # If wrappers are applied then clear cache.
-                if isinstance(layer, AutoWrappedModule): torch.cuda.empty_cache()
+                x = layer(x)
+                if self.cuda_empty_cache:
+                    torch.cuda.empty_cache()
         return x + h
 
 
@@ -345,6 +367,7 @@ class Encoder3d(nn.Module):
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
         self.low_vram_mode = low_vram_mode
+        self.cuda_empty_cache = False
 
         # dimensions
         dims = [dim * u for u in [1] + dim_mult]  # noqa: RUF005
@@ -394,7 +417,7 @@ class Encoder3d(nn.Module):
         else:
             x = self.conv1(x)
         # If low_vram_mode=True then clear cache.
-        if self.low_vram_mode: 
+        if self.cuda_empty_cache: 
             torch.cuda.empty_cache()
 
         # downsamples
@@ -404,7 +427,7 @@ class Encoder3d(nn.Module):
             else:
                 x = layer(x)
             # If low_vram_mode=True then clear cache.
-            if self.low_vram_mode: 
+            if self.cuda_empty_cache: 
                 torch.cuda.empty_cache()
 
         # middle
