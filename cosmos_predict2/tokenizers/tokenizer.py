@@ -357,7 +357,6 @@ class Encoder3d(nn.Module):
         attn_scales=[],  # noqa: B006
         temperal_downsample=[True, True, False],  # noqa: B006
         dropout=0.0,
-        low_vram_mode=False
     ):
         super().__init__()
         self.dim = dim
@@ -366,7 +365,6 @@ class Encoder3d(nn.Module):
         self.num_res_blocks = num_res_blocks
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
-        self.low_vram_mode = low_vram_mode
         self.cuda_empty_cache = False
 
         # dimensions
@@ -416,7 +414,7 @@ class Encoder3d(nn.Module):
             feat_idx[0] += 1
         else:
             x = self.conv1(x)
-        # If low_vram_mode=True then clear cache.
+        # If cuda_empty_cache=True then clear cache.
         if self.cuda_empty_cache: 
             torch.cuda.empty_cache()
 
@@ -426,7 +424,7 @@ class Encoder3d(nn.Module):
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
-            # If low_vram_mode=True then clear cache.
+            # If cuda_empty_cache=True then clear cache.
             if self.cuda_empty_cache: 
                 torch.cuda.empty_cache()
 
@@ -573,7 +571,6 @@ class VAE_(nn.Module):
         temperal_downsample=[True, True, False],  # noqa: B006
         dropout=0.0,
         temporal_window=4,
-        low_vram_mode=False
     ):
         super().__init__()
         self.dim = dim
@@ -584,10 +581,9 @@ class VAE_(nn.Module):
         self.temperal_downsample = temperal_downsample
         self.temperal_upsample = temperal_downsample[::-1]
         self.temporal_window = temporal_window
-        self.low_vram_mode = low_vram_mode
         # modules
         self.encoder = Encoder3d(
-            dim, z_dim * 2, dim_mult, num_res_blocks, attn_scales, self.temperal_downsample, dropout, low_vram_mode=self.low_vram_mode
+            dim, z_dim * 2, dim_mult, num_res_blocks, attn_scales, self.temperal_downsample, dropout,
         )
         self.conv1 = CausalConv3d(z_dim * 2, z_dim * 2, 1)
         self.conv2 = CausalConv3d(z_dim, z_dim, 1)
@@ -702,7 +698,6 @@ def _video_vae(
     device="cpu",
     load_mean_std=False,
     mean_std_path: str = "",
-    low_vram_mode=False,
     **kwargs,
 ):
     """
@@ -717,7 +712,6 @@ def _video_vae(
         attn_scales=[],
         temperal_downsample=[False, True, True],
         dropout=0.0,
-        low_vram_mode=low_vram_mode
     )
     cfg.update(**kwargs)
 
@@ -795,7 +789,6 @@ class VAE:
         device="cuda",
         is_amp=True,
         temporal_window: int = 4,
-        low_vram_mode=False
     ):
         self.dtype = dtype
         self.device = device
@@ -849,7 +842,6 @@ class VAE:
             mean_std_path=mean_std_path,
             device=device,
             temporal_window=temporal_window,
-            low_vram_mode=low_vram_mode,
         )
         self.model = self.model.eval().requires_grad_(False)
         self.is_amp = is_amp
@@ -1121,10 +1113,9 @@ class CosmosImageTokenizer(torch.nn.Module, VideoTokenizerInterface):
 
 
 class TokenizerInterface(VideoTokenizerInterface):
-    def __init__(self, device='cuda', low_vram_mode=False, chunk_duration: int = 81, load_mean_std=False, **kwargs):
+    def __init__(self, device='cuda', chunk_duration: int = 81, load_mean_std=False, **kwargs):
         self.device = device
         # Added attribute.
-        self.low_vram_mode = low_vram_mode
         self.model = VAE(
             dtype=torch.bfloat16,
             is_amp=False,
@@ -1134,9 +1125,8 @@ class TokenizerInterface(VideoTokenizerInterface):
                 "",
             ),
             temporal_window=kwargs.get("temporal_window", 4),
-            # Set the device to cpu for tokenizer if low_vram_mode=True
+            # Set the device to cpu for tokenizer if cuda_empty_cache=True
             device=self.device,
-            low_vram_mode=self.low_vram_mode
         )
         del kwargs
         self.chunk_duration = chunk_duration

@@ -414,7 +414,7 @@ CosmosTextEncoder: TypeAlias = CosmosReason1TextEncoder | CosmosT5TextEncoder
 
 
 def get_cosmos_text_encoder(
-    config: CosmosTextEncoderConfig, device: str = "cuda", torch_dtype: torch.dtype | None = None, low_vram_mode = False
+    config: CosmosTextEncoderConfig, device: str = "cuda", torch_dtype: torch.dtype | None = None, vramBudgetControlsDict = None
 ) -> CosmosTextEncoder | None:
     """Create a text encoder from a config.
 
@@ -434,6 +434,6 @@ def get_cosmos_text_encoder(
     elif config.cls == TextEncoderClass.T5:
         if not config.t5.ckpt_path:
             return None
-        return CosmosT5TextEncoder(config=config.t5, device=device, torch_dtype=torch_dtype, low_vram_mode=low_vram_mode)
+        return CosmosT5TextEncoder(config=config.t5, device=device, torch_dtype=torch_dtype, low_vram_mode=vramBudgetControlsDict['text_encoder_vram_opt'])
     else:
         raise ValueError(f"Invalid text encoder config type: {config.cls}")

@@ -174,10 +174,14 @@ def enable_vram_management(
     module_config: dict,
     max_num_param=None,
     overflow_module_config: dict = None,  # noqa: RUF013
-    diffsynth_opts = None,
+    vramBudgetControlsDict = None,
 ):
-    
-    enable_vram_management_recursively(
-        model, module_map, module_config, max_num_param, overflow_module_config, total_num_param=0, diffsynth_opts=diffsynth_opts
-    )
+    if vramBudgetControlsDict != None:  
+        enable_vram_management_recursively(
+            model, module_map, module_config, max_num_param, overflow_module_config, total_num_param=0, diffsynth_opts=vramBudgetControlsDict['diffsynth_opts']
+        )
+    else:
+        enable_vram_management_recursively(
+            model, module_map, module_config, max_num_param, overflow_module_config, total_num_param=0, diffsynth_opts=None
+        )
     model.vram_management_enabled = True

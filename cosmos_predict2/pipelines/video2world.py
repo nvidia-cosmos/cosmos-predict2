@@ -261,7 +261,7 @@ def read_and_process_video(
 
 
 class Video2WorldPipeline(BasePipeline):
-    def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16, low_vram_mode=0):
+    def __init__(self, device: str = "cuda", torch_dtype: torch.dtype = torch.bfloat16, vramBudgetInGB=0):
         super().__init__(device=device, torch_dtype=torch_dtype)
         self.text_encoder: CosmosTextEncoder = None
         self.dit: torch.nn.Module = None
@@ -275,8 +275,8 @@ class Video2WorldPipeline(BasePipeline):
         self.height_division_factor = 16
         self.width_division_factor = 16
         self.use_unified_sequence_parallel = False
-        self.low_vram_mode = low_vram_mode
-        self.gdrl_on_cpu = False
+        self.vramBudgetInGB = vramBudgetInGB
+        self.vramBudgetControlsDict = None
 
     @staticmethod
     def from_config(
@@ -289,10 +289,10 @@ class Video2WorldPipeline(BasePipeline):
         torch_dtype: torch.dtype = torch.bfloat16,
         load_ema_to_reg: bool = False,
         load_prompt_refiner: bool = False,
-        low_vram_mode = 0,
+        vramBudgetInGB = 0,
     ) -> Any:
         # Create a pipe
-        pipe = Video2WorldPipeline(device=device, torch_dtype=torch_dtype, low_vram_mode=low_vram_mode)
+        pipe = Video2WorldPipeline(device=device, torch_dtype=torch_dtype, vramBudgetInGB=vramBudgetInGB)
         pipe.config = config
         pipe.precision = {
             "float32": torch.float32,
@@ -320,66 +320,71 @@ class Video2WorldPipeline(BasePipeline):
 
         # Low VRAM levels:
         # flags used to control optimiztions
-        tokenizer_vram_opt = False
-        patched_conv3d = False
-        text_encoder_vram_opt = False
-        dit_vram_opt = False
-        disable_guardrail_refiner = True
-        tokenizer_clear_cache = False
-        guardrail_opt = False
-        gdrl_on_cpu = False
+        vramBudgetControlsDict = {
+            'tokenizer_vram_opt': False,        # Tokenizer optimizations
+            'patched_conv3d': False,            # Patched convolution in tokenizer.py
+            'text_encoder_vram_opt': False,     # Text encoder optimizations
+            'dit_vram_opt': False,              # DiT optimizations
+            'disable_guardrail_refiner': False, # Used while debugging, not needed
+            'tokenizer_clear_cache': False,     # Clear cache to free reserved memory
+            'guardrail_opt': False,             # Guardrail optimizations
+            'gdrl_on_cpu': False,               # Passed to some classes inside the Guardrail model to handle offload/onload of tensors
+            'diffsynth_opts': {                  
+                'cache': False,                 # Clear cache periodically in tokenizer.py
+                'patchconv3d': False,           # Run patched convolution in CausalConv3d
+                'vram_opt': False,              # Apply Diffsynth on tokenizer, also sets some flags
+                'dit_opt': False,               # Apply Diffsynth on DiT, set some flags          
+                'video_gd_opt': False,          # Set some flags for guardrail
+            }
+        }
         
 
-        if low_vram_mode < 8 and low_vram_mode > 0: # 4.297-4.441
-            tokenizer_vram_opt = True    # tokenizer optimizations
-            patched_conv3d = True        # patched convolution in tokenizer.py
-            tokenizer_clear_cache = True # clear cache to free reserved memory
-            text_encoder_vram_opt = True # text encoder optimizations
-            dit_vram_opt = True          # DiT optimizations
-            guardrail_opt = True         # Guardrail optimizations
+        if vramBudgetInGB < 9 and vramBudgetInGB > 0: # 4.297-4.441
+            vramBudgetControlsDict['tokenizer_vram_opt'] = True
+            vramBudgetControlsDict['patched_conv3d'] = True
+            vramBudgetControlsDict['tokenizer_clear_cache'] = True 
+            vramBudgetControlsDict['text_encoder_vram_opt'] = True 
+            vramBudgetControlsDict['dit_vram_opt'] = True         
+            vramBudgetControlsDict['guardrail_opt'] = True    
 
-        elif low_vram_mode < 12 and low_vram_mode > 0: #~7.655gb
-            tokenizer_vram_opt = True
-            patched_conv3d = True
-            tokenizer_clear_cache = True
-            text_encoder_vram_opt = True
-            guardrail_opt = True
+        elif vramBudgetInGB < 13 and vramBudgetInGB > 0: # 7.655-8.985
+            vramBudgetControlsDict['tokenizer_vram_opt'] = True
+            vramBudgetControlsDict['patched_conv3d'] = True
+            vramBudgetControlsDict['tokenizer_clear_cache'] = True
+            vramBudgetControlsDict['text_encoder_vram_opt'] = True
+            vramBudgetControlsDict['guardrail_opt'] = True
 
-        elif low_vram_mode < 20 and low_vram_mode > 0: #~11.669gb
-            tokenizer_vram_opt = True
-            text_encoder_vram_opt = True
-            guardrail_opt = True
+        elif vramBudgetInGB < 26 and vramBudgetInGB > 0: # 11.669
+            vramBudgetControlsDict['tokenizer_vram_opt'] = True
+            vramBudgetControlsDict['text_encoder_vram_opt'] = True
+            vramBudgetControlsDict['guardrail_opt'] = True
 
-        elif low_vram_mode < 32 and low_vram_mode > 0:
-            low_vram_mode = 0
-            guardrail_opt = True
+        elif vramBudgetInGB < 32 and vramBudgetInGB > 0: # 23.675-25.333
+            vramBudgetInGB = 0
+            vramBudgetControlsDict['guardrail_opt'] = True
 
-        else:
-            guardrail_opt = False   # no optimizations run
-            low_vram_mode = 0
+        else:                                           # 33.625-38.689
+            vramBudgetControlsDict['guardrail_opt'] = False   # no optimizations run
+            vramBudgetInGB = 0
+            pipe.vramBudgetInGB = vramBudgetInGB
 
         # passed to layers.py Diffsynth
-        # changes (add, sets) certain flags
+        # changes (adds, sets) certain flags
         # in model class or onloads certain
         # layers according to the flags set
         # in this dictionary.
-        diffsynth_opts = {                  
-            "cache": tokenizer_clear_cache, # Clear cache periodically in tokenizer.py
-            "patchconv3d": patched_conv3d,  # Run patched convolution in CausalConv3d
-            "vram_opt": tokenizer_vram_opt, # Apply Diffsynth on tokenizer, also sets some flags
-            "dit_opt": False,               # Apply Diffsynth on DiT, set some flags          
-            "video_gd_opt": False,          # Set some flags for guardrail
-        }
-
+        vramBudgetControlsDict['diffsynth_opts']['cache'] = vramBudgetControlsDict['tokenizer_clear_cache']
+        vramBudgetControlsDict['diffsynth_opts']['patchconv3d'] = vramBudgetControlsDict['patched_conv3d']
+        vramBudgetControlsDict['diffsynth_opts']['vram_opt'] = vramBudgetControlsDict['tokenizer_vram_opt']
+        vramBudgetControlsDict['diffsynth_opts']['dit_opt'] = False
+        vramBudgetControlsDict['diffsynth_opts']['video_gd_opt'] = False
 
         # 3. Set up tokenizer
 
-        if diffsynth_opts["vram_opt"]:
+        if vramBudgetControlsDict['diffsynth_opts']["vram_opt"]:
             config.tokenizer.device = 'cpu' # Load on cpu to save VRAM
-            config.tokenizer.low_vram_mode = diffsynth_opts["cache"]    # Not used
         else:
             config.tokenizer.device = 'cuda'    # Normal path
-            config.tokenizer.low_vram_mode = False
 
         pipe.tokenizer = instantiate(config.tokenizer)
         assert pipe.tokenizer.latent_ch == pipe.config.state_ch, (
@@ -387,7 +392,7 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # DiffSynth applied on tokenizer.
-        if diffsynth_opts["vram_opt"]:
+        if vramBudgetControlsDict['diffsynth_opts']['vram_opt']:
             enable_vram_management(
                 pipe.tokenizer.model.model,
                 module_map = {
@@ -414,13 +419,13 @@ class Video2WorldPipeline(BasePipeline):
                 ),
                 max_num_param=None,
                 overflow_module_config = None,
-                diffsynth_opts=diffsynth_opts,  # Passed to layers.py, from there it will be passed to different classes
+                vramBudgetControlsDict=vramBudgetControlsDict,  # Passed to layers.py, from there it will be passed to different classes
             )
 
 
         # 4. Load text encoder
         
-        if text_encoder_vram_opt:
+        if vramBudgetControlsDict['text_encoder_vram_opt']:
             offload_text_encoder = True # Load on CPU
 
         if use_text_encoder:
@@ -428,13 +433,13 @@ class Video2WorldPipeline(BasePipeline):
                 config=config.text_encoder,
                 device="cpu" if offload_text_encoder else device,
                 torch_dtype=pipe.precision if downcast_text_encoder else None,
-                low_vram_mode=text_encoder_vram_opt,
+                vramBudgetControlsDict=vramBudgetControlsDict,
             )
         else:
             pipe.text_encoder = None
 
         # Applied DiffSynth to text_encoder.
-        if text_encoder_vram_opt:
+        if vramBudgetControlsDict['text_encoder_vram_opt']:
             enable_vram_management(
                 pipe.text_encoder,
                 module_map = {
@@ -468,10 +473,10 @@ class Video2WorldPipeline(BasePipeline):
         )
 
         # Disables Prompt Refiner and Guardrail
-        if disable_guardrail_refiner:   # Not used
+        if vramBudgetControlsDict['disable_guardrail_refiner']:   # Not used
             load_prompt_refiner = False
             config.guardrail_config.enabled = False
-            guardrail_opt = False
+            vramBudgetControlsDict['guardrail_opt'] = False
 
         if load_prompt_refiner:
             pipe.prompt_refiner = CosmosReason1(
@@ -481,12 +486,11 @@ class Video2WorldPipeline(BasePipeline):
             )
 
         if not config.guardrail_config.enabled: # Don't apply optimizations to guardrail in this case
-            guardrail_opt = False
+            vramBudgetControlsDict['guardrail_opt'] = False
 
-        if guardrail_opt:
+        if vramBudgetControlsDict['guardrail_opt']:
             config.guardrail_config.offload_model_to_cpu = True # Load on CPU
-            gdrl_on_cpu = True                                  # Passed to some classes inside the Guardrail model to handle offload/onload of tensors
-            pipe.gdrl_on_cpu = gdrl_on_cpu                      
+            vramBudgetControlsDict['gdrl_on_cpu'] = True                  
 
         if config.guardrail_config.enabled:
             from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
@@ -496,15 +500,15 @@ class Video2WorldPipeline(BasePipeline):
             )
             pipe.video_guardrail_runner = guardrail_presets.create_video_guardrail_runner(
                 config.guardrail_config.checkpoint_dir, config.guardrail_config.offload_model_to_cpu,
-                gdrl_on_cpu=gdrl_on_cpu
+                vramBudgetControlsDict=vramBudgetControlsDict
             )
         else:
             pipe.text_guardrail_runner = None
             pipe.video_guardrail_runner = None
 
-        if guardrail_opt:
+        if vramBudgetControlsDict['guardrail_opt']:
             # Apply Diffsynth to all Guardrail models, use flags to make changes to some Modules in layers.py
-            diffsynth_opts['video_gd_opt'] = True
+            vramBudgetControlsDict['diffsynth_opts']['video_gd_opt'] = True
             from transformers.models.llama.modeling_llama import LlamaRMSNorm, LlamaRotaryEmbedding
             enable_vram_management(
                 pipe.text_guardrail_runner.safety_models[1].model,
@@ -566,7 +570,7 @@ class Video2WorldPipeline(BasePipeline):
                 ),
                 max_num_param=None,
                 overflow_module_config = None,
-                diffsynth_opts=diffsynth_opts,  # Adds a reference to layer weights in the wrapper class
+                vramBudgetControlsDict=vramBudgetControlsDict,  # Adds a reference to layer weights in the wrapper class
             )
             enable_vram_management(
                 pipe.video_guardrail_runner.postprocessors[0].net,
@@ -594,7 +598,7 @@ class Video2WorldPipeline(BasePipeline):
                 max_num_param=None,
                 overflow_module_config = None,
             )
-            diffsynth_opts['video_gd_opt'] = False
+            vramBudgetControlsDict['diffsynth_opts']['video_gd_opt'] = False
 
 
         # 6. Set up DiT
@@ -633,16 +637,16 @@ class Video2WorldPipeline(BasePipeline):
             # Actual state_dict should be loaded after the pipe is created.
             pipe.dit_ema_worker.copy_to(src_model=pipe.dit, tgt_model=pipe.dit_ema)
 
-        if dit_vram_opt:
+        if vramBudgetControlsDict['dit_vram_opt']:
             deviceDiT = 'cpu'   # Load on CPU
-            diffsynth_opts['dit_opt'] = True    # Apply Diffsynth
+            vramBudgetControlsDict['diffsynth_opts']['dit_opt'] = True    # Apply Diffsynth
         else:
             deviceDiT = device
 
         pipe.dit = pipe.dit.to(device=deviceDiT, dtype=torch_dtype)            
 
         # Applied DiffSynth to DiT
-        if dit_vram_opt:
+        if vramBudgetControlsDict['dit_vram_opt']:
             enable_vram_management(
                 pipe.dit,
                 module_map = {
@@ -664,9 +668,11 @@ class Video2WorldPipeline(BasePipeline):
                 ),
                 max_num_param=None,
                 overflow_module_config = None,
-                diffsynth_opts=diffsynth_opts   # Load some classes to the GPU since Diffsynth can't offload/onload everything in them (layers.py)
+                vramBudgetControlsDict=vramBudgetControlsDict   # Load some classes to the GPU since Diffsynth can't offload/onload everything in them (layers.py)
             )
-            diffsynth_opts['dit_opt'] = False
+            vramBudgetControlsDict['diffsynth_opts']['dit_opt'] = False
+
+        pipe.vramBudgetControlsDict = vramBudgetControlsDict
 
         torch.cuda.empty_cache()
 
@@ -746,12 +752,12 @@ class Video2WorldPipeline(BasePipeline):
     ) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
-        if offload_to_host and not self.low_vram_mode:
+        if offload_to_host and not self.vramBudgetInGB:
             self.text_encoder.to(device="cuda")
 
         embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
 
-        if offload_to_host or self.low_vram_mode:
+        if offload_to_host or self.vramBudgetInGB:
             self.text_encoder.to(device="cpu")
         gc.collect()
         torch.cuda.empty_cache()
@@ -1092,7 +1098,7 @@ class Video2WorldPipeline(BasePipeline):
             from cosmos_predict2.auxiliary.guardrail.common import presets as guardrail_presets
             
             log.info("Running guardrail check on prompt...")
-            if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner, gdrl_on_cpu=self.gdrl_on_cpu):
+            if not guardrail_presets.run_text_guardrail(prompt, self.text_guardrail_runner, vramBudgetControlsDict=self.vramBudgetControlsDict):
                 if return_prompt:
                     return None, prompt
                 else:
@@ -1251,7 +1257,7 @@ class Video2WorldPipeline(BasePipeline):
             frames = frames.permute(1, 2, 3, 0).cpu().numpy()  # (T, H, W, C)
 
             # Run guardrail
-            processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner, gdrl_on_cpu=self.gdrl_on_cpu)
+            processed_frames = guardrail_presets.run_video_guardrail(frames, self.video_guardrail_runner, vramBudgetControlsDict=self.vramBudgetControlsDict)
             if processed_frames is None:
                 if return_prompt:
                     return None, prompt
