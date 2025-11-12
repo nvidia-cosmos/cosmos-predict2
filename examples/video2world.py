@@ -215,8 +215,8 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
         )
     log.info(f"Using dit_path: {dit_path}")
 
+    misc.set_random_seed(seed=args.seed, by_rank=True)
     if not (hasattr(args, "vramBudgetInGB") and args.vramBudgetInGB != 0):
-        misc.set_random_seed(seed=args.seed, by_rank=True)
         # Initialize cuDNN.
         torch.backends.cudnn.deterministic = False
         torch.backends.cudnn.benchmark = True

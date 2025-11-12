@@ -343,6 +343,8 @@ class Video2WorldPipeline(BasePipeline):
         vramBudgetInGB = math.ceil(vramBudgetInGB)
         vramBudgetRun = 0
 
+        load_prompt_refiner = config.prompt_refiner_config.enabled
+
         if vramBudgetInGB != 0:
             load_prompt_refiner = False
             log.info(f"Disabling prompt refiner to run VRAM optimizations")
