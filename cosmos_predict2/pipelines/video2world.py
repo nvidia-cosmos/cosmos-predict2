@@ -337,36 +337,102 @@ class Video2WorldPipeline(BasePipeline):
                 'video_gd_opt': False,          # Set some flags for guardrail
             }
         }
-        
 
-        if vramBudgetInGB < 9 and vramBudgetInGB > 0: # 4.297-4.441
-            vramBudgetControlsDict['tokenizer_vram_opt'] = True
-            vramBudgetControlsDict['patched_conv3d'] = True
-            vramBudgetControlsDict['tokenizer_clear_cache'] = True 
-            vramBudgetControlsDict['text_encoder_vram_opt'] = True 
-            vramBudgetControlsDict['dit_vram_opt'] = True         
-            vramBudgetControlsDict['guardrail_opt'] = True    
+        import math
+        org_vramBudget = vramBudgetInGB
+        vramBudgetInGB = math.ceil(vramBudgetInGB)
+        vramBudgetRun = 0
 
-        elif vramBudgetInGB < 13 and vramBudgetInGB > 0: # 7.655-8.985
-            vramBudgetControlsDict['tokenizer_vram_opt'] = True
-            vramBudgetControlsDict['patched_conv3d'] = True
-            vramBudgetControlsDict['tokenizer_clear_cache'] = True
-            vramBudgetControlsDict['text_encoder_vram_opt'] = True
-            vramBudgetControlsDict['guardrail_opt'] = True
+        if vramBudgetInGB != 0:
+            load_prompt_refiner = False
+            log.info(f"Disabling prompt refiner to run VRAM optimizations")
 
-        elif vramBudgetInGB < 26 and vramBudgetInGB > 0: # 11.669
-            vramBudgetControlsDict['tokenizer_vram_opt'] = True
-            vramBudgetControlsDict['text_encoder_vram_opt'] = True
-            vramBudgetControlsDict['guardrail_opt'] = True
 
-        elif vramBudgetInGB < 32 and vramBudgetInGB > 0: # 23.675-25.333
-            vramBudgetInGB = 0
-            vramBudgetControlsDict['guardrail_opt'] = True
-
-        else:                                           # 33.625-38.689
-            vramBudgetControlsDict['guardrail_opt'] = False   # no optimizations run
+        if not config.prompt_refiner_config.enabled:
+            if vramBudgetInGB < 8 and not config.guardrail_config.enabled and vramBudgetInGB > 0:   # 4.297-4.441
+                # 4.4 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['patched_conv3d'] = True
+                vramBudgetControlsDict['tokenizer_clear_cache'] = True 
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True 
+                vramBudgetControlsDict['dit_vram_opt'] = True         
+                vramBudgetControlsDict['guardrail_opt'] = True  
+                vramBudgetRun = 4.4
+                pass
+            elif vramBudgetInGB < 9 and config.guardrail_config.enabled and vramBudgetInGB > 0: # 4.297-4.441
+                # 4.4 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['patched_conv3d'] = True
+                vramBudgetControlsDict['tokenizer_clear_cache'] = True 
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True 
+                vramBudgetControlsDict['dit_vram_opt'] = True         
+                vramBudgetControlsDict['guardrail_opt'] = True 
+                vramBudgetRun = 4.4 
+                pass
+            elif vramBudgetInGB < 12 and not config.guardrail_config.enabled and vramBudgetInGB > 0:    # 7.655-8.985
+                # 7.7 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['patched_conv3d'] = True
+                vramBudgetControlsDict['tokenizer_clear_cache'] = True
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 7.7
+                pass
+            elif vramBudgetInGB < 12 and config.guardrail_config.enabled and vramBudgetInGB > 0:    # 7.655-8.985
+                # 9.0 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['patched_conv3d'] = True
+                vramBudgetControlsDict['tokenizer_clear_cache'] = True
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 9.0
+                pass
+            elif vramBudgetInGB < 24 and not config.guardrail_config.enabled and vramBudgetInGB > 0:    # 11.669
+                # 12.0 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 12.0
+                pass
+            elif vramBudgetInGB < 26 and config.guardrail_config.enabled and vramBudgetInGB > 0:    # 11.669
+                # 12.0 GB
+                vramBudgetControlsDict['tokenizer_vram_opt'] = True
+                vramBudgetControlsDict['text_encoder_vram_opt'] = True
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 12.0
+                pass
+            elif vramBudgetInGB < 34 and not config.guardrail_config.enabled and vramBudgetInGB > 0:    # 23.675-25.333
+                # 24.0 GB
+                vramBudgetInGB = 0
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 24.0
+                pass
+            elif vramBudgetInGB < 39 and config.guardrail_config.enabled and vramBudgetInGB > 0:    # 23.675-25.333
+                # 25.0 GB
+                vramBudgetInGB = 0
+                vramBudgetControlsDict['guardrail_opt'] = True
+                vramBudgetRun = 25.0
+                pass
+            else:                                                                                   # 33.625-38.689
+                vramBudgetControlsDict['guardrail_opt'] = False   # no optimizations run
+                vramBudgetInGB = 0
+                pipe.vramBudgetInGB = vramBudgetInGB
+                if not config.guardrail_config.enabled:
+                    vramBudgetRun = 34
+                else:
+                    vramBudgetRun = 39
+                log.info(f"No VRAM optimizations running")
+                pass
+        else:
+            log.info(f"Disable prompt refiner to run VRAM optimizations")
+            vramBudgetControlsDict['guardrail_opt'] = False
             vramBudgetInGB = 0
             pipe.vramBudgetInGB = vramBudgetInGB
+            pass
+
+        if vramBudgetInGB != 0:
+            log.info(f"VRAM budget provided: {org_vramBudget}, Approximate VRAM used to run the model: {vramBudgetRun}")
+
 
         # passed to layers.py Diffsynth
         # changes (adds, sets) certain flags
@@ -484,7 +550,7 @@ class Video2WorldPipeline(BasePipeline):
                 offload_model_to_cpu=config.prompt_refiner_config.offload_model_to_cpu,
                 enabled=config.prompt_refiner_config.enabled,
             )
-
+        
         if not config.guardrail_config.enabled: # Don't apply optimizations to guardrail in this case
             vramBudgetControlsDict['guardrail_opt'] = False
 
@@ -752,7 +818,7 @@ class Video2WorldPipeline(BasePipeline):
     ) -> torch.Tensor:
         offload_to_host = any([p.device.type == "cpu" for p in self.text_encoder.parameters()])
 
-        if offload_to_host and not self.vramBudgetInGB:
+        if offload_to_host and not self.vramBudgetControlsDict['text_encoder_vram_opt']:
             self.text_encoder.to(device="cuda")
 
         embeddings = self.text_encoder.encode_prompts(prompts, max_length=max_length, return_mask=return_mask)  # type: ignore
@@ -883,7 +949,9 @@ class Video2WorldPipeline(BasePipeline):
 
         # Latent state
         raw_state = data_batch[self.input_image_key if is_image_batch else self.input_video_key]
+        
         latent_state = self.encode(raw_state).contiguous().float()
+
 
         # Condition
         condition = self.conditioner(data_batch)
@@ -1029,7 +1097,7 @@ class Video2WorldPipeline(BasePipeline):
             condition, uncondition = self.conditioner.get_condition_with_negative_prompt(data_batch)
         else:
             condition, uncondition = self.conditioner.get_condition_uncondition(data_batch)
-
+        
         is_image_batch = self.is_image_batch(data_batch)
         condition = condition.edit_data_type(DataType.IMAGE if is_image_batch else DataType.VIDEO)
         uncondition = uncondition.edit_data_type(DataType.IMAGE if is_image_batch else DataType.VIDEO)
@@ -1137,7 +1205,7 @@ class Video2WorldPipeline(BasePipeline):
             and not self.config.prompt_refiner_config.enabled
         ):
             log.warning("Prompt refinement is disabled")
-
+        
         num_video_frames = self.tokenizer.get_pixel_num_frames(self.config.state_t)
 
         # Detect file extension to determine appropriate reading function
@@ -1164,7 +1232,7 @@ class Video2WorldPipeline(BasePipeline):
         data_batch = self._get_data_batch_input(
             vid_input, prompt, negative_prompt, num_latent_conditional_frames=num_latent_conditional_frames
         )
-
+        
         # preprocess
         self._normalize_video_databatch_inplace(data_batch)
         self._augment_image_dim_inplace(data_batch)
@@ -1178,7 +1246,7 @@ class Video2WorldPipeline(BasePipeline):
             _H // self.tokenizer.spatial_compression_factor,
             _W // self.tokenizer.spatial_compression_factor,
         ]
-
+        
         x0_fn = self.get_x0_fn_from_batch(
             data_batch, guidance, is_negative_prompt=True, use_cuda_graphs=use_cuda_graphs
         )

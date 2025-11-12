@@ -403,6 +403,7 @@ class Encoder3d(nn.Module):
 
 
     def forward(self, x, feat_cache=None, feat_idx=[0]):  # noqa: B006
+
         if feat_cache is not None:
             idx = feat_idx[0]
             cache_x = x[:, :, -CACHE_T:, :, :].clone()

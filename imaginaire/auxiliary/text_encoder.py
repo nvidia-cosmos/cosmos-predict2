@@ -372,6 +372,7 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
         
         # If low_vram_mode=True then to avoid different
         # devices, set it for input_ids and attn_mask
+        
         if not self.low_vram_mode:
             input_ids = batch_encoding.input_ids.to(self.device)
             attn_mask = batch_encoding.attention_mask.to(self.device)
