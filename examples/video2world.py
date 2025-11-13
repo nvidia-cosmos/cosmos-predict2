@@ -188,6 +188,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Run Video2World + NATTEN (sparse attention variant).",
     )
+    parser.add_argument(
+        "--vramBudgetInGB",
+        default=0,
+        type=float,
+        help="Amount of VRAM in GB available to run the 480P 16 FPS model. Depending on the provided value and whether the Guardrail model is enabled, the model will use one of the following VRAM values (approx) to run: 4.4 GB, 7.7 GB, 9.0 GB, 12.0 GB, 24 GB, 25 GB. Supplying this argument will disable the prompt refiner",
+    )
     return parser.parse_args()
 
 
@@ -210,12 +216,13 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
     log.info(f"Using dit_path: {dit_path}")
 
     misc.set_random_seed(seed=args.seed, by_rank=True)
-    # Initialize cuDNN.
-    torch.backends.cudnn.deterministic = False
-    torch.backends.cudnn.benchmark = True
-    # Floating-point precision settings.
-    torch.backends.cudnn.allow_tf32 = True
-    torch.backends.cuda.matmul.allow_tf32 = True
+    if not (hasattr(args, "vramBudgetInGB") and args.vramBudgetInGB != 0):
+        # Initialize cuDNN.
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
+        # Floating-point precision settings.
+        torch.backends.cudnn.allow_tf32 = True
+        torch.backends.cuda.matmul.allow_tf32 = True
 
     # Initialize distributed environment for multi-GPU inference
     if hasattr(args, "num_gpus") and args.num_gpus > 1:
@@ -267,6 +274,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
         torch_dtype=torch.bfloat16,
         load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
+        vramBudgetInGB=args.vramBudgetInGB,
     )
 
     # Set the provided text encoder if one was passed

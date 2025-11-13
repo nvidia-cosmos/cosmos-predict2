@@ -25,10 +25,12 @@ class SigLIPEncoder(torch.nn.Module):
         model_name: str = "google/siglip-so400m-patch14-384",
         device="cuda" if torch.cuda.is_available() else "cpu",  # noqa: B008
         dtype=torch.float32,
+        mod_enc_device=False,
     ) -> None:
         super().__init__()
         self.checkpoint_dir = checkpoint_dir
-        self.device = device
+        self.device = device  # If VRAM optimizations are active, this will be CPU
+        self.mod_enc_device = mod_enc_device  # Is DiffSynth Active?
         self.dtype = dtype
         self.model = SiglipModel.from_pretrained(model_name, cache_dir=self.checkpoint_dir)
         self.processor = SiglipProcessor.from_pretrained(model_name, cache_dir=self.checkpoint_dir)
@@ -37,8 +39,15 @@ class SigLIPEncoder(torch.nn.Module):
     @torch.inference_mode()
     def encode_image(self, input_img: Image.Image) -> torch.Tensor:
         """Encode an image into a feature vector."""
+        if self.mod_enc_device:  # Is DiffSynth Active?
+            inputdevice = "cuda"  # Move inputs to GPU, since the 'self.device' attribute will show CPU. The models are on CPU but the layers will dynamically be on the GPU
+            # DiffSynth doesn't handle these two tensors so keep them on GPU
+            self.model.vision_model.embeddings.position_ids = self.model.vision_model.embeddings.position_ids.to("cuda")
+            self.model.vision_model.head.to("cuda")
+        else:
+            inputdevice = self.device
         with torch.no_grad():
-            inputs = self.processor(images=input_img, return_tensors="pt").to(self.device, dtype=self.dtype)
+            inputs = self.processor(images=input_img, return_tensors="pt").to(inputdevice, dtype=self.dtype)
             image_features = self.model.get_image_features(**inputs)
             image_features /= image_features.norm(dim=-1, keepdim=True)
         return image_features

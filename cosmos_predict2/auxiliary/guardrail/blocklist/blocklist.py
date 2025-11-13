@@ -164,7 +164,7 @@ class Blocklist(ContentSafetyGuardrail):
 
         return False, ""
 
-    def is_safe(self, input_prompt: str = "") -> tuple[bool, str]:
+    def is_safe(self, input_prompt: str = "", gdrl_on_cpu=False) -> tuple[bool, str]:
         """Check if the input prompt is safe using the blocklist."""
         # Check if the input is empty
         if not input_prompt:

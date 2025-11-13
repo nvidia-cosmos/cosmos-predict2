@@ -42,16 +42,163 @@ class CausalConv3d(nn.Conv3d):
         super().__init__(*args, **kwargs)
         self._padding = (self.padding[2], self.padding[2], self.padding[1], self.padding[1], 2 * self.padding[0], 0)
         self.padding = (0, 0, 0)
+        self.useTiledConv3d = False
 
     def forward(self, x, cache_x=None):
-        padding = list(self._padding)
-        if cache_x is not None and self._padding[4] > 0:
-            cache_x = cache_x.to(x.device)
-            x = torch.cat([cache_x, x], dim=2)
-            padding[4] -= cache_x.shape[2]
-        x = F.pad(x, padding)
+        # The original CausalConv3d forward()
+        if not self.useTiledConv3d:
+            padding = list(self._padding)
+            if cache_x is not None and self._padding[4] > 0:
+                cache_x = cache_x.to(x.device)
+                x = torch.cat([cache_x, x], dim=2)
+                padding[4] -= cache_x.shape[2]
+            x = F.pad(x, padding)
 
-        return super().forward(x)
+            return super().forward(x)
+        # Patched CausalConv3d forward()
+        # 1. Calculate the number of patches such that each patchs is approx under 0.15 GB
+        # 2. Calculate output size, then get the partial output size using the number of patches
+        # 3. Get the input size for each partial output
+        # 4. Only run Conv3d for one patch at a time
+        # 5. Return the combined result on GPU
+        else:
+            padding = list(self._padding)
+            if cache_x is not None and self._padding[4] > 0:
+                cache_x = cache_x.to(x.device)
+                x = torch.cat([cache_x, x], dim=2)
+                padding[4] -= cache_x.shape[2]
+            x = F.pad(x, padding)
+
+            # Number of divisions along the input along xyz axes.
+            num_patches = [1, 1, 1]
+            # GB size of one patch
+            patch_memory = 0.15
+
+            # Input dimensions.
+            size_input = x.size()
+            d_in, h_in, w_in = (size_input[2], size_input[3], size_input[4])
+
+            # GB size of input
+            x_memory = x.element_size() * x.nelement() / 1024**3
+
+            approx_num_patches = x_memory // patch_memory
+
+            # Only run if more than 2 patches can be created
+            if approx_num_patches > 2:
+                temp_patch_memory = 100
+                while temp_patch_memory > patch_memory:
+                    if w_in // (num_patches[2] + 1) > 1:
+                        num_patches[2] += 1
+                    if h_in // (num_patches[1] + 1) > 1:
+                        num_patches[1] += 1
+                    if d_in // (num_patches[0] + 1) > 1:
+                        num_patches[0] += 1
+
+                    temp_patch_memory = x_memory / (num_patches[0] * num_patches[1] * num_patches[2])
+                    pass
+            else:
+                return super().forward(x)
+
+            x = x.to("cpu")
+
+            # Output dimensions.
+            d_out = (d_in + 2 * self.padding[0] - self.dilation[0] * (self.kernel_size[0] - 1) - 1) // self.stride[
+                0
+            ] + 1
+            h_out = (h_in + 2 * self.padding[1] - self.dilation[1] * (self.kernel_size[1] - 1) - 1) // self.stride[
+                1
+            ] + 1
+            w_out = (w_in + 2 * self.padding[2] - self.dilation[2] * (self.kernel_size[2] - 1) - 1) // self.stride[
+                2
+            ] + 1
+
+            # Partial output dimensions.
+            d_patches = [d_out // num_patches[0] for cnt in range(num_patches[0])]
+            h_patches = [h_out // num_patches[1] for cnt in range(num_patches[1])]
+            w_patches = [w_out // num_patches[2] for cnt in range(num_patches[2])]
+
+            d_patches[0] += d_out % num_patches[0]
+            h_patches[0] += h_out % num_patches[1]
+            w_patches[0] += w_out % num_patches[2]
+
+            # Output tensor.
+            outs = torch.zeros(
+                size_input[0], self.out_channels, d_out, h_out, w_out, dtype=torch.bfloat16, device="cpu"
+            )
+
+            # Loop along three axes.
+            d_start = 0
+            h_start = 0
+            w_start = 0
+            d_start2 = 0
+            h_start2 = 0
+            w_start2 = 0
+            for dim1 in range(num_patches[0]):
+                if d_patches[dim1] == 0:
+                    break
+                h_start = 0
+                h_start2 = 0
+                for dim2 in range(num_patches[1]):
+                    if h_patches[dim2] == 0:
+                        break
+                    w_start = 0
+                    w_start2 = 0
+                    for dim3 in range(num_patches[2]):
+                        if w_patches[dim3] == 0:
+                            break
+
+                        # Patch dimensions.
+                        d_patch = min(
+                            d_in,
+                            (d_patches[dim1] * self.stride[0] - 1)
+                            + 1
+                            + self.dilation[0] * (self.kernel_size[0] - 1)
+                            - 2 * self.padding[0],
+                        )
+                        h_patch = min(
+                            h_in,
+                            (h_patches[dim2] * self.stride[1] - 1)
+                            + 1
+                            + self.dilation[1] * (self.kernel_size[1] - 1)
+                            - 2 * self.padding[1],
+                        )
+                        w_patch = min(
+                            w_in,
+                            (w_patches[dim3] * self.stride[2] - 1)
+                            + 1
+                            + self.dilation[2] * (self.kernel_size[2] - 1)
+                            - 2 * self.padding[2],
+                        )
+
+                        # Slicing a patch out of input.
+                        x_patch = x[
+                            :, :, d_start : d_start + d_patch, h_start : h_start + h_patch, w_start : w_start + w_patch
+                        ]
+
+                        # Generate patched output.
+                        outs[
+                            :,
+                            :,
+                            d_start2 : d_start2 + d_patches[dim1],
+                            h_start2 : h_start2 + h_patches[dim2],
+                            w_start2 : w_start2 + w_patches[dim3],
+                        ] = self.mulret(x_patch)
+                        torch.cuda.empty_cache()
+
+                        w_start += self.stride[2] * w_patches[dim3]
+                        w_start2 += w_patches[dim3]
+                    h_start += self.stride[1] * h_patches[dim2]
+                    h_start2 += h_patches[dim2]
+                d_start += self.stride[0] * d_patches[dim1]
+                d_start2 += d_patches[dim1]
+
+            return outs.to("cuda")
+
+    # Returns a patch of the output.
+    def mulret(self, xpatch):
+        xpatchg = (xpatch).to("cuda")
+        opatch = super().forward(xpatchg)
+        return opatch.to("cpu")
 
 
 class RMS_norm(nn.Module):
@@ -159,6 +306,7 @@ class ResidualBlock(nn.Module):
         super().__init__()
         self.in_dim = in_dim
         self.out_dim = out_dim
+        self.cuda_empty_cache = False
 
         # layers
         self.residual = nn.Sequential(
@@ -186,8 +334,14 @@ class ResidualBlock(nn.Module):
                 x = layer(x, feat_cache[idx])
                 feat_cache[idx] = cache_x
                 feat_idx[0] += 1
+                # If wrappers are applied then clear cache.
+                if self.cuda_empty_cache:
+                    torch.cuda.empty_cache()
             else:
+                # If wrappers are applied then clear cache.
                 x = layer(x)
+                if self.cuda_empty_cache:
+                    torch.cuda.empty_cache()
         return x + h
 
 
@@ -248,6 +402,7 @@ class Encoder3d(nn.Module):
         self.num_res_blocks = num_res_blocks
         self.attn_scales = attn_scales
         self.temperal_downsample = temperal_downsample
+        self.cuda_empty_cache = False
 
         # dimensions
         dims = [dim * u for u in [1] + dim_mult]  # noqa: RUF005
@@ -295,6 +450,9 @@ class Encoder3d(nn.Module):
             feat_idx[0] += 1
         else:
             x = self.conv1(x)
+        # If cuda_empty_cache=True then clear cache.
+        if self.cuda_empty_cache:
+            torch.cuda.empty_cache()
 
         # downsamples
         for layer in self.downsamples:
@@ -302,6 +460,9 @@ class Encoder3d(nn.Module):
                 x = layer(x, feat_cache, feat_idx)
             else:
                 x = layer(x)
+            # If cuda_empty_cache=True then clear cache.
+            if self.cuda_empty_cache:
+                torch.cuda.empty_cache()
 
         # middle
         for layer in self.middle:
@@ -458,7 +619,13 @@ class VAE_(nn.Module):
         self.temporal_window = temporal_window
         # modules
         self.encoder = Encoder3d(
-            dim, z_dim * 2, dim_mult, num_res_blocks, attn_scales, self.temperal_downsample, dropout
+            dim,
+            z_dim * 2,
+            dim_mult,
+            num_res_blocks,
+            attn_scales,
+            self.temperal_downsample,
+            dropout,
         )
         self.conv1 = CausalConv3d(z_dim * 2, z_dim * 2, 1)
         self.conv2 = CausalConv3d(z_dim, z_dim, 1)
@@ -495,20 +662,44 @@ class VAE_(nn.Module):
             )
             out = torch.cat([out, out_], 2)
         mu, log_var = self.conv1(out).chunk(2, dim=1)
+        # aa edit
+        dev_temp = None
+        if mu.device != scale[0].device:
+            dev_temp = scale[0].device
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=mu.device)
+        # edit aa
         if isinstance(scale[0], torch.Tensor):
             mu = (mu - scale[0].view(1, self.z_dim, 1, 1, 1)) * scale[1].view(1, self.z_dim, 1, 1, 1)
         else:
             mu = (mu - scale[0]) * scale[1]
+        # aa edit
+        if dev_temp is not None:
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=dev_temp)
+        # edit aa
         self.clear_cache()
         return mu
 
     def decode(self, z, scale):
         self.clear_cache()
         # z: [b,c,t,h,w]
+        # aa edit
+        dev_temp = None
+        if z.device != scale[0].device:
+            dev_temp = scale[0].device
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=z.device)
+        # edit aa
         if isinstance(scale[0], torch.Tensor):
             z = z / scale[1].view(1, self.z_dim, 1, 1, 1) + scale[0].view(1, self.z_dim, 1, 1, 1)
         else:
             z = z / scale[1] + scale[0]
+        # aa edit
+        if dev_temp is not None:
+            for i in range(len(scale)):
+                scale[i] = scale[i].to(device=dev_temp)
+        # edit aa
         iter_ = z.shape[2]
         x = self.conv2(z)
         for i in range(iter_):
@@ -964,7 +1155,9 @@ class CosmosImageTokenizer(torch.nn.Module, VideoTokenizerInterface):
 
 
 class TokenizerInterface(VideoTokenizerInterface):
-    def __init__(self, chunk_duration: int = 81, load_mean_std=False, **kwargs):
+    def __init__(self, device="cuda", chunk_duration: int = 81, load_mean_std=False, **kwargs):
+        self.device = device
+        # Added attribute.
         self.model = VAE(
             dtype=torch.bfloat16,
             is_amp=False,
@@ -974,6 +1167,8 @@ class TokenizerInterface(VideoTokenizerInterface):
                 "",
             ),
             temporal_window=kwargs.get("temporal_window", 4),
+            # Set the device to cpu for tokenizer if cuda_empty_cache=True
+            device=self.device,
         )
         del kwargs
         self.chunk_duration = chunk_duration

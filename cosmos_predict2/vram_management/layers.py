@@ -120,8 +120,26 @@ def enable_vram_management_recursively(
     max_num_param=None,
     overflow_module_config: dict = None,  # noqa: RUF013
     total_num_param=0,
+    diffsynth_opts=None,
 ):
     for name, module in model.named_children():
+        if diffsynth_opts is not None and diffsynth_opts["cache"]:
+            # In tokenizer.py, in forward functions of these classes, clear cache
+            from cosmos_predict2.tokenizers.tokenizer import Encoder3d, ResidualBlock
+
+            if isinstance(module, ResidualBlock) or isinstance(module, Encoder3d):
+                module.cuda_empty_cache = True
+        if diffsynth_opts is not None and diffsynth_opts["dit_opt"]:
+            # These classes have certain attributess and methods that Diffsynth's offload/onload can't handle properly
+            # So, simply keep them on the GPU the entire time
+            from cosmos_predict2.models.text2image_dit import Attention, PatchEmbed, VideoRopePosition3DEmb
+
+            if (
+                isinstance(module, Attention)
+                or isinstance(module, PatchEmbed)
+                or isinstance(module, VideoRopePosition3DEmb)
+            ):
+                module.to(device="cuda")
         for source_module, target_module in module_map.items():
             if isinstance(module, source_module):
                 num_param = sum(p.numel() for p in module.parameters())
@@ -129,13 +147,36 @@ def enable_vram_management_recursively(
                     module_config_ = overflow_module_config
                 else:
                     module_config_ = module_config
+
+                # This import allows looking for CausalConv3d
+                # which allows setting the useTiledConv3d attribute
+                # (an addition to the class). If useTiledConv3d=True
+                # then patched CausalConv3d is run.
+                if diffsynth_opts is not None and diffsynth_opts["patchconv3d"]:
+                    from cosmos_predict2.tokenizers.tokenizer import CausalConv3d
+
+                    if isinstance(module, CausalConv3d):
+                        module.useTiledConv3d = True
                 module_ = target_module(module, **module_config_)
+                # Some computations in the Guardrail model access the weight attribute
+                # This will allow it to be accessed using the Wrapper class AutowrappedModule.weight
+                # module_ is the wrapper class, module_.module is the original class
+                if diffsynth_opts is not None and diffsynth_opts["video_gd_opt"]:
+                    if not isinstance(module_, AutoWrappedLinear) and hasattr(module_.module, "weight"):
+                        module_.weight = module_.module.weight.to("cuda")
                 setattr(model, name, module_)
+                getattr(model, name).to("cpu")
                 total_num_param += num_param
                 break
         else:
             total_num_param = enable_vram_management_recursively(
-                module, module_map, module_config, max_num_param, overflow_module_config, total_num_param
+                module,
+                module_map,
+                module_config,
+                max_num_param,
+                overflow_module_config,
+                total_num_param,
+                diffsynth_opts=diffsynth_opts,
             )
     return total_num_param
 
@@ -146,8 +187,26 @@ def enable_vram_management(
     module_config: dict,
     max_num_param=None,
     overflow_module_config: dict = None,  # noqa: RUF013
+    vramBudgetControlsDict=None,
 ):
-    enable_vram_management_recursively(
-        model, module_map, module_config, max_num_param, overflow_module_config, total_num_param=0
-    )
+    if vramBudgetControlsDict is not None:
+        enable_vram_management_recursively(
+            model,
+            module_map,
+            module_config,
+            max_num_param,
+            overflow_module_config,
+            total_num_param=0,
+            diffsynth_opts=vramBudgetControlsDict["diffsynth_opts"],
+        )
+    else:
+        enable_vram_management_recursively(
+            model,
+            module_map,
+            module_config,
+            max_num_param,
+            overflow_module_config,
+            total_num_param=0,
+            diffsynth_opts=None,
+        )
     model.vram_management_enabled = True

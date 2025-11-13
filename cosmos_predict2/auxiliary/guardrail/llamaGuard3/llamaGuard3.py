@@ -79,12 +79,13 @@ class LlamaGuard3(ContentSafetyGuardrail):
             log.warning(f"Unable to extract blocked category from Llama Guard 3 output: {e}")
         return block_msg
 
-    def filter_llamaGuard3_output(self, prompt: str) -> tuple[bool, str]:
+    def filter_llamaGuard3_output(self, prompt: str, gdrl_on_cpu=False) -> tuple[bool, str]:
         """Filter the Llama Guard 3 model output and return the safety status and message."""
         conversation = [{"role": "user", "content": prompt}]
         if self.offload_model:
-            self.model = self.model.to("cuda")
-            log.debug("Move llamaGuard3 model to GPU")
+            if not gdrl_on_cpu:  # Load on CPU
+                self.model = self.model.to("cuda")
+                log.debug("Move llamaGuard3 model to GPU")
         input_ids = self.tokenizer.apply_chat_template(
             conversation, categories=UNSAFE_CATEGORIES, return_tensors="pt"
         ).to("cuda")
@@ -106,10 +107,10 @@ class LlamaGuard3(ContentSafetyGuardrail):
         else:
             return True, ""
 
-    def is_safe(self, prompt: str) -> tuple[bool, str]:
+    def is_safe(self, prompt: str, gdrl_on_cpu=False) -> tuple[bool, str]:
         """Check if the input prompt is safe according to the Llama Guard 3 model."""
         try:
-            return self.filter_llamaGuard3_output(prompt)
+            return self.filter_llamaGuard3_output(prompt, gdrl_on_cpu=gdrl_on_cpu)
         except Exception as e:
             log.error(f"Unexpected error occurred when running Llama Guard 3 guardrail: {e}")
             return True, "Unexpected error occurred when running Llama Guard 3 guardrail."
