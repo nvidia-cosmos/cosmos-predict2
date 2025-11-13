@@ -41,12 +41,7 @@ CLASS_IDX_TO_NAME = {
 
 
 class VideoContentSafetyFilter(ContentSafetyGuardrail):
-    def __init__(
-        self,
-        checkpoint_dir: str,
-        offload_model_to_cpu: bool = True,
-        gdrl_on_cpu = False
-    ) -> None:
+    def __init__(self, checkpoint_dir: str, offload_model_to_cpu: bool = True, gdrl_on_cpu=False) -> None:
         """Video content safety filter model.
 
         Args:
@@ -67,12 +62,17 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         checkpoint = torch.load(safety_filter_local_path, map_location=torch.device("cpu"), weights_only=True)
         self.model.load_state_dict(checkpoint["model"])
         if gdrl_on_cpu:
-            encoderdevice = 'cpu'   # Load the encoder on CPU
+            encoderdevice = "cpu"  # Load the encoder on CPU
             self.mod_enc_device = True  # Flag that tracks whether DiffSynth is being used
         else:
-            encoderdevice = 'cuda'
+            encoderdevice = "cuda"
             self.mod_enc_device = False
-        self.encoder = SigLIPEncoder(checkpoint_dir=self.checkpoint_dir, device=encoderdevice, dtype=self.dtype, mod_enc_device=self.mod_enc_device)
+        self.encoder = SigLIPEncoder(
+            checkpoint_dir=self.checkpoint_dir,
+            device=encoderdevice,
+            dtype=self.dtype,
+            mod_enc_device=self.mod_enc_device,
+        )
         if offload_model_to_cpu:
             self.encoder.to("cpu")
             self.model = self.model.to("cpu", dtype=self.dtype).eval()
@@ -115,7 +115,7 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         is_safe = True
         frame_scores = []
 
-        if not gdrl_on_cpu: # Keep the model on CPU
+        if not gdrl_on_cpu:  # Keep the model on CPU
             self._to_cuda_if_offload()
         for frame_number in frame_numbers:
             try:
@@ -152,7 +152,7 @@ class VideoContentSafetyFilter(ContentSafetyGuardrail):
         is_safe = True
         frame_scores = []
 
-        if not gdrl_on_cpu: # Keep on CPU
+        if not gdrl_on_cpu:  # Keep on CPU
             self._to_cuda_if_offload()
         for frame_number, frame in enumerate(frames):
             try:

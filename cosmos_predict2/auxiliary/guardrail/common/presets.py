@@ -35,11 +35,17 @@ def create_text_guardrail_runner(checkpoint_dir: str, offload_model_to_cpu: bool
     )
 
 
-def create_video_guardrail_runner(checkpoint_dir: str, offload_model_to_cpu: bool, vramBudgetControlsDict=None) -> GuardrailRunner:
+def create_video_guardrail_runner(
+    checkpoint_dir: str, offload_model_to_cpu: bool, vramBudgetControlsDict=None
+) -> GuardrailRunner:
     """Create the video guardrail runner."""
     return GuardrailRunner(
         safety_models=[
-            VideoContentSafetyFilter(checkpoint_dir=checkpoint_dir, offload_model_to_cpu=offload_model_to_cpu, gdrl_on_cpu=vramBudgetControlsDict['gdrl_on_cpu'])
+            VideoContentSafetyFilter(
+                checkpoint_dir=checkpoint_dir,
+                offload_model_to_cpu=offload_model_to_cpu,
+                gdrl_on_cpu=vramBudgetControlsDict["gdrl_on_cpu"],
+            )
         ],
         postprocessors=[RetinaFaceFilter(checkpoint_dir=checkpoint_dir, offload_model_to_cpu=offload_model_to_cpu)],
     )
@@ -55,13 +61,15 @@ def run_text_guardrail(prompt: str, guardrail_runner: GuardrailRunner, vramBudge
     Returns:
         bool: Whether the prompt is safe.
     """
-    is_safe, message = guardrail_runner.run_safety_check(prompt, gdrl_on_cpu=vramBudgetControlsDict['gdrl_on_cpu'])
+    is_safe, message = guardrail_runner.run_safety_check(prompt, gdrl_on_cpu=vramBudgetControlsDict["gdrl_on_cpu"])
     if not is_safe:
         log.critical(f"GUARDRAIL BLOCKED: {message}")
     return is_safe
 
 
-def run_video_guardrail(frames: np.ndarray, guardrail_runner: GuardrailRunner, vramBudgetControlsDict=None) -> np.ndarray | None:
+def run_video_guardrail(
+    frames: np.ndarray, guardrail_runner: GuardrailRunner, vramBudgetControlsDict=None
+) -> np.ndarray | None:
     """Run the video guardrail on the frames, checking for content safety and applying face blur.
 
     Args:
@@ -71,7 +79,7 @@ def run_video_guardrail(frames: np.ndarray, guardrail_runner: GuardrailRunner, v
     Returns:
         The processed frames if safe, otherwise None.
     """
-    is_safe, message = guardrail_runner.run_safety_check(frames, gdrl_on_cpu=vramBudgetControlsDict['gdrl_on_cpu'])
+    is_safe, message = guardrail_runner.run_safety_check(frames, gdrl_on_cpu=vramBudgetControlsDict["gdrl_on_cpu"])
     if not is_safe:
         log.critical(f"GUARDRAIL BLOCKED: {message}")
         return None

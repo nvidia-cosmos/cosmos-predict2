@@ -83,7 +83,7 @@ class LlamaGuard3(ContentSafetyGuardrail):
         """Filter the Llama Guard 3 model output and return the safety status and message."""
         conversation = [{"role": "user", "content": prompt}]
         if self.offload_model:
-            if not gdrl_on_cpu: # Load on CPU
+            if not gdrl_on_cpu:  # Load on CPU
                 self.model = self.model.to("cuda")
                 log.debug("Move llamaGuard3 model to GPU")
         input_ids = self.tokenizer.apply_chat_template(

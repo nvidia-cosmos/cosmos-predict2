@@ -274,7 +274,7 @@ def setup_pipeline(args: argparse.Namespace, text_encoder: CosmosTextEncoder | N
         torch_dtype=torch.bfloat16,
         load_ema_to_reg=args.load_ema,
         load_prompt_refiner=True,
-        vramBudgetInGB=args.vramBudgetInGB
+        vramBudgetInGB=args.vramBudgetInGB,
     )
 
     # Set the provided text encoder if one was passed

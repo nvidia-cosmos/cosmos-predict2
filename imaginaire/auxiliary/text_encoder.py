@@ -328,7 +328,7 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
         config: CosmosT5TextEncoderConfig,
         device: str = "cuda",
         torch_dtype: torch.dtype | None = None,
-        low_vram_mode=False
+        low_vram_mode=False,
     ):
         """Initializes the T5 tokenizer and encoder.
 
@@ -369,16 +369,16 @@ class CosmosT5TextEncoder(CosmosTextEncoderBase):
             return_length=True,
             return_offsets_mapping=False,
         )
-        
+
         # If low_vram_mode=True then to avoid different
         # devices, set it for input_ids and attn_mask
-        
+
         if not self.low_vram_mode:
             input_ids = batch_encoding.input_ids.to(self.device)
             attn_mask = batch_encoding.attention_mask.to(self.device)
         else:
-            input_ids = batch_encoding.input_ids.to('cuda')
-            attn_mask = batch_encoding.attention_mask.to('cuda')
+            input_ids = batch_encoding.input_ids.to("cuda")
+            attn_mask = batch_encoding.attention_mask.to("cuda")
 
         outputs = self.text_encoder(input_ids=input_ids, attention_mask=attn_mask)
 
@@ -415,7 +415,10 @@ CosmosTextEncoder: TypeAlias = CosmosReason1TextEncoder | CosmosT5TextEncoder
 
 
 def get_cosmos_text_encoder(
-    config: CosmosTextEncoderConfig, device: str = "cuda", torch_dtype: torch.dtype | None = None, vramBudgetControlsDict = None
+    config: CosmosTextEncoderConfig,
+    device: str = "cuda",
+    torch_dtype: torch.dtype | None = None,
+    vramBudgetControlsDict=None,
 ) -> CosmosTextEncoder | None:
     """Create a text encoder from a config.
 
@@ -435,6 +438,11 @@ def get_cosmos_text_encoder(
     elif config.cls == TextEncoderClass.T5:
         if not config.t5.ckpt_path:
             return None
-        return CosmosT5TextEncoder(config=config.t5, device=device, torch_dtype=torch_dtype, low_vram_mode=vramBudgetControlsDict['text_encoder_vram_opt'])
+        return CosmosT5TextEncoder(
+            config=config.t5,
+            device=device,
+            torch_dtype=torch_dtype,
+            low_vram_mode=vramBudgetControlsDict["text_encoder_vram_opt"],
+        )
     else:
         raise ValueError(f"Invalid text encoder config type: {config.cls}")
